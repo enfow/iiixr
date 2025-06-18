@@ -1,8 +1,11 @@
 import os
+
+import numpy as np
 import torch
 import torch.optim as optim
-import numpy as np
+
 from model.ppo import Actor, Critic, PPOMemory
+
 
 class PPOTrainer:
     def __init__(self, env, config, save_dir="results/ppo"):
@@ -11,10 +14,19 @@ class PPOTrainer:
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.actor = Actor(env.observation_space.shape[0], env.action_space.n, config.get("hidden_dim", 64)).to(self.device)
-        self.critic = Critic(env.observation_space.shape[0], config.get("hidden_dim", 64)).to(self.device)
+        self.actor = Actor(
+            env.observation_space.shape[0],
+            env.action_space.n,
+            config.get("hidden_dim", 64),
+        ).to(self.device)
+        self.critic = Critic(
+            env.observation_space.shape[0], config.get("hidden_dim", 64)
+        ).to(self.device)
         self.memory = PPOMemory()
-        self.optimizer = optim.Adam(list(self.actor.parameters()) + list(self.critic.parameters()), lr=config.get("lr", 3e-4))
+        self.optimizer = optim.Adam(
+            list(self.actor.parameters()) + list(self.critic.parameters()),
+            lr=config.get("lr", 3e-4),
+        )
         self.best_score = -np.inf
         self.scores = []
         self.losses = []
@@ -25,6 +37,7 @@ class PPOTrainer:
         self.config_file = os.path.join(self.save_dir, "config.json")
         with open(self.config_file, "w") as f:
             import json
+
             json.dump(config, f, indent=2)
 
     def select_action(self, state):
@@ -49,7 +62,11 @@ class PPOTrainer:
         states = torch.FloatTensor(np.array(self.memory.states)).to(self.device)
         actions = torch.LongTensor(self.memory.actions).to(self.device)
         old_logprobs = torch.FloatTensor(self.memory.logprobs).to(self.device)
-        returns = torch.FloatTensor(self.compute_returns(self.memory.rewards, self.memory.dones, self.config.get("gamma", 0.99))).to(self.device)
+        returns = torch.FloatTensor(
+            self.compute_returns(
+                self.memory.rewards, self.memory.dones, self.config.get("gamma", 0.99)
+            )
+        ).to(self.device)
         advantages = returns - self.critic(states).squeeze().detach()
         for _ in range(self.config.get("ppo_epochs", 4)):
             probs = self.actor(states)
@@ -57,9 +74,18 @@ class PPOTrainer:
             logprobs = dist.log_prob(actions)
             ratio = torch.exp(logprobs - old_logprobs)
             surr1 = ratio * advantages
-            surr2 = torch.clamp(ratio, 1 - self.config.get("clip_eps", 0.2), 1 + self.config.get("clip_eps", 0.2)) * advantages
+            surr2 = (
+                torch.clamp(
+                    ratio,
+                    1 - self.config.get("clip_eps", 0.2),
+                    1 + self.config.get("clip_eps", 0.2),
+                )
+                * advantages
+            )
             actor_loss = -torch.min(surr1, surr2).mean()
-            critic_loss = torch.nn.functional.mse_loss(self.critic(states).squeeze(), returns)
+            critic_loss = torch.nn.functional.mse_loss(
+                self.critic(states).squeeze(), returns
+            )
             loss = actor_loss + 0.5 * critic_loss
             self.optimizer.zero_grad()
             loss.backward()
@@ -90,16 +116,25 @@ class PPOTrainer:
             # Save best model
             if total_reward > self.best_score:
                 self.best_score = total_reward
-                torch.save({
-                    'actor': self.actor.state_dict(),
-                    'critic': self.critic.state_dict()
-                }, self.model_file)
+                torch.save(
+                    {
+                        "actor": self.actor.state_dict(),
+                        "critic": self.critic.state_dict(),
+                    },
+                    self.model_file,
+                )
             # Log metrics
             with open(self.log_file, "a") as f:
                 import json
-                f.write(json.dumps({
-                    "episode": ep+1,
-                    "return": float(total_reward),
-                    "loss": float(avg_loss)
-                }) + "\n")
-            print(f"Episode {ep+1}: Return={total_reward:.2f}, Loss={avg_loss:.4f}") 
+
+                f.write(
+                    json.dumps(
+                        {
+                            "episode": ep + 1,
+                            "return": float(total_reward),
+                            "loss": float(avg_loss),
+                        }
+                    )
+                    + "\n"
+                )
+            print(f"Episode {ep + 1}: Return={total_reward:.2f}, Loss={avg_loss:.4f}")

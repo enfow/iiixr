@@ -1,9 +1,11 @@
+import random
+from collections import deque
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-import random
-from collections import deque
+
 
 class GaussianPolicy(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=256, is_discrete=False):
@@ -17,7 +19,7 @@ class GaussianPolicy(nn.Module):
         else:
             self.mean = nn.Linear(hidden_dim, action_dim)
             self.log_std = nn.Linear(hidden_dim, action_dim)
-    
+
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
@@ -28,7 +30,7 @@ class GaussianPolicy(nn.Module):
             log_std = self.log_std(x)
             log_std = torch.clamp(log_std, -20, 2)
             return mean, log_std
-    
+
     def sample(self, x):
         if self.is_discrete:
             probs = self.forward(x)
@@ -50,31 +52,37 @@ class GaussianPolicy(nn.Module):
                 log_prob = log_prob.sum(1, keepdim=True)
             return action, log_prob, mean
 
+
 class QNetwork(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=256):
         super().__init__()
         self.fc1 = nn.Linear(state_dim + action_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
         self.fc3 = nn.Linear(hidden_dim, 1)
+
     def forward(self, state, action):
         x = torch.cat([state, action], dim=1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
 
+
 class ReplayBuffer:
     def __init__(self, capacity):
         self.capacity = capacity
         self.buffer = []
         self.position = 0
+
     def push(self, state, action, reward, next_state, done):
         if len(self.buffer) < self.capacity:
             self.buffer.append(None)
         self.buffer[self.position] = (state, action, reward, next_state, done)
         self.position = (self.position + 1) % self.capacity
+
     def sample(self, batch_size):
         batch = random.sample(self.buffer, batch_size)
         state, action, reward, next_state, done = map(np.stack, zip(*batch))
         return state, action, reward, next_state, done
+
     def __len__(self):
-        return len(self.buffer) 
+        return len(self.buffer)
