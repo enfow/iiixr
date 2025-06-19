@@ -78,50 +78,51 @@ clean:
 # Training targets
 train-ppo:
 	$(PYTHON) $(SRC_DIR)/train.py \
-		--algorithm ppo \
+		--model ppo \
 		--env $(ENV) \
-		--n_episodes $(N_EPISODES) \
+		--episodes $(N_EPISODES) \
 		--max_steps $(MAX_STEPS) \
-		--results_dir $(RESULTS_DIR) \
-		--learning_rate $(LEARNING_RATE) \
+		--save_dir $(RESULTS_DIR) \
+		--lr $(LEARNING_RATE) \
 		--batch_size $(BATCH_SIZE) \
-		--gamma $(GAMMA) \
-		--log_interval $(LOG_INTERVAL) \
-		--clip_ratio $(CLIP_RATIO) \
-		--gae_lambda $(GAE_LAMBDA) \
-		--policy_epochs $(POLICY_EPOCHS)
+		--gamma $(GAMMA)
 
 train-sac:
 	$(PYTHON) $(SRC_DIR)/train.py \
-		--algorithm sac \
+		--model sac \
 		--env $(ENV) \
-		--n_episodes $(N_EPISODES) \
+		--episodes $(N_EPISODES) \
 		--max_steps $(MAX_STEPS) \
-		--results_dir $(RESULTS_DIR) \
-		--learning_rate $(LEARNING_RATE) \
+		--save_dir $(RESULTS_DIR) \
+		--lr $(LEARNING_RATE) \
 		--batch_size $(BATCH_SIZE) \
 		--gamma $(GAMMA) \
-		--log_interval $(LOG_INTERVAL) \
-		--alpha $(ALPHA) \
-		--target_update_interval $(TARGET_UPDATE_INTERVAL) \
-		--automatic_entropy_tuning $(AUTO_ENTROPY)
+		--target_update $(TARGET_UPDATE_INTERVAL)
+
+train-discrete-sac:
+	$(PYTHON) $(SRC_DIR)/train.py \
+		--model discrete_sac \
+		--env $(ENV) \
+		--episodes $(N_EPISODES) \
+		--max_steps $(MAX_STEPS) \
+		--save_dir $(RESULTS_DIR) \
+		--lr $(LEARNING_RATE) \
+		--batch_size $(BATCH_SIZE) \
+		--gamma $(GAMMA) \
+		--target_update $(TARGET_UPDATE_INTERVAL)
 
 train-rainbow:
 	$(PYTHON) $(SRC_DIR)/train.py \
-		--algorithm rainbow_dqn \
+		--model rainbow_dqn \
 		--env $(ENV) \
-		--n_episodes $(N_EPISODES) \
+		--episodes $(N_EPISODES) \
 		--max_steps $(MAX_STEPS) \
-		--results_dir $(RESULTS_DIR) \
-		--learning_rate $(LEARNING_RATE) \
+		--save_dir $(RESULTS_DIR) \
+		--lr $(LEARNING_RATE) \
 		--batch_size $(BATCH_SIZE) \
 		--gamma $(GAMMA) \
-		--log_interval $(LOG_INTERVAL) \
-		--n_atoms $(N_ATOMS) \
-		--v_min $(V_MIN) \
-		--v_max $(V_MAX) \
-		--n_step $(N_STEP) \
-		--memory_size $(MEMORY_SIZE)
+		--buffer_size $(MEMORY_SIZE) \
+		--target_update $(TARGET_UPDATE_INTERVAL)
 
 # Train all algorithms sequentially
 train-all: train-ppo train-sac train-rainbow

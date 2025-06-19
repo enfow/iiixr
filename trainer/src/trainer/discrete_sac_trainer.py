@@ -1,27 +1,35 @@
-import gymnasium as gym
+"""
+Discrete SAC implementation
+- Ref: https://arxiv.org/pdf/1910.07207
+"""
+
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
 from model.buffer import ReplayBuffer
-from model.sac import SACPolicy, SACQNetwork
+from model.discrete_sac import DiscreteSACQNetwork
+from model.sac import SACPolicy
 from trainer.base_trainer import BaseTrainer
 
 
-class SACTrainer(BaseTrainer):
-    def __init__(self, env, config, save_dir="results/sac"):
+class DiscreteSACTrainer(BaseTrainer):
+    def __init__(self, env, config, save_dir="results/discrete_sac"):
         super().__init__(env, config, save_dir)
 
     def _init_models(self, config):
         self.actor = SACPolicy(self.state_dim, self.action_dim).to(self.device)
-        self.critic1 = SACQNetwork(self.state_dim, self.action_dim).to(self.device)
-        self.critic2 = SACQNetwork(self.state_dim, self.action_dim).to(self.device)
-        self.target_critic1 = SACQNetwork(self.state_dim, self.action_dim).to(
+        self.critic1 = DiscreteSACQNetwork(self.state_dim, self.action_dim).to(
             self.device
         )
-        self.target_critic2 = SACQNetwork(self.state_dim, self.action_dim).to(
+        self.critic2 = DiscreteSACQNetwork(self.state_dim, self.action_dim).to(
+            self.device
+        )
+        self.target_critic1 = DiscreteSACQNetwork(self.state_dim, self.action_dim).to(
+            self.device
+        )
+        self.target_critic2 = DiscreteSACQNetwork(self.state_dim, self.action_dim).to(
             self.device
         )
         self.target_critic1.load_state_dict(self.critic1.state_dict())
@@ -51,15 +59,10 @@ class SACTrainer(BaseTrainer):
     def select_action(self, state):
         state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
         with torch.no_grad():
-            if self.is_discrete:
-                logits = self.actor(state)
-                probs = F.softmax(logits, dim=-1)
-                action = torch.distributions.Categorical(probs).sample()
-                return action.item()
-            else:
-                mean = self.actor(state)
-                action = torch.tanh(mean)
-                return action.squeeze(0).cpu().numpy()
+            logits = self.actor(state)
+            probs = F.softmax(logits, dim=-1)
+            action = torch.distributions.Categorical(probs).sample()
+            return action.item()
 
     def update(self, batch_size):
         if len(self.buffer) < batch_size:
@@ -68,54 +71,29 @@ class SACTrainer(BaseTrainer):
         state, action, reward, next_state, done = self.buffer.sample(batch_size)
         state = torch.FloatTensor(state).to(self.device)
         next_state = torch.FloatTensor(next_state).to(self.device)
-        action = (
-            torch.FloatTensor(action).to(self.device)
-            if not self.is_discrete
-            else torch.LongTensor(action).to(self.device)
-        )
+        action = torch.LongTensor(action).to(self.device)
         reward = torch.FloatTensor(reward).unsqueeze(1).to(self.device)
         done = torch.FloatTensor(done).unsqueeze(1).to(self.device)
 
-        if self.is_discrete:
-            action = F.one_hot(action, self.action_dim).float().to(self.device)
-        else:
-            action = torch.FloatTensor(action).to(self.device)
-
+        # Target Q
         with torch.no_grad():
             next_logits = self.actor(next_state)
             next_probs = F.softmax(next_logits, dim=-1)
             next_log_probs = F.log_softmax(next_logits, dim=-1)
-
-            all_actions = torch.eye(self.action_dim).to(self.device)
-            next_q1 = torch.stack(
-                [
-                    self.target_critic1(
-                        next_state, all_actions[i].expand(next_state.size(0), -1)
-                    )
-                    for i in range(self.action_dim)
-                ],
-                dim=1,
-            ).squeeze(-1)
-            next_q2 = torch.stack(
-                [
-                    self.target_critic2(
-                        next_state, all_actions[i].expand(next_state.size(0), -1)
-                    )
-                    for i in range(self.action_dim)
-                ],
-                dim=1,
-            ).squeeze(-1)
-            target_q = torch.min(next_q1, next_q2)
+            target_q1 = self.target_critic1(next_state)
+            target_q2 = self.target_critic2(next_state)
+            target_q = torch.min(target_q1, target_q2)
             next_v = (next_probs * (target_q - self.alpha * next_log_probs)).sum(
                 dim=1, keepdim=True
             )
             target = reward + (1 - done) * self.gamma * next_v
 
-        current_q1 = self.critic1(state, action)
-        current_q2 = self.critic2(state, action)
-        
-        critic1_loss = F.mse_loss(current_q1, target)
-        critic2_loss = F.mse_loss(current_q2, target)
+        # Current Q
+        q1 = self.critic1(state).gather(1, action.unsqueeze(1))
+        q2 = self.critic2(state).gather(1, action.unsqueeze(1))
+
+        critic1_loss = F.mse_loss(q1, target)
+        critic2_loss = F.mse_loss(q2, target)
 
         self.critic1_optimizer.zero_grad()
         critic1_loss.backward()
@@ -125,35 +103,23 @@ class SACTrainer(BaseTrainer):
         critic2_loss.backward()
         self.critic2_optimizer.step()
 
+        # Actor update
         logits = self.actor(state)
         probs = F.softmax(logits, dim=-1)
         log_probs = F.log_softmax(logits, dim=-1)
-
-        all_actions = torch.eye(self.action_dim).to(self.device)
-        q1_pi = torch.stack(
-            [
-                self.critic1(state, all_actions[i].expand(state.size(0), -1))
-                for i in range(self.action_dim)
-            ],
-            dim=1,
-        ).squeeze(-1)
-        q2_pi = torch.stack(
-            [
-                self.critic2(state, all_actions[i].expand(state.size(0), -1))
-                for i in range(self.action_dim)
-            ],
-            dim=1,
-        ).squeeze(-1)
-        min_q_pi = torch.min(q1_pi, q2_pi)
+        q1_all = self.critic1(state)
+        q2_all = self.critic2(state)
+        min_q = torch.min(q1_all, q2_all)
 
         actor_loss = (
-            (probs * (self.alpha.detach() * log_probs - min_q_pi)).sum(dim=1).mean()
+            (probs * (self.alpha.detach() * log_probs - min_q)).sum(dim=1).mean()
         )
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
 
+        # Alpha loss
         entropy = -(probs * log_probs).sum(dim=1, keepdim=True)
         alpha_loss = -(self.log_alpha * (entropy - self.target_entropy).detach()).mean()
 
@@ -163,6 +129,7 @@ class SACTrainer(BaseTrainer):
 
         self.alpha = self.log_alpha.exp()
 
+        # Soft updates
         for param, target_param in zip(
             self.critic1.parameters(), self.target_critic1.parameters()
         ):
@@ -177,9 +144,8 @@ class SACTrainer(BaseTrainer):
             )
 
     def train(self, episodes, max_steps):
+        start_steps = self.config.get("start_steps", 10000)
         batch_size = self.config.get("batch_size", 256)
-        start_steps = self.config.get("start_steps", 1000)
-
         total_steps = 0
         for ep in range(episodes):
             state, _ = self.env.reset()
@@ -204,17 +170,3 @@ class SACTrainer(BaseTrainer):
             print(
                 f"Episode {ep + 1}, Reward: {episode_reward:.2f}, Alpha: {self.alpha.item():.4f}"
             )
-
-
-if __name__ == "__main__":
-    env = gym.make("LunarLander-v3")
-    env = gym.make("BipedalWalker-v3")
-    config = {
-        "lr": 3e-4,
-        "gamma": 0.99,
-        "tau": 0.005,
-        "buffer_size": 100000,
-        "entropy_coef": 0.98,
-    }
-    sac = SACTrainer(env, config)
-    sac.train(episodes=500, max_steps=1000, batch_size=256)
