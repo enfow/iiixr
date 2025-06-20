@@ -48,6 +48,9 @@ format:
 docker-build:
 	docker build -t $(DOCKER_IMAGE_NAME) -f docker/Dockerfile .
 
+docker-build-gpu:
+	docker build -t $(DOCKER_IMAGE_NAME) -f docker/Dockerfile.gpu .
+
 docker-run:
 	docker run -it --rm \
 		--name $(DOCKER_CONTAINER_NAME) \
