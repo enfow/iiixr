@@ -3,6 +3,8 @@ Discrete SAC implementation
 - Ref: https://arxiv.org/pdf/1910.07207
 """
 
+from dataclasses import dataclass
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -11,14 +13,23 @@ import torch.optim as optim
 from model.buffer import ReplayBuffer
 from model.discrete_sac import DiscreteSACQNetwork
 from model.sac import SACPolicy
-from trainer.base_trainer import BaseTrainer
+from trainer.base_trainer import BaseConfig, BaseTrainer
+
+
+@dataclass
+class DiscreteSACConfig(BaseConfig):
+    gamma: float = 0.99
+    tau: float = 0.005
+    entropy_coef: float = 1.0
+    start_steps: int = 1000
 
 
 class DiscreteSACTrainer(BaseTrainer):
     def __init__(self, env, config, save_dir="results/discrete_sac"):
+        config = DiscreteSACConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 
-    def _init_models(self, config):
+    def _init_models(self):
         self.actor = SACPolicy(self.state_dim, self.action_dim).to(self.device)
         self.critic1 = DiscreteSACQNetwork(self.state_dim, self.action_dim).to(
             self.device
@@ -35,25 +46,19 @@ class DiscreteSACTrainer(BaseTrainer):
         self.target_critic1.load_state_dict(self.critic1.state_dict())
         self.target_critic2.load_state_dict(self.critic2.state_dict())
 
-        self.buffer = ReplayBuffer(config.get("buffer_size", 100_000))
+        self.buffer = ReplayBuffer(self.config.buffer_size)
 
-        self.actor_optimizer = optim.Adam(
-            self.actor.parameters(), lr=config.get("lr", 3e-4)
-        )
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
         self.critic1_optimizer = optim.Adam(
-            self.critic1.parameters(), lr=config.get("lr", 3e-4)
+            self.critic1.parameters(), lr=self.config.lr
         )
         self.critic2_optimizer = optim.Adam(
-            self.critic2.parameters(), lr=config.get("lr", 3e-4)
+            self.critic2.parameters(), lr=self.config.lr
         )
 
-        self.gamma = config.get("gamma", 0.99)
-        self.tau = config.get("tau", 0.005)
-        self.target_entropy = -np.log(1.0 / self.action_dim) * config.get(
-            "entropy_coef", 1.0
-        )
+        self.target_entropy = -np.log(1.0 / self.action_dim) * self.config.entropy_coef
         self.log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
-        self.alpha_optimizer = optim.Adam([self.log_alpha], lr=config.get("lr", 3e-4))
+        self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.config.lr)
         self.alpha = self.log_alpha.exp()
 
     def select_action(self, state):
@@ -64,11 +69,13 @@ class DiscreteSACTrainer(BaseTrainer):
             action = torch.distributions.Categorical(probs).sample()
             return action.item()
 
-    def update(self, batch_size):
-        if len(self.buffer) < batch_size:
+    def update(self):
+        if len(self.buffer) < self.config.batch_size:
             return
 
-        state, action, reward, next_state, done = self.buffer.sample(batch_size)
+        state, action, reward, next_state, done = self.buffer.sample(
+            self.config.batch_size
+        )
         state = torch.FloatTensor(state).to(self.device)
         next_state = torch.FloatTensor(next_state).to(self.device)
         action = torch.LongTensor(action).to(self.device)
@@ -86,7 +93,7 @@ class DiscreteSACTrainer(BaseTrainer):
             next_v = (next_probs * (target_q - self.alpha * next_log_probs)).sum(
                 dim=1, keepdim=True
             )
-            target = reward + (1 - done) * self.gamma * next_v
+            target = reward + (1 - done) * self.config.gamma * next_v
 
         # Current Q
         q1 = self.critic1(state).gather(1, action.unsqueeze(1))
@@ -134,24 +141,30 @@ class DiscreteSACTrainer(BaseTrainer):
             self.critic1.parameters(), self.target_critic1.parameters()
         ):
             target_param.data.copy_(
-                self.tau * param.data + (1 - self.tau) * target_param.data
+                self.config.tau * param.data + (1 - self.config.tau) * target_param.data
             )
         for param, target_param in zip(
             self.critic2.parameters(), self.target_critic2.parameters()
         ):
             target_param.data.copy_(
-                self.tau * param.data + (1 - self.tau) * target_param.data
+                self.config.tau * param.data + (1 - self.config.tau) * target_param.data
             )
 
+        self.episode_losses.append(
+            actor_loss.item()
+            + critic1_loss.item()
+            + critic2_loss.item()
+            + alpha_loss.item()
+        )
+
     def train(self, episodes, max_steps):
-        start_steps = self.config.get("start_steps", 10000)
-        batch_size = self.config.get("batch_size", 256)
         total_steps = 0
         for ep in range(episodes):
             state, _ = self.env.reset()
-            episode_reward = 0
+            total_reward = 0
+            self.episode_losses = []
             for step in range(max_steps):
-                if total_steps < start_steps:
+                if total_steps < self.config.start_steps:
                     action = self.env.action_space.sample()
                 else:
                     action = self.select_action(state)
@@ -159,14 +172,24 @@ class DiscreteSACTrainer(BaseTrainer):
                 done = terminated or truncated
                 self.buffer.push(state, action, reward, next_state, done)
                 state = next_state
-                episode_reward += reward
+                total_reward += reward
                 total_steps += 1
 
-                self.update(batch_size)
+                self.update()
 
                 if done:
                     break
-
-            print(
-                f"Episode {ep + 1}, Reward: {episode_reward:.2f}, Alpha: {self.alpha.item():.4f}"
-            )
+            avg_loss = np.mean(self.episode_losses) if self.episode_losses else 0.0
+            self.scores.append(total_reward)
+            self.losses.append(avg_loss)
+            # Save best model
+            if total_reward > self.best_score:
+                self.best_score = total_reward
+                torch.save(
+                    {
+                        "actor": self.actor.state_dict(),
+                        "critic": self.critic1.state_dict(),
+                    },
+                    self.model_file,
+                )
+            self._log_metrics()

@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -28,31 +27,3 @@ class Critic(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
-
-
-class PPOMemory:
-    def __init__(self):
-        self.states = []
-        self.actions = []
-        self.logprobs = []
-        self.rewards = []
-        self.dones = []
-
-    def store(self, state, action, logprob, reward, done):
-        self.states.append(state)
-        self.actions.append(action)
-        self.logprobs.append(logprob)
-        self.rewards.append(reward)
-        self.dones.append(done)
-
-    def clear(self):
-        self.states, self.actions, self.logprobs, self.rewards, self.dones = (
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-
-    def __len__(self):
-        return len(self.states)

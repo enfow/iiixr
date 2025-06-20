@@ -1,28 +1,40 @@
+from dataclasses import dataclass
+
 import numpy as np
 import torch
 import torch.optim as optim
 
 from model.buffer import PPOMemory
 from model.ppo import Actor, Critic
-from trainer.base_trainer import BaseTrainer
+from trainer.base_trainer import BaseConfig, BaseTrainer
+
+
+@dataclass
+class PPOConfig(BaseConfig):
+    gamma: float = 0.99
+    ppo_epochs: int = 4
+    clip_eps: float = 0.2
+    hidden_dim: int = 64
 
 
 class PPOTrainer(BaseTrainer):
     def __init__(self, env, config, save_dir="results/ppo"):
+        config = PPOConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 
+    def _init_models(self):
         self.actor = Actor(
-            env.observation_space.shape[0],
-            env.action_space.n,
-            config.get("hidden_dim", 64),
+            self.env.observation_space.shape[0],
+            self.env.action_space.n,
+            self.config.hidden_dim,
         ).to(self.device)
         self.critic = Critic(
-            env.observation_space.shape[0], config.get("hidden_dim", 64)
+            self.env.observation_space.shape[0], self.config.hidden_dim
         ).to(self.device)
         self.memory = PPOMemory()
         self.optimizer = optim.Adam(
             list(self.actor.parameters()) + list(self.critic.parameters()),
-            lr=config.get("lr", 3e-4),
+            lr=self.config.lr,
         )
 
     def select_action(self, state):
@@ -49,11 +61,11 @@ class PPOTrainer(BaseTrainer):
         old_logprobs = torch.FloatTensor(self.memory.logprobs).to(self.device)
         returns = torch.FloatTensor(
             self.compute_returns(
-                self.memory.rewards, self.memory.dones, self.config.get("gamma", 0.99)
+                self.memory.rewards, self.memory.dones, self.config.gamma
             )
         ).to(self.device)
         advantages = returns - self.critic(states).squeeze().detach()
-        for _ in range(self.config.get("ppo_epochs", 4)):
+        for _ in range(self.config.ppo_epochs):
             probs = self.actor(states)
             dist = torch.distributions.Categorical(probs)
             logprobs = dist.log_prob(actions)
@@ -62,8 +74,8 @@ class PPOTrainer(BaseTrainer):
             surr2 = (
                 torch.clamp(
                     ratio,
-                    1 - self.config.get("clip_eps", 0.2),
-                    1 + self.config.get("clip_eps", 0.2),
+                    1 - self.config.clip_eps,
+                    1 + self.config.clip_eps,
                 )
                 * advantages
             )
