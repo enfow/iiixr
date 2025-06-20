@@ -1,6 +1,7 @@
 import json
 import os
 import random
+import time
 from dataclasses import asdict, dataclass, fields
 
 import gymnasium as gym
@@ -85,7 +86,7 @@ class BaseTrainer:
         self.total_steps = 0
         self.scores = []
         self.losses = []
-        self.episode_losses = []
+        self.episode_elapsed_times = []
         self.log_file = os.path.join(self.save_dir, "metrics.jsonl")
         self.model_file = os.path.join(self.save_dir, "best_model.pth")
         self.config_file = os.path.join(self.save_dir, "config.json")
@@ -101,7 +102,9 @@ class BaseTrainer:
 
     def train(self):
         for ep in range(self.config.episodes):
+            start_time = time.time()
             result = self.train_episode()
+            elapsed_time = time.time() - start_time
 
             if "total_reward" not in result or "losses" not in result:
                 raise ValueError("Results must have total_reward and losses")
@@ -110,6 +113,7 @@ class BaseTrainer:
 
             self.scores.append(result["total_reward"])
             self.losses.append(avg_loss)
+            self.episode_elapsed_times.append(elapsed_time)
 
             self._log_metrics()
 
@@ -147,6 +151,7 @@ class BaseTrainer:
                         "episode": len(self.scores),
                         "return": float(self.scores[-1]),
                         "loss": float(self.losses[-1]),
+                        "elapsed_time": float(self.episode_elapsed_times[-1]),
                     }
                 )
                 + "\n"
