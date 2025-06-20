@@ -14,7 +14,7 @@ from trainer.sac_trainer import SACTrainer
 
 @dataclass
 class EvalConfig:
-    results_path: str = None
+    result_path: str = None
     eval_episodes: int = 10
     eval_render: bool = False
     eval_save_dir: str = None
@@ -22,16 +22,16 @@ class EvalConfig:
     @classmethod
     def from_dict(cls, args):
         return cls(
-            results_path=args.results_path,
+            result_path=args.result_path,
             eval_episodes=args.episodes,
             eval_render=args.render,
-            eval_save_dir=f"{args.results_path}/eval.json",
+            eval_save_dir=f"{args.result_path}/eval.json",
         )
 
 
-def load_config_from_results(results_path):
+def load_config_from_result(result_path):
     """Load configuration from the results directory."""
-    config_file = os.path.join(results_path, "config.json")
+    config_file = os.path.join(result_path, "config.json")
     if os.path.exists(config_file):
         with open(config_file, "r") as f:
             return json.load(f)
@@ -45,13 +45,13 @@ def create_trainer_from_results(env, train_config, eval_config):
     model_type = train_config["model"]
 
     if model_type == "ppo":
-        trainer = PPOTrainer(env, train_config, eval_config.results_path)
+        trainer = PPOTrainer(env, train_config, eval_config.result_path)
     elif model_type == "sac":
-        trainer = SACTrainer(env, train_config, eval_config.results_path)
+        trainer = SACTrainer(env, train_config, eval_config.result_path)
     elif model_type == "rainbow_dqn":
-        trainer = RainbowDQNTrainer(env, train_config, eval_config.results_path)
+        trainer = RainbowDQNTrainer(env, train_config, eval_config.result_path)
     elif model_type == "discrete_sac":
-        trainer = DiscreteSACTrainer(env, train_config, eval_config.results_path)
+        trainer = DiscreteSACTrainer(env, train_config, eval_config.result_path)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
@@ -60,9 +60,9 @@ def create_trainer_from_results(env, train_config, eval_config):
 
 def evaluate_model(eval_config):
     """Evaluate a trained model."""
-    train_config = load_config_from_results(eval_config.results_path)
+    train_config = load_config_from_result(eval_config.result_path)
 
-    print(f"Evaluating model from: {eval_config.results_path}")
+    print(f"Evaluating model from: {eval_config.result_path}")
     print(f"Environment: {train_config['env_name']}")
     print(f"Episodes: {eval_config.eval_episodes}")
 
@@ -86,7 +86,7 @@ def main():
         description="Evaluate trained reinforcement learning models"
     )
     parser.add_argument(
-        "--results_path",
+        "--result_path",
         type=str,
         required=True,
         help="Path to the results directory containing the trained model",

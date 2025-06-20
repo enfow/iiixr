@@ -17,7 +17,7 @@ class PPOConfig(BaseConfig):
 
 class PPOTrainer(BaseTrainer):
     def __init__(self, env, config, save_dir="results/ppo"):
-        config = PPOConfig.from_dict(config, env)
+        config = PPOConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 
     def _init_models(self):

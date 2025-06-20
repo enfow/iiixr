@@ -55,9 +55,7 @@ class DiscreteSACTrainer(BaseTrainer):
         self.critic2_optimizer = optim.Adam(
             self.critic2.parameters(), lr=self.config.lr
         )
-        self.target_entropy = (
-            -np.log(1.0 / self.action_dim) * self.config.entropy_coef
-        )
+        self.target_entropy = -np.log(1.0 / self.action_dim) * self.config.entropy_coef
         self.log_alpha = torch.zeros(1, requires_grad=True, device=self.config.device)
         self.alpha = self.log_alpha.exp()
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.config.lr)

@@ -33,14 +33,15 @@ class BaseConfig:
     action_dim: int = None
     is_discrete: bool = None
     # device
-    device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    device: str = "cpu"
     # evaluation
     eval: bool = False
     eval_period: int = 10
     eval_episodes: int = 10
 
     @classmethod
-    def from_dict(cls, config: dict, env: gym.Env):
+    def from_dict(cls, config: dict):
+        cls._check_device(config)
         valid_keys = {f.name for f in fields(cls)}
         filtered_config = {k: v for k, v in config.items() if k in valid_keys}
         return cls(**filtered_config)
@@ -50,6 +51,15 @@ class BaseConfig:
 
     def to_json(self):
         return json.dumps(self.to_dict(), indent=2)
+
+    @staticmethod
+    def _check_device(config: dict):
+        if config["device"] not in ["cuda", "cpu"]:
+            raise ValueError("Invalid device")
+        elif config["device"] == "cuda" and not torch.cuda.is_available():
+            raise ValueError("CUDA is not available")
+        elif config["device"] == "cpu" and torch.cuda.is_available():
+            raise ValueError("CUDA is available but device is set to CPU")
 
 
 class BaseTrainer:
