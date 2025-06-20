@@ -22,13 +22,14 @@ class PPOTrainer(BaseTrainer):
 
     def _init_models(self):
         self.actor = Actor(
-            self.config.state_dim,
-            self.config.action_dim,
+            self.state_dim,
+            self.action_dim,
             self.config.hidden_dim,
+            is_discrete=self.is_discrete,
         ).to(self.config.device)
-        self.critic = Critic(
-            self.state_dim, self.config.hidden_dim
-        ).to(self.config.device)
+        self.critic = Critic(self.state_dim, self.config.hidden_dim).to(
+            self.config.device
+        )
         self.memory = PPOMemory()
         self.optimizer = optim.Adam(
             list(self.actor.parameters()) + list(self.critic.parameters()),
@@ -37,14 +38,30 @@ class PPOTrainer(BaseTrainer):
 
     def select_action(self, state):
         state = torch.FloatTensor(state).to(self.config.device)
-        probs = self.actor(state)
-        dist = torch.distributions.Categorical(probs)
-        action = dist.sample()
-        logprob = dist.log_prob(action)
-        return {
-            "action": action.item(),
-            "logprob": logprob.item(),
-        }
+
+        if self.is_discrete:
+            # Discrete action space (e.g., LunarLander)
+            probs = self.actor(state)
+            dist = torch.distributions.Categorical(probs)
+            action = dist.sample()
+            logprob = dist.log_prob(action)
+            return {
+                "action": action.item(),
+                "logprob": logprob.item(),
+            }
+        else:
+            # Continuous action space (e.g., BipedalWalker)
+            mean, log_std = self.actor(state)
+            std = log_std.exp()
+            dist = torch.distributions.Normal(mean, std)
+            action = dist.sample()
+            logprob = dist.log_prob(action).sum(dim=-1)  # Sum over action dimensions
+            # Clamp actions to valid range (typically [-1, 1] for most continuous envs)
+            action = torch.tanh(action)
+            return {
+                "action": action.detach().cpu().numpy(),
+                "logprob": logprob.item(),
+            }
 
     def compute_returns(self, rewards, dones, gamma=0.99):
         returns = []
@@ -59,7 +76,6 @@ class PPOTrainer(BaseTrainer):
     def update(self):
         total_loss = 0
         states = torch.FloatTensor(np.array(self.memory.states)).to(self.config.device)
-        actions = torch.LongTensor(self.memory.actions).to(self.config.device)
         old_logprobs = torch.FloatTensor(self.memory.logprobs).to(self.config.device)
         returns = torch.FloatTensor(
             self.compute_returns(
@@ -67,10 +83,31 @@ class PPOTrainer(BaseTrainer):
             )
         ).to(self.config.device)
         advantages = returns - self.critic(states).squeeze().detach()
+
+        if self.is_discrete:
+            actions = torch.LongTensor(self.memory.actions).to(self.config.device)
+        else:
+            actions = torch.FloatTensor(np.array(self.memory.actions)).to(
+                self.config.device
+            )
+
         for _ in range(self.config.ppo_epochs):
-            probs = self.actor(states)
-            dist = torch.distributions.Categorical(probs)
-            logprobs = dist.log_prob(actions)
+            if self.is_discrete:
+                # Discrete action space
+                probs = self.actor(states)
+                dist = torch.distributions.Categorical(probs)
+                logprobs = dist.log_prob(actions)
+            else:
+                # Continuous action space
+                mean, log_std = self.actor(states)
+                std = log_std.exp()
+                dist = torch.distributions.Normal(mean, std)
+                # Apply tanh to match action selection
+                raw_actions = torch.atanh(torch.clamp(actions, -0.999, 0.999))
+                logprobs = dist.log_prob(raw_actions).sum(dim=-1)
+                # Adjust log probability for tanh transformation
+                logprobs -= torch.log(1 - actions.pow(2) + 1e-8).sum(dim=-1)
+
             ratio = torch.exp(logprobs - old_logprobs)
             surr1 = ratio * advantages
             surr2 = (

@@ -1,5 +1,6 @@
 import argparse
 import random
+import time
 
 import gymnasium as gym
 
@@ -51,7 +52,11 @@ def main():
     )
     args = parser.parse_args()
 
-    env = gym.make(args.env)
+    if args.env == "BipedalWalker-v3":
+        env = gym.make(args.env, hardcore=True)
+    else:
+        env = gym.make(args.env)
+
     config = {
         "model": args.model,
         "seed": args.seed,
@@ -77,18 +82,18 @@ def main():
         "target_update": args.target_update,
     }
 
+    save_dir = (
+        f"{args.save_dir}/{args.env}/{args.model}/{time.strftime('%Y%m%d_%H%M%S')}"
+    )
+
     if args.model == "ppo":
-        trainer = PPOTrainer(env, config, save_dir=f"{args.save_dir}/ppo")
+        trainer = PPOTrainer(env, config, save_dir=save_dir)
     elif args.model == "sac":
-        trainer = SACTrainer(env, config, save_dir=f"{args.save_dir}/sac")
+        trainer = SACTrainer(env, config, save_dir=save_dir)
     elif args.model == "rainbow_dqn":
-        trainer = RainbowDQNTrainer(
-            env, config, save_dir=f"{args.save_dir}/rainbow_dqn"
-        )
+        trainer = RainbowDQNTrainer(env, config, save_dir=save_dir)
     elif args.model == "discrete_sac":
-        trainer = DiscreteSACTrainer(
-            env, config, save_dir=f"{args.save_dir}/discrete_sac"
-        )
+        trainer = DiscreteSACTrainer(env, config, save_dir=save_dir)
     else:
         raise ValueError(f"Unknown model: {args.model}")
 

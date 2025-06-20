@@ -31,6 +31,7 @@ class BaseConfig:
     env_name: str = None
     state_dim: int = None
     action_dim: int = None
+    is_discrete: bool = None
     # device
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     # evaluation
@@ -43,12 +44,6 @@ class BaseConfig:
     def from_dict(cls, config: dict, env: gym.Env):
         if env is not None:
             config["env_name"] = env.__class__.__name__
-            config["state_dim"] = env.observation_space.shape[0]
-            config["action_dim"] = int(
-                env.action_space.n
-                if isinstance(env.action_space, gym.spaces.Discrete)
-                else env.action_space.shape[0]
-            )
         valid_keys = {f.name for f in fields(cls)}
         filtered_config = {k: v for k, v in config.items() if k in valid_keys}
         return cls(**filtered_config)
@@ -69,11 +64,13 @@ class BaseTrainer:
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
 
-        self.is_discrete = isinstance(env.action_space, gym.spaces.Discrete)
         self.state_dim = env.observation_space.shape[0]
-        self.action_dim = (
-            env.action_space.n if self.is_discrete else env.action_space.shape[0]
+        self.action_dim = int(
+            env.action_space.n
+            if isinstance(env.action_space, gym.spaces.Discrete)
+            else env.action_space.shape[0]
         )
+        self.is_discrete = isinstance(env.action_space, gym.spaces.Discrete)
 
         self.best_score = -np.inf
         self.total_steps = 0

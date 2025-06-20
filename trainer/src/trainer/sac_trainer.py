@@ -51,7 +51,7 @@ class SACTrainer(BaseTrainer):
             self.critic2.parameters(), lr=self.config.lr
         )
         self.target_entropy = (
-            -np.log(1.0 / self.config.action_dim) * self.config.entropy_coef
+            -np.log(1.0 / self.action_dim) * self.config.entropy_coef
         )
         self.log_alpha = torch.zeros(1, requires_grad=True, device=self.config.device)
         self.alpha = self.log_alpha.exp()
@@ -92,7 +92,9 @@ class SACTrainer(BaseTrainer):
         done = torch.FloatTensor(done).unsqueeze(1).to(self.config.device)
 
         if self.is_discrete:
-            action = F.one_hot(action, self.action_dim).float().to(self.config.device)
+            action = (
+                F.one_hot(action, self.action_dim).float().to(self.config.device)
+            )
         else:
             action = torch.FloatTensor(action).to(self.config.device)
 
