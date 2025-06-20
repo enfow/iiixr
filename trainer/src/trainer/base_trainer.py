@@ -1,5 +1,6 @@
 import json
 import os
+import random
 from dataclasses import asdict, dataclass, fields
 
 import gymnasium as gym
@@ -7,9 +8,18 @@ import numpy as np
 import torch
 
 
+def set_seed(seed):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 @dataclass
 class BaseConfig:
     model: str = None
+    seed: int = 42
     episodes: int = 1000
     max_steps: int = 1000
     lr: float = 3e-4
@@ -23,6 +33,11 @@ class BaseConfig:
     action_dim: int = None
     # device
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    # evaluation
+    eval: bool = False
+    eval_period: int = 10
+    eval_episodes: int = 10
+    eval_render: bool = False
 
     @classmethod
     def from_dict(cls, config: dict, env: gym.Env):
@@ -47,6 +62,8 @@ class BaseConfig:
 
 class BaseTrainer:
     def __init__(self, env, config, save_dir):
+        set_seed(config.seed)
+
         self.env = env
         self.config = config
         self.save_dir = save_dir
@@ -59,6 +76,7 @@ class BaseTrainer:
         )
 
         self.best_score = -np.inf
+        self.total_steps = 0
         self.scores = []
         self.losses = []
         self.episode_losses = []
@@ -72,13 +90,47 @@ class BaseTrainer:
     def _init_models(self):
         raise NotImplementedError("Subclasses must implement this method")
 
-    def select_action(self, state):
+    def train_episode(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def train(self):
+        for ep in range(self.config.episodes):
+            result = self.train_episode()
+
+            if "total_reward" not in result or "losses" not in result:
+                raise ValueError("Results must have total_reward and losses")
+
+            avg_loss = np.mean(result["losses"]) if result["losses"] else 0.0
+
+            self.scores.append(result["total_reward"])
+            self.losses.append(avg_loss)
+
+            self._log_metrics()
+
+            if result["total_reward"] > self.best_score:
+                self.best_score = result["total_reward"]
+                self.save_model()
+
+            if self.config.eval and ep % self.config.eval_period == 0:
+                eval_results = self.evaluate(self.config.eval_episodes)
+                self._log_eval_metrics(eval_results)
+
+    def select_action(self, state) -> dict:
         raise NotImplementedError("Subclasses must implement this method")
 
     def update(self):
         raise NotImplementedError("Subclasses must implement this method")
 
-    def train(self, episodes, max_steps):
+    def save_model(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def load_model(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def eval_mode_on(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def eval_mode_off(self):
         raise NotImplementedError("Subclasses must implement this method")
 
     def _log_metrics(self):
@@ -97,21 +149,16 @@ class BaseTrainer:
             f"Episode {len(self.scores)}: Return={self.scores[-1]:.2f}, Loss={self.losses[-1]:.4f}"
         )
 
+    def _log_eval_metrics(self, eval_results):
+        with open(self.log_file, "a") as f:
+            f.write(json.dumps(eval_results) + "\n")
+
     def _log_config(self):
         with open(self.config_file, "w") as f:
             json.dump(self.config.to_dict(), f, indent=2)
 
-    def save_model(self):
-        pass
-
-    def load_model(self):
-        pass
-
-    def ready_to_evaluate(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
     def evaluate(self, episodes=10):
-        self.ready_to_evaluate()
+        self.eval_mode_on()
 
         scores = []
         for _ in range(episodes):
@@ -120,7 +167,7 @@ class BaseTrainer:
             total_reward = 0
 
             while not done:
-                action = self.select_action(state)
+                action = self.select_action(state)["action"]
                 next_state, reward, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
                 state = next_state
@@ -128,4 +175,24 @@ class BaseTrainer:
 
             scores.append(total_reward)
 
-        return scores
+        self.eval_mode_off()
+
+        mean_score = np.mean(scores)
+        std_score = np.std(scores)
+        min_score = np.min(scores)
+        max_score = np.max(scores)
+        all_scores = [f"{s:.2f}" for s in scores]
+
+        print(f"\nEvaluation Results:")
+        print(f"Mean Score: {mean_score:.2f} ± {std_score:.2f}")
+        print(f"Min Score: {min_score:.2f}")
+        print(f"Max Score: {max_score:.2f}")
+        print(f"All Scores: {[f'{s:.2f}' for s in scores]}")
+
+        return {
+            "mean_score": mean_score,
+            "std_score": std_score,
+            "min_score": min_score,
+            "max_score": max_score,
+            "all_scores": all_scores,
+        }

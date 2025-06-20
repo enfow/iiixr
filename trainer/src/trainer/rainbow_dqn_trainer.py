@@ -49,7 +49,10 @@ class RainbowDQNTrainer(BaseTrainer):
         state = torch.FloatTensor(state).unsqueeze(0).to(self.config.device)
         with torch.no_grad():
             q_values = self.policy_net(state)
-        return q_values.argmax(dim=1).item()
+        return {
+            "action": q_values.argmax(dim=1).item(),
+            "q_values": q_values.detach().cpu().numpy(),
+        }
 
     def update(self):
         if len(self.replay_buffer) < self.config.batch_size:
@@ -82,44 +85,37 @@ class RainbowDQNTrainer(BaseTrainer):
         loss.backward()
         self.optimizer.step()
 
-        self.episode_losses.append(loss.item())
-
         self.replay_buffer.update_priorities(indices, td_errors)
 
-        if self.total_steps % self.config.target_update == 0:
-            self.target_net.load_state_dict(self.policy_net.state_dict())
+        return loss.item()
 
-    def train(self):
-        self.total_steps = 0
-        for ep in range(self.config.episodes):
-            state, _ = self.env.reset()
-            done = False
-            total_reward = 0
-            self.episode_losses = []
+    def train_episode(self, ep):
+        state, _ = self.env.reset()
+        done = False
+        total_reward = 0
+        losses = []
 
-            for t in range(self.config.max_steps):
-                action = self.select_action(state)
-                next_state, reward, terminated, truncated, _ = self.env.step(action)
-                done = terminated or truncated
+        for t in range(self.config.max_steps):
+            action = self.select_action(state)["action"]
+            next_state, reward, terminated, truncated, _ = self.env.step(action)
+            done = terminated or truncated
 
-                self.replay_buffer.push(state, action, reward, next_state, done)
-                self.update()
+            self.replay_buffer.push(state, action, reward, next_state, done)
+            loss = self.update()
+            if loss is not None:
+                losses.append(loss)
 
-                state = next_state
-                total_reward += reward
-                self.total_steps += 1
+            state = next_state
+            total_reward += reward
+            self.total_steps += 1
 
-                if done:
-                    break
+            if done:
+                break
 
-            avg_loss = np.mean(self.episode_losses) if self.episode_losses else 0.0
-            self.scores.append(total_reward)
-            self.losses.append(avg_loss)
-
-            if total_reward > self.best_score:
-                self.best_score = total_reward
-                self.save_model()
-            self._log_metrics()
+        return {
+            "total_reward": total_reward,
+            "losses": losses,
+        }
 
     def save_model(self):
         torch.save(self.policy_net.state_dict(), self.model_file)
@@ -127,6 +123,8 @@ class RainbowDQNTrainer(BaseTrainer):
     def load_model(self):
         self.policy_net.load_state_dict(torch.load(self.model_file))
 
-    def ready_to_evaluate(self):
-        self.load_model()
+    def eval_mode_on(self):
         self.policy_net.eval()
+
+    def eval_mode_off(self):
+        self.policy_net.train()

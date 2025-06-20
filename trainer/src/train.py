@@ -1,4 +1,5 @@
 import argparse
+import random
 
 import gymnasium as gym
 
@@ -21,6 +22,9 @@ def main():
         choices=["ppo", "sac", "rainbow_dqn", "discrete_sac"],
         default="ppo",
         help="Model to train",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=random.randint(0, 1000000), help="Random seed"
     )
     parser.add_argument(
         "--episodes", type=int, default=1000, help="Number of episodes to train"
@@ -50,25 +54,22 @@ def main():
     env = gym.make(args.env)
     config = {
         "model": args.model,
+        "seed": args.seed,
         "episodes": args.episodes,
         "max_steps": args.max_steps,
         "lr": args.lr,
         "hidden_dim": args.hidden_dim,
         "buffer_size": args.buffer_size,
         "batch_size": args.batch_size,
-
         # reinforcement learning hyperparameters
         "gamma": args.gamma,
-        
         # SAC specific hyperparameters
         "tau": 0.005,
         "start_steps": 1000,
         "entropy_coef": 1.0,
-
         # PPO specific hyperparameters
         "ppo_epochs": 4,
         "clip_eps": 0.2,
-
         # Rainbow DQN hyperparameters
         "alpha": 0.6,
         "beta_start": 0.4,

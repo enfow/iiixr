@@ -41,7 +41,10 @@ class PPOTrainer(BaseTrainer):
         dist = torch.distributions.Categorical(probs)
         action = dist.sample()
         logprob = dist.log_prob(action)
-        return action.item(), logprob.item()
+        return {
+            "action": action.item(),
+            "logprob": logprob.item(),
+        }
 
     def compute_returns(self, rewards, dones, gamma=0.99):
         returns = []
@@ -54,6 +57,7 @@ class PPOTrainer(BaseTrainer):
         return returns
 
     def update(self):
+        total_loss = 0
         states = torch.FloatTensor(np.array(self.memory.states)).to(self.config.device)
         actions = torch.LongTensor(self.memory.actions).to(self.config.device)
         old_logprobs = torch.FloatTensor(self.memory.logprobs).to(self.config.device)
@@ -85,32 +89,33 @@ class PPOTrainer(BaseTrainer):
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-            self.episode_losses.append(loss.item())
+            total_loss += loss.item()
         self.memory.clear()
+        return total_loss
 
-    def train(self):
-        for ep in range(self.config.episodes):
-            state, _ = self.env.reset()
-            done = False
-            total_reward = 0
-            self.episode_losses = []
-            for t in range(self.config.max_steps):
-                action, logprob = self.select_action(state)
-                next_state, reward, terminated, truncated, _ = self.env.step(action)
-                done = terminated or truncated
-                self.memory.store(state, action, logprob, reward, done)
-                state = next_state
-                total_reward += reward
-                if done:
-                    break
-            self.update()
-            avg_loss = np.mean(self.episode_losses) if self.episode_losses else 0.0
-            self.scores.append(total_reward)
-            self.losses.append(avg_loss)
-            if total_reward > self.best_score:
-                self.best_score = total_reward
-                self.save_model()
-            self._log_metrics()
+    def train_episode(self):
+        state, _ = self.env.reset()
+        done = False
+        total_reward = 0
+        losses = []
+        for t in range(self.config.max_steps):
+            action_info = self.select_action(state)
+            action = action_info["action"]
+            logprob = action_info["logprob"]
+            next_state, reward, terminated, truncated, _ = self.env.step(action)
+            done = terminated or truncated
+            self.memory.store(state, action, logprob, reward, done)
+            state = next_state
+            total_reward += reward
+            if done:
+                break
+        loss = self.update()
+        if loss is not None:
+            losses.append(loss)
+        return {
+            "total_reward": total_reward,
+            "losses": losses,
+        }
 
     def save_model(self):
         torch.save(
@@ -125,27 +130,10 @@ class PPOTrainer(BaseTrainer):
         self.actor.load_state_dict(torch.load(self.model_file)["actor"])
         self.critic.load_state_dict(torch.load(self.model_file)["critic"])
 
-    def ready_to_evaluate(self):
-        self.load_model()
+    def eval_mode_on(self):
         self.actor.eval()
         self.critic.eval()
 
-    def evaluate(self, episodes=10):
-        self.ready_to_evaluate()
-
-        scores = []
-        for _ in range(episodes):
-            state, _ = self.env.reset()
-            done = False
-            total_reward = 0
-
-            while not done:
-                action, _ = self.select_action(state)
-                next_state, reward, terminated, truncated, _ = self.env.step(action)
-                done = terminated or truncated
-                state = next_state
-                total_reward += reward
-
-            scores.append(total_reward)
-
-        return scores
+    def eval_mode_off(self):
+        self.actor.train()
+        self.critic.train()

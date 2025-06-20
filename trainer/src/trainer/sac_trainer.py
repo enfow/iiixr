@@ -64,11 +64,15 @@ class SACTrainer(BaseTrainer):
                 logits = self.actor(state)
                 probs = F.softmax(logits, dim=-1)
                 action = torch.distributions.Categorical(probs).sample()
-                return action.item()
+                return {
+                    "action": action.item(),
+                }
             else:
                 mean = self.actor(state)
                 action = torch.tanh(mean)
-                return action.squeeze(0).cpu().numpy()
+                return {
+                    "action": action.squeeze(0).cpu().numpy(),
+                }
 
     def update(self):
         if len(self.buffer) < self.config.batch_size:
@@ -186,43 +190,40 @@ class SACTrainer(BaseTrainer):
             target_param.data.copy_(
                 self.config.tau * param.data + (1 - self.config.tau) * target_param.data
             )
-        self.episode_losses.append(
+        return (
             actor_loss.item()
             + critic1_loss.item()
             + critic2_loss.item()
             + alpha_loss.item()
         )
 
-    def train(self):
-        total_steps = 0
-        for ep in range(self.config.episodes):
-            state, _ = self.env.reset()
-            total_reward = 0
-            self.episode_losses = []
-            for step in range(self.config.max_steps):
-                if total_steps < self.config.start_steps:
-                    action = self.env.action_space.sample()
-                else:
-                    action = self.select_action(state)
-                next_state, reward, terminated, truncated, _ = self.env.step(action)
-                done = terminated or truncated
-                self.buffer.push(state, action, reward, next_state, done)
-                state = next_state
-                total_reward += reward
-                total_steps += 1
+    def train_episode(self):
+        state, _ = self.env.reset()
+        total_reward = 0
+        losses = []
+        for step in range(self.config.max_steps):
+            if self.total_steps < self.config.start_steps:
+                action = self.env.action_space.sample()
+            else:
+                action = self.select_action(state)["action"]
+            next_state, reward, terminated, truncated, _ = self.env.step(action)
+            done = terminated or truncated
+            self.buffer.push(state, action, reward, next_state, done)
+            state = next_state
+            total_reward += reward
+            self.total_steps += 1
 
-                self.update()
+            loss = self.update()
+            if loss is not None:
+                losses.append(loss)
 
-                if done:
-                    break
-            avg_loss = np.mean(self.episode_losses) if self.episode_losses else 0.0
-            self.scores.append(total_reward)
-            self.losses.append(avg_loss)
+            if done:
+                break
 
-            if total_reward > self.best_score:
-                self.best_score = total_reward
-                self.save_model()
-            self._log_metrics()
+        return {
+            "total_reward": total_reward,
+            "losses": losses,
+        }
 
     def save_model(self):
         torch.save(
@@ -237,10 +238,16 @@ class SACTrainer(BaseTrainer):
         self.actor.load_state_dict(torch.load(self.model_file)["actor"])
         self.critic1.load_state_dict(torch.load(self.model_file)["critic"])
 
-    def ready_to_evaluate(self):
-        self.load_model()
+    def eval_mode_on(self):
         self.actor.eval()
         self.critic1.eval()
         self.critic2.eval()
         self.target_critic1.eval()
         self.target_critic2.eval()
+
+    def eval_mode_off(self):
+        self.actor.train()
+        self.critic1.train()
+        self.critic2.train()
+        self.target_critic1.train()
+        self.target_critic2.train()
