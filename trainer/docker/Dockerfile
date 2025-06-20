@@ -29,4 +29,16 @@ COPY Makefile .
 
 RUN mkdir -p /app/models
 
-CMD ["make", "train"] 
+# Set default environment variables
+ENV MODEL=ppo
+ENV ENV=LunarLander-v3
+ENV N_EPISODES=1000
+ENV MAX_STEPS=1000
+ENV BATCH_SIZE=64
+ENV LEARNING_RATE=0.001
+ENV GAMMA=0.99
+ENV EVAL=false
+ENV EVAL_PERIOD=10
+ENV EVAL_EPISODES=10
+
+CMD ["make", "train"]
