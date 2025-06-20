@@ -70,6 +70,11 @@ docker-run:
 		-e BETA_START=$(BETA_START) \
 		-e BETA_FRAMES=$(BETA_FRAMES) \
 		-e TARGET_UPDATE=$(TARGET_UPDATE) \
+		-e TAU=$(TAU) \
+		-e ENTROPY_COEF=$(ENTROPY_COEF) \
+		-e START_STEPS=$(START_STEPS) \
+		-e PPO_EPOCHS=$(PPO_EPOCHS) \
+		-e CLIP_EPS=$(CLIP_EPS) \
 		$(DOCKER_IMAGE_NAME)
 
 docker-run-eval:
@@ -108,7 +113,12 @@ train:
 		--alpha $(ALPHA) \
 		--beta_start $(BETA_START) \
 		--beta_frames $(BETA_FRAMES) \
-		--target_update $(TARGET_UPDATE)
+		--target_update $(TARGET_UPDATE) \
+		--tau $(TAU) \
+		--entropy_coef $(ENTROPY_COEF) \
+		--start_steps $(START_STEPS) \
+		--ppo_epochs $(PPO_EPOCHS) \
+		--clip_eps $(CLIP_EPS)
 
 # Train all algorithms sequentially
 train-all:

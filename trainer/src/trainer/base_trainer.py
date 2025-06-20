@@ -54,6 +54,8 @@ class BaseConfig:
 
     @staticmethod
     def _check_device(config: dict):
+        if "device" not in config:
+            return
         if config["device"] not in ["cuda", "cpu"]:
             raise ValueError("Invalid device")
         elif config["device"] == "cuda" and not torch.cuda.is_available():

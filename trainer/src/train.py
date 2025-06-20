@@ -45,9 +45,6 @@ def main():
         "--batch_size", type=int, default=256, help="Batch size for training"
     )
     parser.add_argument(
-        "--target_update", type=int, default=10, help="Target network update frequency"
-    )
-    parser.add_argument(
         "--save_dir", type=str, default="results", help="Directory to save results"
     )
     parser.add_argument(
@@ -57,6 +54,33 @@ def main():
     parser.add_argument(
         "--eval_episodes", type=int, default=10, help="Number of episodes to evaluate"
     )
+    parser.add_argument(
+        "--device", type=str, default="cpu", help="Device to use (cpu/cuda)"
+    )
+    parser.add_argument(
+        "--alpha", type=float, default=0.6, help="Alpha parameter for Rainbow DQN"
+    )
+    parser.add_argument(
+        "--beta_start", type=float, default=0.4, help="Beta start for Rainbow DQN"
+    )
+    parser.add_argument(
+        "--beta_frames", type=int, default=100000, help="Beta frames for Rainbow DQN"
+    )
+    parser.add_argument(
+        "--target_update", type=int, default=10, help="Target network update frequency"
+    )
+    parser.add_argument(
+        "--tau", type=float, default=0.005, help="Tau parameter for SAC"
+    )
+    parser.add_argument(
+        "--entropy_coef", type=float, default=1.0, help="Entropy coefficient for SAC"
+    )
+    parser.add_argument(
+        "--start_steps", type=int, default=1000, help="Start steps for SAC"
+    )
+    parser.add_argument("--ppo_epochs", type=int, default=10, help="PPO epochs")
+    parser.add_argument("--clip_eps", type=float, default=0.2, help="PPO clip epsilon")
+
     args = parser.parse_args()
 
     if args.env == "BipedalWalker-v3":
@@ -74,19 +98,19 @@ def main():
         "hidden_dim": args.hidden_dim,
         "buffer_size": args.buffer_size,
         "batch_size": args.batch_size,
-        # reinforcement learning hyperparameters
         "gamma": args.gamma,
+        "device": args.device,
         # SAC specific hyperparameters
-        "tau": 0.005,
-        "start_steps": 1000,
-        "entropy_coef": 1.0,
+        "tau": args.tau,
+        "start_steps": args.start_steps,
+        "entropy_coef": args.entropy_coef,
         # PPO specific hyperparameters
-        "ppo_epochs": 4,
-        "clip_eps": 0.2,
+        "ppo_epochs": args.ppo_epochs,
+        "clip_eps": args.clip_eps,
         # Rainbow DQN hyperparameters
-        "alpha": 0.6,
-        "beta_start": 0.4,
-        "beta_frames": 100000,
+        "alpha": args.alpha,
+        "beta_start": args.beta_start,
+        "beta_frames": args.beta_frames,
         "target_update": args.target_update,
         "eval": args.eval,
         "eval_period": args.eval_period,
