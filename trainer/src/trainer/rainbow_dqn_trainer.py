@@ -89,7 +89,7 @@ class RainbowDQNTrainer(BaseTrainer):
 
         return loss.item()
 
-    def train_episode(self, ep):
+    def train_episode(self):
         state, _ = self.env.reset()
         done = False
         total_reward = 0

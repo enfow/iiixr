@@ -38,12 +38,9 @@ class BaseConfig:
     eval: bool = False
     eval_period: int = 10
     eval_episodes: int = 10
-    eval_render: bool = False
 
     @classmethod
     def from_dict(cls, config: dict, env: gym.Env):
-        if env is not None:
-            config["env_name"] = env.__class__.__name__
         valid_keys = {f.name for f in fields(cls)}
         filtered_config = {k: v for k, v in config.items() if k in valid_keys}
         return cls(**filtered_config)
@@ -180,11 +177,9 @@ class BaseTrainer:
         max_score = np.max(scores)
         all_scores = [f"{s:.2f}" for s in scores]
 
-        print(f"\nEvaluation Results:")
-        print(f"Mean Score: {mean_score:.2f} ± {std_score:.2f}")
-        print(f"Min Score: {min_score:.2f}")
-        print(f"Max Score: {max_score:.2f}")
-        print(f"All Scores: {[f'{s:.2f}' for s in scores]}")
+        print(
+            f"Evaluation Results: Mean Score={mean_score:.2f} ± {std_score:.2f}, Min Score={min_score:.2f}, Max Score={max_score:.2f}"
+        )
 
         return {
             "mean_score": mean_score,

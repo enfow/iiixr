@@ -50,6 +50,13 @@ def main():
     parser.add_argument(
         "--save_dir", type=str, default="results", help="Directory to save results"
     )
+    parser.add_argument(
+        "--eval", type=bool, default=False, help="Whether to evaluate the model"
+    )
+    parser.add_argument("--eval_period", type=int, default=10, help="Evaluation period")
+    parser.add_argument(
+        "--eval_episodes", type=int, default=10, help="Number of episodes to evaluate"
+    )
     args = parser.parse_args()
 
     if args.env == "BipedalWalker-v3":
@@ -59,6 +66,7 @@ def main():
 
     config = {
         "model": args.model,
+        "env_name": args.env,
         "seed": args.seed,
         "episodes": args.episodes,
         "max_steps": args.max_steps,
@@ -80,6 +88,9 @@ def main():
         "beta_start": 0.4,
         "beta_frames": 100000,
         "target_update": args.target_update,
+        "eval": args.eval,
+        "eval_period": args.eval_period,
+        "eval_episodes": args.eval_episodes,
     }
 
     save_dir = (
