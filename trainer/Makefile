@@ -8,7 +8,7 @@ RESULTS_DIR := results
 
 # Default values for training parameters
 MODEL := ppo  # ppo, sac, rainbow_dqn, discrete_sac
-ENV := LunarLander-v3
+ENV := LunarLander-v3  # LunarLander-v3, BipedalWalker-v3
 N_EPISODES := 1000
 MAX_STEPS := 1000
 BATCH_SIZE := 64
