@@ -113,7 +113,7 @@ class SACTrainer(BaseTrainer):
 
         current_q1 = self.critic1(state, action)
         current_q2 = self.critic2(state, action)
-        
+
         critic1_loss = F.mse_loss(current_q1, target)
         critic2_loss = F.mse_loss(current_q2, target)
 

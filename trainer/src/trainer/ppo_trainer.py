@@ -1,19 +1,16 @@
-import os
-
 import numpy as np
 import torch
 import torch.optim as optim
 
-from model.ppo import Actor, Critic, PPOMemory
+from model.buffer import PPOMemory
+from model.ppo import Actor, Critic
+from trainer.base_trainer import BaseTrainer
 
 
-class PPOTrainer:
+class PPOTrainer(BaseTrainer):
     def __init__(self, env, config, save_dir="results/ppo"):
-        self.env = env
-        self.config = config
-        self.save_dir = save_dir
-        os.makedirs(self.save_dir, exist_ok=True)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        super().__init__(env, config, save_dir)
+
         self.actor = Actor(
             env.observation_space.shape[0],
             env.action_space.n,
@@ -27,18 +24,6 @@ class PPOTrainer:
             list(self.actor.parameters()) + list(self.critic.parameters()),
             lr=config.get("lr", 3e-4),
         )
-        self.best_score = -np.inf
-        self.scores = []
-        self.losses = []
-        self.episode_returns = []
-        self.episode_losses = []
-        self.log_file = os.path.join(self.save_dir, "metrics.jsonl")
-        self.model_file = os.path.join(self.save_dir, "best_model.pth")
-        self.config_file = os.path.join(self.save_dir, "config.json")
-        with open(self.config_file, "w") as f:
-            import json
-
-            json.dump(config, f, indent=2)
 
     def select_action(self, state):
         state = torch.FloatTensor(state).to(self.device)
@@ -110,7 +95,6 @@ class PPOTrainer:
                     break
             self.update()
             avg_loss = np.mean(self.episode_losses) if self.episode_losses else 0.0
-            self.episode_returns.append(total_reward)
             self.scores.append(total_reward)
             self.losses.append(avg_loss)
             # Save best model
@@ -124,17 +108,4 @@ class PPOTrainer:
                     self.model_file,
                 )
             # Log metrics
-            with open(self.log_file, "a") as f:
-                import json
-
-                f.write(
-                    json.dumps(
-                        {
-                            "episode": ep + 1,
-                            "return": float(total_reward),
-                            "loss": float(avg_loss),
-                        }
-                    )
-                    + "\n"
-                )
-            print(f"Episode {ep + 1}: Return={total_reward:.2f}, Loss={avg_loss:.4f}")
+            self._log_metrics()
