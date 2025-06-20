@@ -22,12 +22,12 @@ class PPOTrainer(BaseTrainer):
 
     def _init_models(self):
         self.actor = Actor(
-            self.env.observation_space.shape[0],
-            self.env.action_space.n,
+            self.config.state_dim,
+            self.config.action_dim,
             self.config.hidden_dim,
         ).to(self.config.device)
         self.critic = Critic(
-            self.env.observation_space.shape[0], self.config.hidden_dim
+            self.state_dim, self.config.hidden_dim
         ).to(self.config.device)
         self.memory = PPOMemory()
         self.optimizer = optim.Adam(
