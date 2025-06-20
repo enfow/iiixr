@@ -1,5 +1,13 @@
-DOCKER_IMAGE_NAME := iiixr-2-trainer
+DEVICE ?= cpu
+DOCKER_FILE := docker/Dockerfile
+DOCKER_IMAGE_NAME := iiixr-2
 DOCKER_CONTAINER_NAME := iiixr-2-container
+
+ifeq ($(DEVICE),cuda)
+	DOCKER_FILE	:= docker/Dockerfile.gpu
+	DOCKER_IMAGE_NAME := $(DOCKER_IMAGE_NAME)-gpu
+	DOCKER_CONTAINER_NAME := iiixr-2-gpu-container
+endif
 
 # Environment variables
 PYTHON := python
@@ -14,7 +22,6 @@ MAX_STEPS ?= 1000
 BATCH_SIZE ?= 64
 LEARNING_RATE ?= 0.001
 GAMMA ?= 0.99
-DEVICE ?= cpu
 BUFFER_SIZE ?= 1000000
 SEED ?= 42
 
@@ -46,13 +53,11 @@ format:
 	isort src
 
 docker-build:
-	docker build -t $(DOCKER_IMAGE_NAME) -f docker/Dockerfile .
-
-docker-build-gpu:
-	docker build -t $(DOCKER_IMAGE_NAME) -f docker/Dockerfile.gpu .
-
+	docker build -t $(DOCKER_IMAGE_NAME) -f $(DOCKER_FILE) .
+	
 docker-run:
 	docker run -it --rm \
+		$(if $(filter cuda,$(DEVICE)),--gpus all,) \
 		--name $(DOCKER_CONTAINER_NAME) \
 		-v $(PWD)/src:/app/src \
 		-v $(PWD)/results:/app/results \
