@@ -56,7 +56,7 @@ class DiscreteSACTrainer(BaseTrainer):
             self.critic2.parameters(), lr=self.config.lr
         )
         self.target_entropy = (
-            -np.log(1.0 / self.config.action_dim) * self.config.entropy_coef
+            -np.log(1.0 / self.action_dim) * self.config.entropy_coef
         )
         self.log_alpha = torch.zeros(1, requires_grad=True, device=self.config.device)
         self.alpha = self.log_alpha.exp()
