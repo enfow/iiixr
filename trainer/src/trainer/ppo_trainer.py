@@ -11,15 +11,13 @@ from trainer.base_trainer import BaseConfig, BaseTrainer
 
 @dataclass
 class PPOConfig(BaseConfig):
-    gamma: float = 0.99
     ppo_epochs: int = 4
     clip_eps: float = 0.2
-    hidden_dim: int = 64
 
 
 class PPOTrainer(BaseTrainer):
     def __init__(self, env, config, save_dir="results/ppo"):
-        config = PPOConfig.from_dict(config)
+        config = PPOConfig.from_dict(config, env)
         super().__init__(env, config, save_dir)
 
     def _init_models(self):
@@ -27,10 +25,10 @@ class PPOTrainer(BaseTrainer):
             self.env.observation_space.shape[0],
             self.env.action_space.n,
             self.config.hidden_dim,
-        ).to(self.device)
+        ).to(self.config.device)
         self.critic = Critic(
             self.env.observation_space.shape[0], self.config.hidden_dim
-        ).to(self.device)
+        ).to(self.config.device)
         self.memory = PPOMemory()
         self.optimizer = optim.Adam(
             list(self.actor.parameters()) + list(self.critic.parameters()),
@@ -38,7 +36,7 @@ class PPOTrainer(BaseTrainer):
         )
 
     def select_action(self, state):
-        state = torch.FloatTensor(state).to(self.device)
+        state = torch.FloatTensor(state).to(self.config.device)
         probs = self.actor(state)
         dist = torch.distributions.Categorical(probs)
         action = dist.sample()
@@ -56,14 +54,14 @@ class PPOTrainer(BaseTrainer):
         return returns
 
     def update(self):
-        states = torch.FloatTensor(np.array(self.memory.states)).to(self.device)
-        actions = torch.LongTensor(self.memory.actions).to(self.device)
-        old_logprobs = torch.FloatTensor(self.memory.logprobs).to(self.device)
+        states = torch.FloatTensor(np.array(self.memory.states)).to(self.config.device)
+        actions = torch.LongTensor(self.memory.actions).to(self.config.device)
+        old_logprobs = torch.FloatTensor(self.memory.logprobs).to(self.config.device)
         returns = torch.FloatTensor(
             self.compute_returns(
                 self.memory.rewards, self.memory.dones, self.config.gamma
             )
-        ).to(self.device)
+        ).to(self.config.device)
         advantages = returns - self.critic(states).squeeze().detach()
         for _ in range(self.config.ppo_epochs):
             probs = self.actor(states)
@@ -90,13 +88,13 @@ class PPOTrainer(BaseTrainer):
             self.episode_losses.append(loss.item())
         self.memory.clear()
 
-    def train(self, episodes=1000, max_steps=1000):
-        for ep in range(episodes):
+    def train(self):
+        for ep in range(self.config.episodes):
             state, _ = self.env.reset()
             done = False
             total_reward = 0
             self.episode_losses = []
-            for t in range(max_steps):
+            for t in range(self.config.max_steps):
                 action, logprob = self.select_action(state)
                 next_state, reward, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
@@ -109,15 +107,45 @@ class PPOTrainer(BaseTrainer):
             avg_loss = np.mean(self.episode_losses) if self.episode_losses else 0.0
             self.scores.append(total_reward)
             self.losses.append(avg_loss)
-            # Save best model
             if total_reward > self.best_score:
                 self.best_score = total_reward
-                torch.save(
-                    {
-                        "actor": self.actor.state_dict(),
-                        "critic": self.critic.state_dict(),
-                    },
-                    self.model_file,
-                )
-            # Log metrics
+                self.save_model()
             self._log_metrics()
+
+    def save_model(self):
+        torch.save(
+            {
+                "actor": self.actor.state_dict(),
+                "critic": self.critic.state_dict(),
+            },
+            self.model_file,
+        )
+
+    def load_model(self):
+        self.actor.load_state_dict(torch.load(self.model_file)["actor"])
+        self.critic.load_state_dict(torch.load(self.model_file)["critic"])
+
+    def ready_to_evaluate(self):
+        self.load_model()
+        self.actor.eval()
+        self.critic.eval()
+
+    def evaluate(self, episodes=10):
+        self.ready_to_evaluate()
+
+        scores = []
+        for _ in range(episodes):
+            state, _ = self.env.reset()
+            done = False
+            total_reward = 0
+
+            while not done:
+                action, _ = self.select_action(state)
+                next_state, reward, terminated, truncated, _ = self.env.step(action)
+                done = terminated or truncated
+                state = next_state
+                total_reward += reward
+
+            scores.append(total_reward)
+
+        return scores

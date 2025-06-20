@@ -9,16 +9,31 @@ import torch
 
 @dataclass
 class BaseConfig:
+    model: str = None
+    episodes: int = 1000
     max_steps: int = 1000
     lr: float = 3e-4
     gamma: float = 0.99
     hidden_dim: int = 256
     buffer_size: int = 1000000
     batch_size: int = 256
-    target_update: int = 10
+    # env
+    env_name: str = None
+    state_dim: int = None
+    action_dim: int = None
+    # device
+    device: str = "cuda" if torch.cuda.is_available() else "cpu"
 
     @classmethod
-    def from_dict(cls, config: dict):
+    def from_dict(cls, config: dict, env: gym.Env):
+        if env is not None:
+            config["env_name"] = env.__class__.__name__
+            config["state_dim"] = env.observation_space.shape[0]
+            config["action_dim"] = int(
+                env.action_space.n
+                if isinstance(env.action_space, gym.spaces.Discrete)
+                else env.action_space.shape[0]
+            )
         valid_keys = {f.name for f in fields(cls)}
         filtered_config = {k: v for k, v in config.items() if k in valid_keys}
         return cls(**filtered_config)
@@ -36,8 +51,6 @@ class BaseTrainer:
         self.config = config
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
-
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.is_discrete = isinstance(env.action_space, gym.spaces.Discrete)
         self.state_dim = env.observation_space.shape[0]
@@ -57,6 +70,9 @@ class BaseTrainer:
         self._init_models()
 
     def _init_models(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def select_action(self, state):
         raise NotImplementedError("Subclasses must implement this method")
 
     def update(self):
@@ -84,3 +100,32 @@ class BaseTrainer:
     def _log_config(self):
         with open(self.config_file, "w") as f:
             json.dump(self.config.to_dict(), f, indent=2)
+
+    def save_model(self):
+        pass
+
+    def load_model(self):
+        pass
+
+    def ready_to_evaluate(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def evaluate(self, episodes=10):
+        self.ready_to_evaluate()
+
+        scores = []
+        for _ in range(episodes):
+            state, _ = self.env.reset()
+            done = False
+            total_reward = 0
+
+            while not done:
+                action = self.select_action(state)
+                next_state, reward, terminated, truncated, _ = self.env.step(action)
+                done = terminated or truncated
+                state = next_state
+                total_reward += reward
+
+            scores.append(total_reward)
+
+        return scores

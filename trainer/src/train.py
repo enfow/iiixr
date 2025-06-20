@@ -49,19 +49,31 @@ def main():
 
     env = gym.make(args.env)
     config = {
+        "model": args.model,
+        "episodes": args.episodes,
         "max_steps": args.max_steps,
         "lr": args.lr,
-        "gamma": args.gamma,
         "hidden_dim": args.hidden_dim,
         "buffer_size": args.buffer_size,
         "batch_size": args.batch_size,
-        "target_update": args.target_update,
+
+        # reinforcement learning hyperparameters
+        "gamma": args.gamma,
+        
         # SAC specific hyperparameters
         "tau": 0.005,
-        "tune_alpha": True,
-        "start_steps": 1000,  # Reduced for simpler discrete envs
-        "update_every": 1,
-        "max_grad_norm": 1.0,
+        "start_steps": 1000,
+        "entropy_coef": 1.0,
+
+        # PPO specific hyperparameters
+        "ppo_epochs": 4,
+        "clip_eps": 0.2,
+
+        # Rainbow DQN hyperparameters
+        "alpha": 0.6,
+        "beta_start": 0.4,
+        "beta_frames": 100000,
+        "target_update": args.target_update,
     }
 
     if args.model == "ppo":
@@ -79,7 +91,7 @@ def main():
     else:
         raise ValueError(f"Unknown model: {args.model}")
 
-    trainer.train(episodes=args.episodes, max_steps=args.max_steps)
+    trainer.train()
 
 
 if __name__ == "__main__":

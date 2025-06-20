@@ -12,27 +12,25 @@ from trainer.base_trainer import BaseConfig, BaseTrainer
 
 @dataclass
 class RainbowDQNConfig(BaseConfig):
-    gamma: float = 0.99
-    batch_size: int = 64
-    target_update: int = 10
     alpha: float = 0.6
     beta_start: float = 0.4
     beta_frames: int = 100000
+    target_update: int = 10
 
 
 class RainbowDQNTrainer(BaseTrainer):
     def __init__(self, env, config, save_dir="results/rainbow_dqn"):
-        config = RainbowDQNConfig.from_dict(config)
+        config = RainbowDQNConfig.from_dict(config, env)
         super().__init__(env, config, save_dir)
 
     def _init_models(self):
         # Networks
         self.policy_net = DuelingNetwork(
             self.state_dim, self.action_dim, self.config.hidden_dim
-        ).to(self.device)
+        ).to(self.config.device)
         self.target_net = DuelingNetwork(
             self.state_dim, self.action_dim, self.config.hidden_dim
-        ).to(self.device)
+        ).to(self.config.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.config.lr)
@@ -48,7 +46,7 @@ class RainbowDQNTrainer(BaseTrainer):
         self.total_steps = 0
 
     def select_action(self, state):
-        state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        state = torch.FloatTensor(state).unsqueeze(0).to(self.config.device)
         with torch.no_grad():
             q_values = self.policy_net(state)
         return q_values.argmax(dim=1).item()
@@ -61,12 +59,12 @@ class RainbowDQNTrainer(BaseTrainer):
             self.replay_buffer.sample(self.config.batch_size)
         )
 
-        states = torch.FloatTensor(states).to(self.device)
-        actions = torch.LongTensor(actions).unsqueeze(1).to(self.device)
-        rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.device)
-        next_states = torch.FloatTensor(next_states).to(self.device)
-        dones = torch.FloatTensor(dones).unsqueeze(1).to(self.device)
-        weights = torch.FloatTensor(weights).unsqueeze(1).to(self.device)
+        states = torch.FloatTensor(states).to(self.config.device)
+        actions = torch.LongTensor(actions).unsqueeze(1).to(self.config.device)
+        rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.config.device)
+        next_states = torch.FloatTensor(next_states).to(self.config.device)
+        dones = torch.FloatTensor(dones).unsqueeze(1).to(self.config.device)
+        weights = torch.FloatTensor(weights).unsqueeze(1).to(self.config.device)
 
         q_values = self.policy_net(states).gather(1, actions)
 
@@ -91,15 +89,15 @@ class RainbowDQNTrainer(BaseTrainer):
         if self.total_steps % self.config.target_update == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
 
-    def train(self, episodes=1000, max_steps=1000):
+    def train(self):
         self.total_steps = 0
-        for ep in range(episodes):
+        for ep in range(self.config.episodes):
             state, _ = self.env.reset()
             done = False
             total_reward = 0
             self.episode_losses = []
 
-            for t in range(max_steps):
+            for t in range(self.config.max_steps):
                 action = self.select_action(state)
                 next_state, reward, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
@@ -118,9 +116,17 @@ class RainbowDQNTrainer(BaseTrainer):
             self.scores.append(total_reward)
             self.losses.append(avg_loss)
 
-            # Save best model
             if total_reward > self.best_score:
                 self.best_score = total_reward
-                torch.save(self.policy_net.state_dict(), self.model_file)
-
+                self.save_model()
             self._log_metrics()
+
+    def save_model(self):
+        torch.save(self.policy_net.state_dict(), self.model_file)
+
+    def load_model(self):
+        self.policy_net.load_state_dict(torch.load(self.model_file))
+
+    def ready_to_evaluate(self):
+        self.load_model()
+        self.policy_net.eval()

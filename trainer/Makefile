@@ -33,7 +33,11 @@ V_MAX := 10.0
 N_STEP := 3
 MEMORY_SIZE := 100000
 
-.PHONY: train docker-build docker-run docker-stop docker-remove train-ppo train-sac train-rainbow-dqn run-server clean compose-up compose-down compose-logs help install
+# Default values for evaluation parameters
+EVAL_EPISODES := 10
+EVAL_RESULTS_PATH := results/ppo
+
+.PHONY: train docker-build docker-run docker-stop docker-remove train-ppo train-sac train-rainbow-dqn run-server clean compose-up compose-down compose-logs help install eval-ppo eval-sac eval-rainbow eval-discrete-sac
 
 format:
 	ruff format src
@@ -63,11 +67,19 @@ help:
 	@echo "  train-sac      Train SAC agent"
 	@echo "  train-rainbow  Train Rainbow DQN agent"
 	@echo "  train-all      Train all agents sequentially"
+	@echo "  eval-ppo       Evaluate PPO agent"
+	@echo "  eval-sac       Evaluate SAC agent"
+	@echo "  eval-rainbow   Evaluate Rainbow DQN agent"
+	@echo "  eval-discrete-sac Evaluate Discrete SAC agent"
 	@echo ""
-	@echo "Example usage:"
+	@echo "Training example usage:"
 	@echo "  make train-ppo ENV=LunarLander-v2 N_EPISODES=1000"
 	@echo "  make train-sac ENV=Pendulum-v1 LEARNING_RATE=0.0003"
 	@echo "  make train-rainbow ENV=CartPole-v1 MEMORY_SIZE=50000"
+	@echo ""
+	@echo "Evaluation example usage:"
+	@echo "  make eval-ppo EVAL_RESULTS_PATH=results/ppo ENV=LunarLander-v2"
+	@echo "  make eval-sac EVAL_RESULTS_PATH=results/sac ENV=Pendulum-v1 EVAL_EPISODES=20"
 
 install:
 	pip install -r requirements.txt
@@ -132,3 +144,28 @@ clean:
 	rm -rf models/
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
+
+# Evaluation targets
+eval-ppo:
+	$(PYTHON) $(SRC_DIR)/eval.py \
+		--results_path $(EVAL_RESULTS_PATH) \
+		--env $(ENV) \
+		--episodes $(EVAL_EPISODES)
+
+eval-sac:
+	$(PYTHON) $(SRC_DIR)/eval.py \
+		--results_path $(EVAL_RESULTS_PATH) \
+		--env $(ENV) \
+		--episodes $(EVAL_EPISODES)
+
+eval-rainbow:
+	$(PYTHON) $(SRC_DIR)/eval.py \
+		--results_path $(EVAL_RESULTS_PATH) \
+		--env $(ENV) \
+		--episodes $(EVAL_EPISODES)
+
+eval-discrete-sac:
+	$(PYTHON) $(SRC_DIR)/eval.py \
+		--results_path $(EVAL_RESULTS_PATH) \
+		--env $(ENV) \
+		--episodes $(EVAL_EPISODES)
