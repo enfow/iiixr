@@ -19,7 +19,7 @@ class SACConfig(BaseConfig):
 
 class SACTrainer(BaseTrainer):
     def __init__(self, env, config, save_dir="results/sac"):
-        config = SACConfig.from_dict(config, env)
+        config = SACConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 
     def _init_models(self):

@@ -20,7 +20,7 @@ class RainbowDQNConfig(BaseConfig):
 
 class RainbowDQNTrainer(BaseTrainer):
     def __init__(self, env, config, save_dir="results/rainbow_dqn"):
-        config = RainbowDQNConfig.from_dict(config, env)
+        config = RainbowDQNConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 
     def _init_models(self):

@@ -25,7 +25,7 @@ class DiscreteSACConfig(BaseConfig):
 
 class DiscreteSACTrainer(BaseTrainer):
     def __init__(self, env, config, save_dir="results/discrete_sac"):
-        config = DiscreteSACConfig.from_dict(config, env)
+        config = DiscreteSACConfig.from_dict(config)
         print(config)
         super().__init__(env, config, save_dir)
 
