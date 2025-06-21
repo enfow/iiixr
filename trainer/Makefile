@@ -58,7 +58,7 @@ docker-build:
 docker-run:
 	docker run -it --rm \
 		$(if $(filter cuda,$(DEVICE)),--gpus all,) \
-		--name $(DOCKER_CONTAINER_NAME) \
+		--name $(DOCKER_CONTAINER_NAME)-$(MODEL) \
 		-v $(PWD)/src:/app/src \
 		-v $(PWD)/results:/app/results \
 		-e MODEL=$(MODEL) \
