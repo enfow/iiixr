@@ -188,10 +188,10 @@ class BaseTrainer:
 
         self.eval_mode_off()
 
-        mean_score = np.mean(scores)
-        std_score = np.std(scores)
-        min_score = np.min(scores)
-        max_score = np.max(scores)
+        mean_score = float(np.mean(scores))
+        std_score = float(np.std(scores))
+        min_score = float(np.min(scores))
+        max_score = float(np.max(scores))
         all_scores = [f"{s:.2f}" for s in scores]
 
         print(
