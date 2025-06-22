@@ -8,6 +8,8 @@ import gymnasium as gym
 import numpy as np
 import torch
 
+from schema.train_result import EvalResult, TrainResult
+
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -87,6 +89,7 @@ class BaseTrainer:
         self.scores = []
         self.losses = []
         self.episode_elapsed_times = []
+        self.best_results: EvalResult = None
         self.log_file = os.path.join(self.save_dir, "metrics.jsonl")
         self.model_file = os.path.join(self.save_dir, "best_model.pth")
         self.config_file = os.path.join(self.save_dir, "config.json")
@@ -117,13 +120,14 @@ class BaseTrainer:
 
             self._log_metrics()
 
-            if result["total_reward"] > self.best_score:
-                self.best_score = result["total_reward"]
-                self.save_model()
-
             if self.config.eval and ep % self.config.eval_period == 0:
-                eval_results = self.evaluate(self.config.eval_episodes)
-                self._log_eval_metrics(eval_results)
+                eval_result = self.evaluate(self.config.eval_episodes)
+                if self.best_results is None or eval_result > self.best_results:
+                    self.best_results = eval_result
+                    print("New best results:")
+                print(eval_result)
+                self._log_eval_metrics(eval_result)
+                self.save_model()
 
     def select_action(self, state) -> dict:
         raise NotImplementedError("Subclasses must implement this method")
@@ -144,23 +148,20 @@ class BaseTrainer:
         raise NotImplementedError("Subclasses must implement this method")
 
     def _log_metrics(self):
-        with open(self.log_file, "a") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "episode": len(self.scores),
-                        "return": float(self.scores[-1]),
-                        "loss": float(self.losses[-1]),
-                        "elapsed_time": float(self.episode_elapsed_times[-1]),
-                    }
-                )
-                + "\n"
-            )
-        print(
-            f"Episode {len(self.scores)}: Return={self.scores[-1]:.2f}, Loss={self.losses[-1]:.4f}"
+        train_result = TrainResult.from_train_results(
+            self.scores, self.losses, self.episode_elapsed_times
         )
+        with open(self.log_file, "a") as f:
+            f.write(json.dumps(train_result.to_dict()) + "\n")
+        print(train_result)
 
     def _log_eval_metrics(self, eval_results):
+        if isinstance(eval_results, EvalResult):
+            eval_results = eval_results.to_dict()
+
+        if not isinstance(eval_results, dict):
+            raise ValueError("eval_results must be a dictionary")
+
         with open(self.log_file, "a") as f:
             f.write(json.dumps(eval_results) + "\n")
 
@@ -172,10 +173,12 @@ class BaseTrainer:
         self.eval_mode_on()
 
         scores = []
+        steps = []
         for _ in range(episodes):
             state, _ = self.env.reset()
             done = False
             total_reward = 0
+            step = 0
 
             while not done:
                 action = self.select_action(state)["action"]
@@ -184,24 +187,13 @@ class BaseTrainer:
                 state = next_state
                 total_reward += reward
 
+                step += 1
+                if step >= self.config.max_steps:
+                    break
+
             scores.append(total_reward)
+            steps.append(step)
 
         self.eval_mode_off()
 
-        mean_score = np.mean(scores)
-        std_score = np.std(scores)
-        min_score = np.min(scores)
-        max_score = np.max(scores)
-        all_scores = [f"{s:.2f}" for s in scores]
-
-        print(
-            f"Evaluation Results: Mean Score={mean_score:.2f} ± {std_score:.2f}, Min Score={min_score:.2f}, Max Score={max_score:.2f}"
-        )
-
-        return {
-            "mean_score": mean_score,
-            "std_score": std_score,
-            "min_score": min_score,
-            "max_score": max_score,
-            "all_scores": all_scores,
-        }
+        return EvalResult.from_eval_results(scores, steps)
