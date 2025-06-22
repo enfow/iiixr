@@ -24,6 +24,7 @@ LEARNING_RATE ?= 0.001
 GAMMA ?= 0.99
 BUFFER_SIZE ?= 1000000
 SEED ?= 42
+HIDDEN_DIM ?= 256
 
 # rainbow_dqn
 ALPHA ?= 0.6
@@ -58,7 +59,7 @@ docker-build:
 docker-run:
 	docker run -it --rm \
 		$(if $(filter cuda,$(DEVICE)),--gpus all,) \
-		--name $(DOCKER_CONTAINER_NAME) \
+		--name $(DOCKER_CONTAINER_NAME)-$(MODEL)-$(ENV) \
 		-v $(PWD)/src:/app/src \
 		-v $(PWD)/results:/app/results \
 		-e MODEL=$(MODEL) \
@@ -74,6 +75,7 @@ docker-run:
 		-e DEVICE=$(DEVICE) \
 		-e BUFFER_SIZE=$(BUFFER_SIZE) \
 		-e SEED=$(SEED) \
+		-e HIDDEN_DIM=$(HIDDEN_DIM) \
 		-e ALPHA=$(ALPHA) \
 		-e BETA_START=$(BETA_START) \
 		-e BETA_FRAMES=$(BETA_FRAMES) \
@@ -118,6 +120,7 @@ train:
 		--device $(DEVICE) \
 		--buffer_size $(BUFFER_SIZE) \
 		--seed $(SEED) \
+		--hidden_dim $(HIDDEN_DIM) \
 		--alpha $(ALPHA) \
 		--beta_start $(BETA_START) \
 		--beta_frames $(BETA_FRAMES) \
