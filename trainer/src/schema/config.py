@@ -51,6 +51,7 @@ class BaseConfig(BaseModel):
 
 
 class PPOConfig(BaseConfig):
+    n_transactions: int = 1000
     ppo_epochs: int = 4
     clip_eps: float = 0.2
 

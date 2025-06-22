@@ -68,6 +68,33 @@ class PPOTrainer(BaseTrainer):
             returns.insert(0, R)
         return returns
 
+    def _get_actions_from_memory(self):
+        if self.is_discrete:
+            actions = torch.LongTensor(self.memory.actions).to(self.config.device)
+        else:
+            actions = torch.FloatTensor(np.array(self.memory.actions)).to(
+                self.config.device
+            )
+        return actions
+
+    def _get_current_logprobs(self, states, actions):
+        if self.is_discrete:
+            # Discrete action space
+            probs = self.actor(states)
+            dist = torch.distributions.Categorical(probs)
+            logprobs = dist.log_prob(actions)
+        else:
+            # Continuous action space
+            mean, log_std = self.actor(states)
+            std = log_std.exp()
+            dist = torch.distributions.Normal(mean, std)
+            # Apply tanh to match action selection
+            raw_actions = torch.atanh(torch.clamp(actions, -0.999, 0.999))
+            logprobs = dist.log_prob(raw_actions).sum(dim=-1)
+            # Adjust log probability for tanh transformation
+            logprobs -= torch.log(1 - actions.pow(2) + 1e-8).sum(dim=-1)
+        return logprobs
+
     def update(self):
         total_loss = 0
         states = torch.FloatTensor(np.array(self.memory.states)).to(self.config.device)
@@ -79,29 +106,10 @@ class PPOTrainer(BaseTrainer):
         ).to(self.config.device)
         advantages = returns - self.critic(states).squeeze().detach()
 
-        if self.is_discrete:
-            actions = torch.LongTensor(self.memory.actions).to(self.config.device)
-        else:
-            actions = torch.FloatTensor(np.array(self.memory.actions)).to(
-                self.config.device
-            )
+        actions = self._get_actions_from_memory()
 
         for _ in range(self.config.ppo_epochs):
-            if self.is_discrete:
-                # Discrete action space
-                probs = self.actor(states)
-                dist = torch.distributions.Categorical(probs)
-                logprobs = dist.log_prob(actions)
-            else:
-                # Continuous action space
-                mean, log_std = self.actor(states)
-                std = log_std.exp()
-                dist = torch.distributions.Normal(mean, std)
-                # Apply tanh to match action selection
-                raw_actions = torch.atanh(torch.clamp(actions, -0.999, 0.999))
-                logprobs = dist.log_prob(raw_actions).sum(dim=-1)
-                # Adjust log probability for tanh transformation
-                logprobs -= torch.log(1 - actions.pow(2) + 1e-8).sum(dim=-1)
+            logprobs = self._get_current_logprobs(states, actions)
 
             ratio = torch.exp(logprobs - old_logprobs)
             surr1 = ratio * advantages
@@ -130,10 +138,7 @@ class PPOTrainer(BaseTrainer):
         done = False
         episode_rewards, episode_losses, episode_steps = [], [], [0]
 
-        # ppo hyperparams
-        max_transactions = 1000
-
-        while sum(episode_steps) < max_transactions:
+        while sum(episode_steps) < self.config.n_transactions:
             action_info = self.select_action(state)
             action = action_info["action"]
             logprob = action_info["logprob"]
