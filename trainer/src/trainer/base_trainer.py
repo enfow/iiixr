@@ -1,22 +1,13 @@
 import os
-import random
 import time
 
 import gymnasium as gym
 import numpy as np
-import torch
 
 from schema.config import BaseConfig
 from schema.result import EvalResult, TotalTrainResult
 from util.file import log_result, save_json
-
-
-def set_seed(seed):
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+from util.settings import set_seed
 
 
 class BaseTrainer:
