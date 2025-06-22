@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from schema.config import BaseConfig
-from schema.result import EvalResult, TrainResult
+from schema.result import EvalResult, TotalTrainResult
 from util.file import log_result, save_json
 
 
@@ -35,17 +35,12 @@ class BaseTrainer:
             else env.action_space.shape[0]
         )
         self.is_discrete = isinstance(env.action_space, gym.spaces.Discrete)
-
+        self.total_train_result = TotalTrainResult.initialize()
         self.best_score = -np.inf
-        self.total_steps = 0
-        self.scores = []
-        self.losses = []
-        self.episode_elapsed_times = []
         self.best_results: EvalResult = None
         self.log_file = os.path.join(self.save_dir, "metrics.jsonl")
         self.model_file = os.path.join(self.save_dir, "best_model.pth")
         self.config_file = os.path.join(self.save_dir, "config.json")
-
         self._log_config()
         self._init_models()
 
@@ -55,27 +50,33 @@ class BaseTrainer:
     def train_episode(self):
         raise NotImplementedError("Subclasses must implement this method")
 
+    def collect_initial_data(self, start_steps):
+        state, _ = self.env.reset()
+        for _ in range(start_steps):
+            action = self.env.action_space.sample()
+            next_state, reward, terminated, truncated, _ = self.env.step(action)
+            done = terminated or truncated
+            self.buffer.push(state, action, reward, next_state, done)
+            state = next_state
+            if done:
+                state, _ = self.env.reset()
+                break
+        print(f"Collected {start_steps} initial data")
+
     def train(self):
+        if hasattr(self.config, "start_steps") and self.config.start_steps > 0:
+            self.collect_initial_data(self.config.start_steps)
+
         for ep in range(self.config.episodes):
             start_time = time.time()
-            result = self.train_episode()
+            single_episode_result = self.train_episode()
             elapsed_time = time.time() - start_time
 
-            if "total_reward" not in result or "losses" not in result:
-                raise ValueError("Results must have total_reward and losses")
-
-            avg_loss = np.mean(result["losses"]) if result["losses"] else 0.0
-
-            self.scores.append(result["total_reward"])
-            self.losses.append(avg_loss)
-            self.episode_elapsed_times.append(elapsed_time)
-
             # log train result
-            train_result = TrainResult.from_train_results(
-                self.scores, self.losses, self.episode_elapsed_times
-            )
-            print(train_result)
-            log_result(train_result, self.log_file)
+            single_episode_result.episode_elapsed_time = elapsed_time
+            print(single_episode_result)
+            self.total_train_result.update(single_episode_result)
+            log_result(single_episode_result, self.log_file)
 
             # evaluate
             if self.config.eval and ep % self.config.eval_period == 0:

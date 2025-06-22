@@ -2,28 +2,58 @@ import numpy as np
 from pydantic import BaseModel
 
 
-class TrainResult(BaseModel):
-    episode: int = None
-    episode_return: float = None
-    episode_loss: float = None
+class SingleEpisodeResult(BaseModel):
+    episode_rewards: list[float] = None
+    episode_steps: int = None
+    episode_losses: list[float] = None
     episode_elapsed_time: float = None
 
     @classmethod
-    def from_train_results(
-        cls, scores: list[float], losses: list[float], elapsed_times: list[float]
-    ):
-        return cls(
-            episode=len(scores),
-            episode_return=scores[-1],
-            episode_loss=losses[-1],
-            episode_elapsed_time=elapsed_times[-1],
-        )
+    def from_dict(cls, data: dict):
+        return cls(**data)
 
     def to_dict(self):
         return self.model_dump()
 
     def __str__(self):
-        return f"Episode {self.episode}: Return={self.episode_return:.2f}, Loss={self.episode_loss:.4f}, Elapsed Time={self.episode_elapsed_time:.2f}"
+        return f"total_rewards={round(np.sum(self.episode_rewards), 2)}, episode_steps={self.episode_steps}, total_loss={round(np.sum(self.episode_losses), 2)}, episode_elapsed_time={round(self.episode_elapsed_time, 2) if self.episode_elapsed_time is not None else None}"
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class TotalTrainResult(BaseModel):
+    total_episodes: int = None
+    returns: list[float] = None
+    losses: list[float] = None
+    elapsed_times: list[float] = None
+    total_steps: int = None
+
+    @classmethod
+    def initialize(cls):
+        return cls(
+            total_episodes=0,
+            returns=[],
+            losses=[],
+            elapsed_times=[],
+            total_steps=0,
+        )
+
+    def update(self, episode_result: SingleEpisodeResult):
+        self.total_episodes += 1
+        self.returns.append(np.sum(episode_result.episode_rewards))
+        self.losses.append(np.sum(episode_result.episode_losses))
+        self.elapsed_times.append(episode_result.episode_elapsed_time)
+        self.total_steps += episode_result.episode_steps
+
+    def to_dict(self):
+        return self.model_dump()
+
+    def __str__(self):
+        return f"TotalTrainResult(total_episodes={self.total_episodes}, returns={self.returns}, losses={self.losses}, elapsed_times={self.elapsed_times}, total_steps={self.total_steps})"
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class EvalResult(BaseModel):

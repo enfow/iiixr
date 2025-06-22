@@ -22,13 +22,14 @@ class BaseConfig(BaseModel):
     # device
     device: str = "cpu"
     # evaluation
-    eval: bool = False
+    eval: bool = True
     eval_period: int = 10
     eval_episodes: int = 10
 
     @classmethod
     def from_dict(cls, config: dict):
         cls._check_device(config)
+        print(config)
         return cls(**config)
 
     @staticmethod
@@ -47,3 +48,21 @@ class BaseConfig(BaseModel):
 
     def to_json(self):
         return json.dumps(self.to_dict(), indent=2)
+
+
+class PPOConfig(BaseConfig):
+    ppo_epochs: int = 4
+    clip_eps: float = 0.2
+
+
+class SACConfig(BaseConfig):
+    tau: float = 0.005
+    entropy_coef: float = 1.0
+    start_steps: int = 1000
+
+
+class RainbowDQNConfig(BaseConfig):
+    alpha: float = 0.6
+    beta_start: float = 0.4
+    beta_frames: int = 100000
+    target_update: int = 10

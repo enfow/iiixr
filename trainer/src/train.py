@@ -4,7 +4,6 @@ import time
 
 import gymnasium as gym
 
-from schema.config import BaseConfig
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
 from trainer.ppo_trainer import PPOTrainer
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer

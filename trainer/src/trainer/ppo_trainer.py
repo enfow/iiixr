@@ -5,13 +5,9 @@ import torch.optim as optim
 
 from model.buffer import PPOMemory
 from model.ppo import Actor, Critic
-from schema.config import BaseConfig
+from schema.config import PPOConfig
+from schema.result import SingleEpisodeResult
 from trainer.base_trainer import BaseTrainer
-
-
-class PPOConfig(BaseConfig):
-    ppo_epochs: int = 4
-    clip_eps: float = 0.2
 
 
 class PPOTrainer(BaseTrainer):
@@ -129,12 +125,15 @@ class PPOTrainer(BaseTrainer):
         self.memory.clear()
         return total_loss
 
-    def train_episode(self):
+    def train_episode(self) -> SingleEpisodeResult:
         state, _ = self.env.reset()
         done = False
-        total_reward = 0
-        losses = []
-        for t in range(self.config.max_steps):
+        episode_rewards, episode_losses, episode_steps = [], [], [0]
+
+        # ppo hyperparams
+        max_transactions = 1000
+
+        while sum(episode_steps) < max_transactions:
             action_info = self.select_action(state)
             action = action_info["action"]
             logprob = action_info["logprob"]
@@ -142,16 +141,25 @@ class PPOTrainer(BaseTrainer):
             done = terminated or truncated
             self.memory.store(state, action, logprob, reward, done)
             state = next_state
-            total_reward += reward
+            episode_rewards.append(reward)
+            episode_steps[-1] += 1
+
             if done:
-                break
+                state, _ = self.env.reset()
+                episode_steps.append(0)
+
+        episode_steps = round(np.mean(episode_steps))
+
         loss = self.update()
+
         if loss is not None:
-            losses.append(loss)
-        return {
-            "total_reward": total_reward,
-            "losses": losses,
-        }
+            episode_losses.append(loss)
+
+        return SingleEpisodeResult(
+            episode_rewards=episode_rewards,
+            episode_steps=episode_steps,
+            episode_losses=episode_losses,
+        )
 
     def save_model(self):
         torch.save(

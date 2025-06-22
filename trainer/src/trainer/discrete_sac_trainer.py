@@ -12,25 +12,19 @@ import torch.optim as optim
 from model.buffer import ReplayBuffer
 from model.discrete_sac import DiscreteSACQNetwork
 from model.sac import SACPolicy
-from schema.config import BaseConfig
+from schema.config import SACConfig
+from schema.result import SingleEpisodeResult
 from trainer.base_trainer import BaseTrainer
-
-
-class DiscreteSACConfig(BaseConfig):
-    tau: float = 0.005
-    entropy_coef: float = 1.0
-    start_steps: int = 1000
 
 
 class DiscreteSACTrainer(BaseTrainer):
     def __init__(
         self,
         env: gym.Env,
-        config: DiscreteSACConfig,
+        config: SACConfig,
         save_dir: str = "results/discrete_sac",
     ):
-        config = DiscreteSACConfig.from_dict(config)
-        print(config)
+        config = SACConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 
     def _init_models(self):
@@ -162,33 +156,32 @@ class DiscreteSACTrainer(BaseTrainer):
             + alpha_loss.item()
         )
 
-    def train_episode(self):
+    def train_episode(self) -> SingleEpisodeResult:
         state, _ = self.env.reset()
-        total_reward = 0
-        losses = []
+        done = False
+        episode_rewards, episode_losses, episode_steps = [], [], 0
+
         for step in range(self.config.max_steps):
-            if self.total_steps < self.config.start_steps:
-                action = self.env.action_space.sample()
-            else:
-                action = self.select_action(state)["action"]
+            action = self.select_action(state)["action"]
             next_state, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
             self.buffer.push(state, action, reward, next_state, done)
             state = next_state
-            total_reward += reward
-            self.total_steps += 1
+            episode_rewards.append(reward)
 
             loss = self.update()
             if loss is not None:
-                losses.append(loss)
+                episode_losses.append(loss)
 
             if done:
+                episode_steps = step
                 break
 
-        return {
-            "total_reward": total_reward,
-            "losses": losses,
-        }
+        return SingleEpisodeResult(
+            episode_rewards=episode_rewards,
+            episode_steps=episode_steps,
+            episode_losses=episode_losses,
+        )
 
     def save_model(self):
         torch.save(

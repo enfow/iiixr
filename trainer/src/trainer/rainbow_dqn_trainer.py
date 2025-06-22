@@ -6,15 +6,9 @@ import torch.optim as optim
 
 from model.buffer import PrioritizedReplayBuffer
 from model.rainbow_dqn import DuelingNetwork
-from schema.config import BaseConfig
+from schema.config import RainbowDQNConfig
+from schema.result import SingleEpisodeResult
 from trainer.base_trainer import BaseTrainer
-
-
-class RainbowDQNConfig(BaseConfig):
-    alpha: float = 0.6
-    beta_start: float = 0.4
-    beta_frames: int = 100000
-    target_update: int = 10
 
 
 class RainbowDQNTrainer(BaseTrainer):
@@ -93,33 +87,36 @@ class RainbowDQNTrainer(BaseTrainer):
 
         return loss.item()
 
-    def train_episode(self):
+    def train_episode(self) -> SingleEpisodeResult:
         state, _ = self.env.reset()
         done = False
-        total_reward = 0
-        losses = []
+        episode_rewards = []
+        episode_losses = []
+        episode_steps = 0
 
-        for t in range(self.config.max_steps):
+        for step in range(self.config.max_steps):
             action = self.select_action(state)["action"]
             next_state, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
 
             self.replay_buffer.push(state, action, reward, next_state, done)
+
             loss = self.update()
             if loss is not None:
-                losses.append(loss)
+                episode_losses.append(loss)
 
             state = next_state
-            total_reward += reward
-            self.total_steps += 1
+            episode_rewards.append(reward)
 
             if done:
+                episode_steps = step
                 break
 
-        return {
-            "total_reward": total_reward,
-            "losses": losses,
-        }
+        return SingleEpisodeResult(
+            episode_rewards=episode_rewards,
+            episode_steps=episode_steps,
+            episode_losses=episode_losses,
+        )
 
     def save_model(self):
         torch.save(self.policy_net.state_dict(), self.model_file)
