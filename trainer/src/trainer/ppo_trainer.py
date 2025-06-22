@@ -68,15 +68,6 @@ class PPOTrainer(BaseTrainer):
             returns.insert(0, R)
         return returns
 
-    def _get_actions_from_memory(self):
-        if self.is_discrete:
-            actions = torch.LongTensor(self.memory.actions).to(self.config.device)
-        else:
-            actions = torch.FloatTensor(np.array(self.memory.actions)).to(
-                self.config.device
-            )
-        return actions
-
     def _get_current_logprobs(self, states, actions):
         if self.is_discrete:
             # Discrete action space
@@ -95,9 +86,14 @@ class PPOTrainer(BaseTrainer):
             logprobs -= torch.log(1 - actions.pow(2) + 1e-8).sum(dim=-1)
         return logprobs
 
-    def update(self):
-        total_loss = 0
+    def _read_memory(self):
         states = torch.FloatTensor(np.array(self.memory.states)).to(self.config.device)
+        if self.is_discrete:
+            actions = torch.LongTensor(self.memory.actions).to(self.config.device)
+        else:
+            actions = torch.FloatTensor(np.array(self.memory.actions)).to(
+                self.config.device
+            )
         old_logprobs = torch.FloatTensor(self.memory.logprobs).to(self.config.device)
         returns = torch.FloatTensor(
             self.compute_returns(
@@ -105,8 +101,11 @@ class PPOTrainer(BaseTrainer):
             )
         ).to(self.config.device)
         advantages = returns - self.critic(states).squeeze().detach()
+        return states, actions, old_logprobs, returns, advantages
 
-        actions = self._get_actions_from_memory()
+    def update(self):
+        total_loss = 0
+        states, actions, old_logprobs, returns, advantages = self._read_memory()
 
         for _ in range(self.config.ppo_epochs):
             logprobs = self._get_current_logprobs(states, actions)
