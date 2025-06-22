@@ -3,12 +3,14 @@ import os
 import random
 import time
 from dataclasses import asdict, dataclass, fields
+from typing import Union
 
 import gymnasium as gym
 import numpy as np
 import torch
 
 from schema.train_result import EvalResult, TrainResult
+from util.file import log_result, save_json
 
 
 def set_seed(seed):
@@ -118,56 +120,22 @@ class BaseTrainer:
             self.losses.append(avg_loss)
             self.episode_elapsed_times.append(elapsed_time)
 
-            self._log_metrics()
+            # log train result
+            train_result = TrainResult.from_train_results(
+                self.scores, self.losses, self.episode_elapsed_times
+            )
+            print(train_result)
+            log_result(train_result, self.log_file)
 
+            # evaluate
             if self.config.eval and ep % self.config.eval_period == 0:
                 eval_result = self.evaluate(self.config.eval_episodes)
                 if self.best_results is None or eval_result > self.best_results:
                     self.best_results = eval_result
                     print("New best results:")
                 print(eval_result)
-                self._log_eval_metrics(eval_result)
+                log_result(eval_result, self.log_file)
                 self.save_model()
-
-    def select_action(self, state) -> dict:
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def update(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def save_model(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def load_model(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def eval_mode_on(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def eval_mode_off(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def _log_metrics(self):
-        train_result = TrainResult.from_train_results(
-            self.scores, self.losses, self.episode_elapsed_times
-        )
-        with open(self.log_file, "a") as f:
-            f.write(json.dumps(train_result.to_dict()) + "\n")
-        print(train_result)
-
-    def _log_eval_metrics(self, eval_results):
-        if isinstance(eval_results, EvalResult):
-            eval_results = eval_results.to_dict()
-
-        if not isinstance(eval_results, dict):
-            raise ValueError("eval_results must be a dictionary")
-
-        with open(self.log_file, "a") as f:
-            f.write(json.dumps(eval_results) + "\n")
-
-    def _log_config(self):
-        with open(self.config_file, "w") as f:
-            json.dump(self.config.to_dict(), f, indent=2)
 
     def evaluate(self, episodes=10):
         self.eval_mode_on()
@@ -197,3 +165,24 @@ class BaseTrainer:
         self.eval_mode_off()
 
         return EvalResult.from_eval_results(scores, steps)
+
+    def select_action(self, state) -> dict:
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def update(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def save_model(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def load_model(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def eval_mode_on(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def eval_mode_off(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def _log_config(self):
+        save_json(self.config.to_dict(), self.config_file)
