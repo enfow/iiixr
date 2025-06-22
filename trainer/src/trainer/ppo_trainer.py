@@ -26,8 +26,12 @@ class PPOTrainer(BaseTrainer):
             self.config.device
         )
         self.memory = PPOMemory()
-        self.optimizer = optim.Adam(
-            list(self.actor.parameters()) + list(self.critic.parameters()),
+        self.actor_optimizer = optim.Adam(
+            list(self.actor.parameters()),
+            lr=self.config.lr,
+        )
+        self.critic_optimizer = optim.Adam(
+            list(self.critic.parameters()),
             lr=self.config.lr,
         )
 
@@ -35,7 +39,6 @@ class PPOTrainer(BaseTrainer):
         state = torch.FloatTensor(state).to(self.config.device)
 
         if self.is_discrete:
-            # Discrete action space (e.g., LunarLander)
             probs = self.actor(state)
             dist = torch.distributions.Categorical(probs)
             action = dist.sample()
@@ -45,13 +48,11 @@ class PPOTrainer(BaseTrainer):
                 "logprob": logprob.item(),
             }
         else:
-            # Continuous action space (e.g., BipedalWalker)
             mean, log_std = self.actor(state)
             std = log_std.exp()
             dist = torch.distributions.Normal(mean, std)
             action = dist.sample()
-            logprob = dist.log_prob(action).sum(dim=-1)  # Sum over action dimensions
-            # Clamp actions to valid range (typically [-1, 1] for most continuous envs)
+            logprob = dist.log_prob(action).sum(dim=-1)
             action = torch.tanh(action)
             return {
                 "action": action.detach().cpu().numpy(),
@@ -107,6 +108,9 @@ class PPOTrainer(BaseTrainer):
         total_loss = 0
         states, actions, old_logprobs, returns, advantages = self._read_memory()
 
+        if self.config.normalize_advantages:
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
         for _ in range(self.config.ppo_epochs):
             logprobs = self._get_current_logprobs(states, actions)
 
@@ -124,11 +128,18 @@ class PPOTrainer(BaseTrainer):
             critic_loss = torch.nn.functional.mse_loss(
                 self.critic(states).squeeze(), returns
             )
-            loss = actor_loss + 0.5 * critic_loss
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
-            total_loss += loss.item()
+
+            # Update actor
+            self.actor_optimizer.zero_grad()
+            actor_loss.backward(retain_graph=True)
+            self.actor_optimizer.step()
+
+            # Update critic
+            self.critic_optimizer.zero_grad()
+            critic_loss.backward()
+            self.critic_optimizer.step()
+
+            total_loss += actor_loss.item() + critic_loss.item()
         self.memory.clear()
         return total_loss
 
