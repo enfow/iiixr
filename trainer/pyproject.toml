@@ -9,5 +9,6 @@ dependencies = [
     "matplotlib>=3.10.3",
     "numpy>=2.3.0",
     "optuna>=4.4.0",
+    "pydantic>=2.11.7",
     "torch>=2.7.1",
 ]
