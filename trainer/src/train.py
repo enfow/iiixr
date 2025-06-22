@@ -4,6 +4,7 @@ import time
 
 import gymnasium as gym
 
+from schema.config import BaseConfig
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
 from trainer.ppo_trainer import PPOTrainer
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
@@ -83,39 +84,12 @@ def main():
 
     args = parser.parse_args()
 
+    config = vars(args)
+
     if args.env == "BipedalWalker-v3":
         env = gym.make(args.env, hardcore=True)
     else:
         env = gym.make(args.env)
-
-    config = {
-        "model": args.model,
-        "env_name": args.env,
-        "seed": args.seed,
-        "episodes": args.episodes,
-        "max_steps": args.max_steps,
-        "lr": args.lr,
-        "hidden_dim": args.hidden_dim,
-        "buffer_size": args.buffer_size,
-        "batch_size": args.batch_size,
-        "gamma": args.gamma,
-        "device": args.device,
-        # SAC specific hyperparameters
-        "tau": args.tau,
-        "start_steps": args.start_steps,
-        "entropy_coef": args.entropy_coef,
-        # PPO specific hyperparameters
-        "ppo_epochs": args.ppo_epochs,
-        "clip_eps": args.clip_eps,
-        # Rainbow DQN hyperparameters
-        "alpha": args.alpha,
-        "beta_start": args.beta_start,
-        "beta_frames": args.beta_frames,
-        "target_update": args.target_update,
-        "eval": args.eval,
-        "eval_period": args.eval_period,
-        "eval_episodes": args.eval_episodes,
-    }
 
     save_dir = (
         f"{args.save_dir}/{args.env}/{args.model}/{time.strftime('%Y%m%d_%H%M%S')}"

@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-
+import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -7,10 +6,10 @@ import torch.optim as optim
 
 from model.buffer import PrioritizedReplayBuffer
 from model.rainbow_dqn import DuelingNetwork
-from trainer.base_trainer import BaseConfig, BaseTrainer
+from schema.config import BaseConfig
+from trainer.base_trainer import BaseTrainer
 
 
-@dataclass
 class RainbowDQNConfig(BaseConfig):
     alpha: float = 0.6
     beta_start: float = 0.4
@@ -19,7 +18,12 @@ class RainbowDQNConfig(BaseConfig):
 
 
 class RainbowDQNTrainer(BaseTrainer):
-    def __init__(self, env, config, save_dir="results/rainbow_dqn"):
+    def __init__(
+        self,
+        env: gym.Env,
+        config: RainbowDQNConfig,
+        save_dir: str = "results/rainbow_dqn",
+    ):
         config = RainbowDQNConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 

@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-
+import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -7,10 +6,10 @@ import torch.optim as optim
 
 from model.buffer import ReplayBuffer
 from model.sac import SACPolicy, SACQNetwork
-from trainer.base_trainer import BaseConfig, BaseTrainer
+from schema.config import BaseConfig
+from trainer.base_trainer import BaseTrainer
 
 
-@dataclass
 class SACConfig(BaseConfig):
     tau: float = 0.005
     entropy_coef: float = 1.0
@@ -18,7 +17,12 @@ class SACConfig(BaseConfig):
 
 
 class SACTrainer(BaseTrainer):
-    def __init__(self, env, config, save_dir="results/sac"):
+    def __init__(
+        self,
+        env: gym.Env,
+        config: SACConfig,
+        save_dir: str = "results/sac",
+    ):
         config = SACConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 

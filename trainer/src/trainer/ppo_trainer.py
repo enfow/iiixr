@@ -1,22 +1,21 @@
-from dataclasses import dataclass
-
+import gymnasium as gym
 import numpy as np
 import torch
 import torch.optim as optim
 
 from model.buffer import PPOMemory
 from model.ppo import Actor, Critic
-from trainer.base_trainer import BaseConfig, BaseTrainer
+from schema.config import BaseConfig
+from trainer.base_trainer import BaseTrainer
 
 
-@dataclass
 class PPOConfig(BaseConfig):
     ppo_epochs: int = 4
     clip_eps: float = 0.2
 
 
 class PPOTrainer(BaseTrainer):
-    def __init__(self, env, config, save_dir="results/ppo"):
+    def __init__(self, env: gym.Env, config: PPOConfig, save_dir: str = "results/ppo"):
         config = PPOConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 

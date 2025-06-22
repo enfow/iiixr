@@ -1,15 +1,13 @@
-import json
 import os
 import random
 import time
-from dataclasses import asdict, dataclass, fields
-from typing import Union
 
 import gymnasium as gym
 import numpy as np
 import torch
 
-from schema.train_result import EvalResult, TrainResult
+from schema.config import BaseConfig
+from schema.result import EvalResult, TrainResult
 from util.file import log_result, save_json
 
 
@@ -21,56 +19,8 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-@dataclass
-class BaseConfig:
-    model: str = None
-    seed: int = 42
-    episodes: int = 1000
-    max_steps: int = 1000
-    lr: float = 3e-4
-    gamma: float = 0.99
-    hidden_dim: int = 256
-    buffer_size: int = 1000000
-    batch_size: int = 256
-    # env
-    env_name: str = None
-    state_dim: int = None
-    action_dim: int = None
-    is_discrete: bool = None
-    # device
-    device: str = "cpu"
-    # evaluation
-    eval: bool = False
-    eval_period: int = 10
-    eval_episodes: int = 10
-
-    @classmethod
-    def from_dict(cls, config: dict):
-        cls._check_device(config)
-        valid_keys = {f.name for f in fields(cls)}
-        filtered_config = {k: v for k, v in config.items() if k in valid_keys}
-        return cls(**filtered_config)
-
-    def to_dict(self):
-        return asdict(self)
-
-    def to_json(self):
-        return json.dumps(self.to_dict(), indent=2)
-
-    @staticmethod
-    def _check_device(config: dict):
-        if "device" not in config:
-            return
-        if config["device"] not in ["cuda", "cpu"]:
-            raise ValueError("Invalid device")
-        elif config["device"] == "cuda" and not torch.cuda.is_available():
-            raise ValueError("CUDA is not available")
-        elif config["device"] == "cpu" and torch.cuda.is_available():
-            raise ValueError("CUDA is available but device is set to CPU")
-
-
 class BaseTrainer:
-    def __init__(self, env, config, save_dir):
+    def __init__(self, env: gym.Env, config: BaseConfig, save_dir: str):
         set_seed(config.seed)
 
         self.env = env
