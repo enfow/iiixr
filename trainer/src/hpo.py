@@ -392,20 +392,16 @@ def main():
     elif "clip_eps" in config_searchable:
         searchable_params["clip_eps"] = config_searchable["clip_eps"]
 
+    n_possible_combinations = len(searchable_params["batch_size"]) * len(searchable_params["gamma"]) * len(searchable_params["hidden_dim"]) * len(searchable_params["n_layers"]) * len(searchable_params["ppo_epochs"]) * len(searchable_params["clip_eps"])
+
     print("HPO Config:")
     print(hpo_config)
     print("Searchable Parameters:")
     print(searchable_params)
-    print(
-        "Number of possible combinations:",
-        len(searchable_params["batch_size"])
-        * len(searchable_params["gamma"])
-        * len(searchable_params["hidden_dim"])
-        * len(searchable_params["n_layers"])
-        * len(searchable_params["ppo_epochs"])
-        * len(searchable_params["clip_eps"]),
-    )
+    print("Number of possible combinations:", n_possible_combinations)
+    hpo_config["hpo_n_trials"] = min(hpo_config["hpo_n_trials"], n_possible_combinations)
     print("Number of trials:", hpo_config["hpo_n_trials"])
+
     print("Study name:", hpo_config["hpo_study_name"])
     print("=" * 50)
     proceed = input("Proceed? (y/n): ")
