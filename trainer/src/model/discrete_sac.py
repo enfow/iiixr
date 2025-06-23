@@ -7,14 +7,32 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class DiscreteSACQNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=256):
+class DiscreteSACPolicy(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=256, n_layers=2):
         super().__init__()
-        self.fc1 = nn.Linear(state_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, action_dim)
+        layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
+        for _ in range(n_layers - 1):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+        self.hidden_layers = nn.Sequential(*layers)
+        self.fc_out = nn.Linear(hidden_dim, action_dim)
 
     def forward(self, state):
-        x = F.relu(self.fc1(state))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)  # [batch_size, action_dim]
+        x = self.hidden_layers(state)
+        logits = self.fc_out(x)
+        return logits
+
+
+class DiscreteSACQNetwork(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=256, n_layers=2):
+        super().__init__()
+        layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
+        for _ in range(n_layers - 1):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+        self.hidden_layers = nn.Sequential(*layers)
+        self.fc_out = nn.Linear(hidden_dim, action_dim)
+
+    def forward(self, state):
+        x = self.hidden_layers(state)
+        return self.fc_out(x)  # [batch_size, action_dim]

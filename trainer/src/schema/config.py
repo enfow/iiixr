@@ -12,6 +12,7 @@ class BaseConfig(BaseModel):
     lr: float = 3e-4
     gamma: float = 0.99
     hidden_dim: int = 256
+    n_layers: int = 3
     buffer_size: int = 1000000
     batch_size: int = 256
     # env
@@ -55,6 +56,7 @@ class PPOConfig(BaseConfig):
     ppo_epochs: int = 4
     clip_eps: float = 0.2
     normalize_advantages: bool = False
+    entropy_coef: float = 0.01
 
 
 class SACConfig(BaseConfig):

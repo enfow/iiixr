@@ -25,6 +25,7 @@ class BaseTrainer:
             if isinstance(env.action_space, gym.spaces.Discrete)
             else env.action_space.shape[0]
         )
+        self.memory = None
         self.is_discrete = isinstance(env.action_space, gym.spaces.Discrete)
         self.total_train_result = TotalTrainResult.initialize()
         self.best_score = -np.inf
@@ -47,7 +48,7 @@ class BaseTrainer:
             action = self.env.action_space.sample()
             next_state, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
-            self.buffer.push(state, action, reward, next_state, done)
+            self.memory.push(state, action, reward, next_state, done)
             state = next_state
             if done:
                 state, _ = self.env.reset()

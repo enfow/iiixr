@@ -55,7 +55,7 @@ class PPOTrainer(BaseTrainer):
             logprob = dist.log_prob(action).sum(dim=-1)
             action = torch.tanh(action)
             return {
-                "action": action.detach().cpu().numpy(),
+                "action": action.item(),
                 "logprob": logprob.item(),
             }
 
@@ -80,14 +80,12 @@ class PPOTrainer(BaseTrainer):
             mean, log_std = self.actor(states)
             std = log_std.exp()
             dist = torch.distributions.Normal(mean, std)
-            # Apply tanh to match action selection
             raw_actions = torch.atanh(torch.clamp(actions, -0.999, 0.999))
             logprobs = dist.log_prob(raw_actions).sum(dim=-1)
-            # Adjust log probability for tanh transformation
             logprobs -= torch.log(1 - actions.pow(2) + 1e-8).sum(dim=-1)
         return logprobs
 
-    def _read_memory(self):
+    def _sample_transactions(self):
         states = torch.FloatTensor(np.array(self.memory.states)).to(self.config.device)
         if self.is_discrete:
             actions = torch.LongTensor(self.memory.actions).to(self.config.device)
@@ -104,9 +102,16 @@ class PPOTrainer(BaseTrainer):
         advantages = returns - self.critic(states).squeeze().detach()
         return states, actions, old_logprobs, returns, advantages
 
+    def _get_entropy(self, states):
+        logits = self.actor(states)
+        probs = torch.softmax(logits, dim=-1)
+        log_probs = torch.log_softmax(logits, dim=-1)
+        entropy = -(probs * log_probs).sum(dim=-1)
+        return entropy
+
     def update(self):
         total_loss = 0
-        states, actions, old_logprobs, returns, advantages = self._read_memory()
+        states, actions, old_logprobs, returns, advantages = self._sample_transactions()
 
         if self.config.normalize_advantages:
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
@@ -114,8 +119,10 @@ class PPOTrainer(BaseTrainer):
         for _ in range(self.config.ppo_epochs):
             logprobs = self._get_current_logprobs(states, actions)
 
+            # probability ratio: prob of action under new policy / prob of action under old policy
             ratio = torch.exp(logprobs - old_logprobs)
             surr1 = ratio * advantages
+            # clip the ratio to be between 1-epsilon and 1+epsilon
             surr2 = (
                 torch.clamp(
                     ratio,
@@ -124,14 +131,21 @@ class PPOTrainer(BaseTrainer):
                 )
                 * advantages
             )
+            # min(r_t(theta)A_t, clip(r_t(theta)A_t, 1-epsilon, 1+epsilon))
             actor_loss = -torch.min(surr1, surr2).mean()
+            # a squared-error loss (V_theta(st) − V_target(st))2
             critic_loss = torch.nn.functional.mse_loss(
                 self.critic(states).squeeze(), returns
             )
 
+            # Entropy bonus
+            entropy = self._get_entropy(states)
+            entropy_loss = -self.config.entropy_coef * entropy.mean()
+            total_actor_loss = actor_loss + entropy_loss
+
             # Update actor
             self.actor_optimizer.zero_grad()
-            actor_loss.backward(retain_graph=True)
+            total_actor_loss.backward(retain_graph=True)
             self.actor_optimizer.step()
 
             # Update critic
@@ -139,7 +153,7 @@ class PPOTrainer(BaseTrainer):
             critic_loss.backward()
             self.critic_optimizer.step()
 
-            total_loss += actor_loss.item() + critic_loss.item()
+            total_loss += actor_loss.item() + critic_loss.item() + entropy_loss.item()
         self.memory.clear()
         return total_loss
 
@@ -150,8 +164,7 @@ class PPOTrainer(BaseTrainer):
 
         while sum(episode_steps) < self.config.n_transactions:
             action_info = self.select_action(state)
-            action = action_info["action"]
-            logprob = action_info["logprob"]
+            action, logprob = action_info["action"], action_info["logprob"]
             next_state, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
             self.memory.store(state, action, logprob, reward, done)

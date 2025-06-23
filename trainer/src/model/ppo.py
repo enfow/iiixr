@@ -4,16 +4,14 @@ import torch.nn.functional as F
 
 
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim, is_discrete=True):
+    def __init__(self, state_dim, action_dim, hidden_dim, is_discrete=True, n_layers=2):
         super().__init__()
         self.is_discrete = is_discrete
-        self.shared_layers = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-        )
-
+        layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
+        for _ in range(n_layers - 1):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+        self.shared_layers = nn.Sequential(*layers)
         if is_discrete:
             self.output = nn.Linear(hidden_dim, action_dim)
         else:
@@ -32,13 +30,15 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, state_dim, hidden_dim=64):
+    def __init__(self, state_dim, hidden_dim=64, n_layers=2):
         super().__init__()
-        self.fc1 = nn.Linear(state_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, 1)
+        layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
+        for _ in range(n_layers - 1):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+        self.hidden_layers = nn.Sequential(*layers)
+        self.fc_out = nn.Linear(hidden_dim, 1)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
+        x = self.hidden_layers(x)
+        return self.fc_out(x)

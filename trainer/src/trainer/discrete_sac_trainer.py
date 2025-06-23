@@ -1,6 +1,14 @@
 """
 Discrete SAC implementation
 - Ref: https://arxiv.org/pdf/1910.07207
+
+Deferences with SAC:
+- Q function moves from (s, a) -> R  =>  (s) -> R^A
+- Directly output action distribution instead of mean and cov
+  - Policy: phi: S -> R^2|A|  =>  phi: S -> [0, 1]^|A|
+- Do not need to use  monte carlo estimate for V(s)
+- Do not need to use monte carlo estimate for Temperature parameter Alpha
+- Do not need to use reparametrization trick for policy update
 """
 
 import gymnasium as gym
@@ -10,7 +18,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from model.buffer import ReplayBuffer
-from model.discrete_sac import DiscreteSACQNetwork
+from model.discrete_sac import DiscreteSACPolicy, DiscreteSACQNetwork
 from model.sac import SACPolicy
 from schema.config import SACConfig
 from schema.result import SingleEpisodeResult
@@ -28,7 +36,9 @@ class DiscreteSACTrainer(BaseTrainer):
         super().__init__(env, config, save_dir)
 
     def _init_models(self):
-        self.actor = SACPolicy(self.state_dim, self.action_dim).to(self.config.device)
+        self.actor = DiscreteSACPolicy(self.state_dim, self.action_dim).to(
+            self.config.device
+        )
         self.critic1 = DiscreteSACQNetwork(self.state_dim, self.action_dim).to(
             self.config.device
         )
@@ -44,7 +54,7 @@ class DiscreteSACTrainer(BaseTrainer):
         self.target_critic1.load_state_dict(self.critic1.state_dict())
         self.target_critic2.load_state_dict(self.critic2.state_dict())
 
-        self.buffer = ReplayBuffer(self.config.buffer_size)
+        self.memory = ReplayBuffer(self.config.buffer_size)
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
         self.critic1_optimizer = optim.Adam(
@@ -68,11 +78,8 @@ class DiscreteSACTrainer(BaseTrainer):
                 "action": action.item(),
             }
 
-    def update(self):
-        if len(self.buffer) < self.config.batch_size:
-            return
-
-        state, action, reward, next_state, done = self.buffer.sample(
+    def _sample_transactions(self):
+        state, action, reward, next_state, done = self.memory.sample(
             self.config.batch_size
         )
         state = torch.FloatTensor(state).to(self.config.device)
@@ -80,12 +87,20 @@ class DiscreteSACTrainer(BaseTrainer):
         action = torch.LongTensor(action).to(self.config.device)
         reward = torch.FloatTensor(reward).unsqueeze(1).to(self.config.device)
         done = torch.FloatTensor(done).unsqueeze(1).to(self.config.device)
+        return state, action, reward, next_state, done
+
+    def update(self):
+        if len(self.memory) < self.config.batch_size:
+            return
+
+        state, action, reward, next_state, done = self._sample_transactions()
 
         # Target Q
         with torch.no_grad():
             next_logits = self.actor(next_state)
             next_probs = F.softmax(next_logits, dim=-1)
             next_log_probs = F.log_softmax(next_logits, dim=-1)
+
             target_q1 = self.target_critic1(next_state)
             target_q2 = self.target_critic2(next_state)
             target_q = torch.min(target_q1, target_q2)
@@ -125,7 +140,7 @@ class DiscreteSACTrainer(BaseTrainer):
         actor_loss.backward()
         self.actor_optimizer.step()
 
-        # Alpha loss
+        # update temperature parameter
         entropy = -(probs * log_probs).sum(dim=1, keepdim=True)
         alpha_loss = -(self.log_alpha * (entropy - self.target_entropy).detach()).mean()
 
@@ -165,7 +180,7 @@ class DiscreteSACTrainer(BaseTrainer):
             action = self.select_action(state)["action"]
             next_state, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
-            self.buffer.push(state, action, reward, next_state, done)
+            self.memory.push(state, action, reward, next_state, done)
             state = next_state
             episode_rewards.append(reward)
 

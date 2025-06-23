@@ -49,20 +49,20 @@ class NoisyLinear(nn.Module):
 
 
 class DuelingNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=256):
+    def __init__(self, state_dim, action_dim, hidden_dim=256, n_layers=2):
         super().__init__()
-        self.fc1 = NoisyLinear(state_dim, hidden_dim)
-        self.fc2 = NoisyLinear(hidden_dim, hidden_dim)
+        layers = [NoisyLinear(state_dim, hidden_dim), nn.ReLU()]
+        for _ in range(n_layers - 1):
+            layers.append(NoisyLinear(hidden_dim, hidden_dim))
+            layers.append(nn.ReLU())
+        self.hidden_layers = nn.Sequential(*layers)
         self.advantage = NoisyLinear(hidden_dim, action_dim)
         self.value = NoisyLinear(hidden_dim, 1)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        x = self.hidden_layers(x)
         advantage = self.advantage(x)
         value = self.value(x)
-
-        # Handle both batched and unbatched inputs
         if len(advantage.shape) == 1:
             return value + advantage - advantage.mean()
         else:
