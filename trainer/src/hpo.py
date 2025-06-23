@@ -392,14 +392,23 @@ def main():
     elif "clip_eps" in config_searchable:
         searchable_params["clip_eps"] = config_searchable["clip_eps"]
 
-    n_possible_combinations = len(searchable_params["batch_size"]) * len(searchable_params["gamma"]) * len(searchable_params["hidden_dim"]) * len(searchable_params["n_layers"]) * len(searchable_params["ppo_epochs"]) * len(searchable_params["clip_eps"])
+    n_possible_combinations = (
+        len(searchable_params["batch_size"])
+        * len(searchable_params["gamma"])
+        * len(searchable_params["hidden_dim"])
+        * len(searchable_params["n_layers"])
+        * len(searchable_params["ppo_epochs"])
+        * len(searchable_params["clip_eps"])
+    )
 
     print("HPO Config:")
     print(hpo_config)
     print("Searchable Parameters:")
     print(searchable_params)
     print("Number of possible combinations:", n_possible_combinations)
-    hpo_config["hpo_n_trials"] = min(hpo_config["hpo_n_trials"], n_possible_combinations)
+    hpo_config["hpo_n_trials"] = min(
+        hpo_config["hpo_n_trials"], n_possible_combinations
+    )
     print("Number of trials:", hpo_config["hpo_n_trials"])
 
     print("Study name:", hpo_config["hpo_study_name"])
@@ -427,7 +436,9 @@ def main():
 
     final_config = hpo_config.copy()
     final_config.update(study.best_params)
-    final_config["episodes"] = hpo_config["episodes"] * 2  # Train longer for final model
+    final_config["episodes"] = (
+        hpo_config["episodes"] * 2
+    )  # Train longer for final model
 
     # Create final save directory
     final_save_dir = f"{save_dir}/final_model"
