@@ -62,7 +62,7 @@ HPO_N_LAYERS ?=
 HPO_PPO_EPOCHS ?= 
 HPO_CLIP_EPS ?= 
 
-.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-custom
+.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-custom docker-run-eval docker-run-hpo
 
 format:
 	ruff format src
@@ -112,6 +112,27 @@ docker-run-eval:
 		-e EVAL_EPISODES=$(EVAL_EPOCHS) \
 		-e DEVICE=$(DEVICE) \
 		$(DOCKER_IMAGE_NAME) make eval
+
+docker-run-hpo:
+	docker run -it --rm \
+		$(if $(filter cuda,$(DEVICE)),--gpus all,) \
+		--name $(DOCKER_CONTAINER_NAME)-hpo-$(MODEL)-$(ENV) \
+		-v $(PWD)/src:/app/src \
+		-v $(PWD)/results:/app/results \
+		-e MODEL=$(MODEL) \
+		-e ENV=$(ENV) \
+		-e DEVICE=$(DEVICE) \
+		-e HPO_N_TRIALS=$(HPO_N_TRIALS) \
+		-e HPO_STUDY_NAME=$(HPO_STUDY_NAME) \
+		-e HPO_CONFIG=$(HPO_CONFIG) \
+		-e HPO_TIMEOUT=$(HPO_TIMEOUT) \
+		-e HPO_BATCH_SIZE=$(HPO_BATCH_SIZE) \
+		-e HPO_GAMMA=$(HPO_GAMMA) \
+		-e HPO_HIDDEN_DIM=$(HPO_HIDDEN_DIM) \
+		-e HPO_N_LAYERS=$(HPO_N_LAYERS) \
+		-e HPO_PPO_EPOCHS=$(HPO_PPO_EPOCHS) \
+		-e HPO_CLIP_EPS=$(HPO_CLIP_EPS) \
+		$(DOCKER_IMAGE_NAME) make hpo
 
 docker-stop:
 	docker stop $(DOCKER_CONTAINER_NAME)
@@ -198,6 +219,7 @@ help:
 	@echo "  docker-build   Build Docker image"
 	@echo "  docker-run     Run training in Docker container"
 	@echo "  docker-run-eval Run evaluation in Docker container"
+	@echo "  docker-run-hpo Run HPO in Docker container"
 	@echo ""
 	@echo "Training example usage:"
 	@echo "  make train MODEL=ppo ENV=LunarLander-v3 N_EPISODES=1000"
@@ -213,6 +235,7 @@ help:
 	@echo "Docker example usage:"
 	@echo "  make docker-run MODEL=ppo ENV=LunarLander-v3"
 	@echo "  make docker-run-eval MODEL=ppo EVAL_RESULT_PATH=results/ppo"
+	@echo "  make docker-run-hpo MODEL=ppo ENV=LunarLander-v3 HPO_N_TRIALS=100"
 	@echo ""
 	@echo "Evaluation example usage:"
 	@echo "  make eval EVAL_RESULT_PATH=results/ppo EVAL_EPISODES=20"
