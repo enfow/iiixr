@@ -11,4 +11,6 @@ dependencies = [
     "optuna>=4.4.0",
     "pydantic>=2.11.7",
     "torch>=2.7.1",
+    "PyYAML>=6.0",
+    "pandas>=2.3.0",
 ]
