@@ -77,6 +77,7 @@ docker-run:
 		--name $(DOCKER_CONTAINER_NAME)-$(MODEL)-$(ENV) \
 		-v $(PWD)/src:/app/src \
 		-v $(PWD)/results:/app/results \
+		-v $(PWD)/config:/app/config \
 		-e MODEL=$(MODEL) \
 		-e ENV=$(ENV) \
 		-e N_EPISODES=$(N_EPISODES) \
@@ -108,6 +109,7 @@ docker-run-eval:
 		--name $(DOCKER_CONTAINER_NAME) \
 		-v $(PWD)/src:/app/src \
 		-v $(PWD)/results:/app/results \
+		-v $(PWD)/config:/app/config \
 		-e EVAL_RESULT_PATH=$(EVAL_RESULT_PATH) \
 		-e EVAL_EPISODES=$(EVAL_EPOCHS) \
 		-e DEVICE=$(DEVICE) \
@@ -119,6 +121,7 @@ docker-run-hpo:
 		--name $(DOCKER_CONTAINER_NAME)-hpo-$(MODEL)-$(ENV) \
 		-v $(PWD)/src:/app/src \
 		-v $(PWD)/results:/app/results \
+		-v $(PWD)/config:/app/config \
 		-e MODEL=$(MODEL) \
 		-e ENV=$(ENV) \
 		-e DEVICE=$(DEVICE) \
