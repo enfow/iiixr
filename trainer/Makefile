@@ -48,7 +48,21 @@ EVAL_EPISODES ?= 10
 EVAL_PERIOD ?= 10
 EVAL ?= false
 
-.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install
+# Default values for HPO parameters
+HPO_N_TRIALS ?= 50
+HPO_STUDY_NAME ?= hpo_experiment
+HPO_CONFIG ?= src/hpo_config.yaml
+HPO_TIMEOUT ?= 
+
+# HPO searchable hyperparameters (comma-separated values)
+HPO_BATCH_SIZE ?= 
+HPO_GAMMA ?= 
+HPO_HIDDEN_DIM ?= 
+HPO_N_LAYERS ?= 
+HPO_PPO_EPOCHS ?= 
+HPO_CLIP_EPS ?= 
+
+.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-custom
 
 format:
 	ruff format src
@@ -72,7 +86,7 @@ docker-run:
 		-e GAMMA=$(GAMMA) \
 		-e EVAL=$(EVAL) \
 		-e EVAL_PERIOD=$(EVAL_PERIOD) \
-		-e EVAL_EPISODES=$(EVAL_EPISODES) \
+		-e EVAL_EPISODES=$(EVAL_EPOCHS) \
 		-e DEVICE=$(DEVICE) \
 		-e BUFFER_SIZE=$(BUFFER_SIZE) \
 		-e SEED=$(SEED) \
@@ -95,7 +109,7 @@ docker-run-eval:
 		-v $(PWD)/src:/app/src \
 		-v $(PWD)/results:/app/results \
 		-e EVAL_RESULT_PATH=$(EVAL_RESULT_PATH) \
-		-e EVAL_EPISODES=$(EVAL_EPISODES) \
+		-e EVAL_EPISODES=$(EVAL_EPOCHS) \
 		-e DEVICE=$(DEVICE) \
 		$(DOCKER_IMAGE_NAME) make eval
 
@@ -118,7 +132,7 @@ train:
 		--gamma $(GAMMA) \
 		--eval $(EVAL) \
 		--eval_period $(EVAL_PERIOD) \
-		--eval_episodes $(EVAL_EPISODES) \
+		--eval_episodes $(EVAL_EPOCHS) \
 		--device $(DEVICE) \
 		--buffer_size $(BUFFER_SIZE) \
 		--seed $(SEED) \
@@ -145,7 +159,25 @@ train-all:
 eval:
 	$(PYTHON) $(SRC_DIR)/eval.py \
 		--result_path $(EVAL_RESULT_PATH) \
-		--episodes $(EVAL_EPISODES)
+		--episodes $(EVAL_EPOCHS)
+
+# HPO targets
+hpo:
+	$(PYTHON) $(SRC_DIR)/hpo.py \
+		--config $(HPO_CONFIG) \
+		--model $(MODEL) \
+		--env $(ENV) \
+		--device $(DEVICE) \
+		--hpo_n_trials $(HPO_N_TRIALS) \
+		--hpo_study_name $(HPO_STUDY_NAME) \
+		$(if $(HPO_TIMEOUT),--timeout $(HPO_TIMEOUT),) \
+		$(if $(HPO_BATCH_SIZE),--batch_size $(HPO_BATCH_SIZE),) \
+		$(if $(HPO_GAMMA),--gamma $(HPO_GAMMA),) \
+		$(if $(HPO_HIDDEN_DIM),--hidden_dim $(HPO_HIDDEN_DIM),) \
+		$(if $(HPO_N_LAYERS),--n_layers $(HPO_N_LAYERS),) \
+		$(if $(HPO_PPO_EPOCHS),--ppo_epochs $(HPO_PPO_EPOCHS),) \
+		$(if $(HPO_CLIP_EPS),--clip_eps $(HPO_CLIP_EPS),)
+
 
 clean:
 	rm -rf models/
@@ -159,17 +191,27 @@ help:
 	@echo "  train          Train a model (default: PPO)"
 	@echo "  train-all      Train all agents sequentially"
 	@echo "  eval           Evaluate a trained model"
+	@echo "  hpo            Run HPO with custom parameters"
+	@echo "  hpo-basic      Run basic HPO with default config"
+	@echo "  hpo-ppo        Run PPO-specific HPO optimization"
+	@echo "  hpo-custom     Run custom HPO with specific search spaces"
 	@echo "  docker-build   Build Docker image"
 	@echo "  docker-run     Run training in Docker container"
 	@echo "  docker-run-eval Run evaluation in Docker container"
 	@echo ""
 	@echo "Training example usage:"
-	@echo "  make train MODEL=ppo ENV=LunarLander-v2 N_EPISODES=1000"
+	@echo "  make train MODEL=ppo ENV=LunarLander-v3 N_EPISODES=1000"
 	@echo "  make train MODEL=sac ENV=Pendulum-v1 LEARNING_RATE=0.0003"
 	@echo "  make train MODEL=rainbow_dqn ENV=CartPole-v1"
 	@echo ""
+	@echo "HPO example usage:"
+	@echo "  make hpo HPO_STUDY_NAME=my_experiment HPO_N_TRIALS=100"
+	@echo "  make hpo ENV=CartPole-v1 HPO_BATCH_SIZE='64,128,256' HPO_HIDDEN_DIM='128,256,512'"
+	@echo "  make hpo-ppo ENV=LunarLander-v3"
+	@echo "  make hpo-custom HPO_N_TRIALS=200"
+	@echo ""
 	@echo "Docker example usage:"
-	@echo "  make docker-run MODEL=ppo ENV=LunarLander-v2"
+	@echo "  make docker-run MODEL=ppo ENV=LunarLander-v3"
 	@echo "  make docker-run-eval MODEL=ppo EVAL_RESULT_PATH=results/ppo"
 	@echo ""
 	@echo "Evaluation example usage:"

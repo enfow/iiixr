@@ -1,0 +1,38 @@
+# HPO Configuration File
+# Fixed hyperparameters (not searchable)
+env: "LunarLander-v3"
+model: "ppo"
+seed: 42
+episodes: 2000
+max_steps: 2048
+buffer_size: 1000000
+device: "cpu"
+lr: 3e-4
+
+# SAC specific hyperparameters (fixed)
+tau: 0.005
+start_steps: 1000
+entropy_coef: 1.0
+
+# Rainbow DQN hyperparameters (fixed)
+alpha: 0.6
+beta_start: 0.4
+target_update: 10
+
+# Evaluation hyperparameters (fixed)
+eval: true
+eval_period: 10
+eval_episodes: 5
+
+# HPO hyperparameters (fixed)
+hpo_n_trials: 50
+hpo_study_name: "rl_hyperopt"
+
+# Searchable hyperparameters (default search spaces)
+searchable_hyperparameters:
+  batch_size: [256]
+  gamma: [0.99]
+  hidden_dim: [256]
+  n_layers: [3]
+  ppo_epochs: [3]
+  clip_eps: [0.2] 
