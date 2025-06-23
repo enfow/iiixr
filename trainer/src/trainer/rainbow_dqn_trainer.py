@@ -7,7 +7,7 @@ import torch.optim as optim
 from model.buffer import PrioritizedReplayBuffer
 from model.rainbow_dqn import DuelingNetwork
 from schema.config import RainbowDQNConfig
-from schema.result import SingleEpisodeResult
+from schema.result import RainbowDQNUpdateLoss, SingleEpisodeResult
 from trainer.base_trainer import BaseTrainer
 
 
@@ -58,7 +58,7 @@ class RainbowDQNTrainer(BaseTrainer):
             "q_values": q_values.detach().cpu().numpy(),
         }
 
-    def update(self):
+    def update(self) -> RainbowDQNUpdateLoss:
         if len(self.replay_buffer) < self.config.batch_size:
             return
 
@@ -91,7 +91,9 @@ class RainbowDQNTrainer(BaseTrainer):
 
         self.replay_buffer.update_priorities(indices, td_errors)
 
-        return loss.item()
+        return RainbowDQNUpdateLoss(
+            loss=loss.item(),
+        )
 
     def train_episode(self) -> SingleEpisodeResult:
         state, _ = self.env.reset()

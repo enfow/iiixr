@@ -13,7 +13,7 @@ import torch.optim as optim
 from model.buffer import ReplayBuffer
 from model.sac import SACPolicy, SACQNetwork, SACValueNetwork
 from schema.config import SACConfig
-from schema.result import SingleEpisodeResult
+from schema.result import SACUpdateLoss, SingleEpisodeResult
 from trainer.base_trainer import BaseTrainer
 
 
@@ -119,11 +119,11 @@ class SACTrainer(BaseTrainer):
 
         return state, action, reward, next_state, done
 
-    def _get_policy_action_and_log_prob(self, state):
+    def _get_actor_action_and_log_prob(self, state):
         """Sample action from policy and compute log probability using reparameterization trick"""
         return self.actor.sample(state)
 
-    def update(self):
+    def update(self) -> SACUpdateLoss:
         """Update all networks following the original SAC algorithm"""
         if len(self.memory) < self.config.batch_size:
             return
@@ -133,7 +133,7 @@ class SACTrainer(BaseTrainer):
         # 1. Update Value Network
         with torch.no_grad():
             # Sample action from current policy
-            next_action, next_log_prob = self._get_policy_action_and_log_prob(state)
+            next_action, next_log_prob = self._get_actor_action_and_log_prob(state)
 
             # Compute Q-values for sampled actions
             q1_pi = self.critic1(state, next_action)
@@ -175,7 +175,7 @@ class SACTrainer(BaseTrainer):
 
         # 3. Update Policy Network
         # Sample new actions for policy update
-        pi_action, log_prob = self._get_policy_action_and_log_prob(state)
+        pi_action, log_prob = self._get_actor_action_and_log_prob(state)
 
         # Compute Q-values for policy actions
         q1_pi = self.critic1(state, pi_action)
@@ -184,16 +184,16 @@ class SACTrainer(BaseTrainer):
 
         # Policy loss: maximize Q(s,a) - α*log π(a|s)
         # Equivalent to minimizing α*log π(a|s) - Q(s,a)
-        policy_loss = (self.alpha * log_prob - min_q_pi).mean()
+        actor_loss = (self.alpha * log_prob - min_q_pi).mean()
 
         self.actor_optimizer.zero_grad()
-        policy_loss.backward()
+        actor_loss.backward()
         self.actor_optimizer.step()
 
         # 4. Update temperature parameter α
         # Sample actions again to avoid computation graph issues
         with torch.no_grad():
-            _, log_prob_detached = self._get_policy_action_and_log_prob(state)
+            _, log_prob_detached = self._get_actor_action_and_log_prob(state)
 
         # Alpha loss: α * (log π(a|s) + target_entropy)
         alpha_loss = (
@@ -215,16 +215,13 @@ class SACTrainer(BaseTrainer):
                 self.config.tau * param.data + (1 - self.config.tau) * target_param.data
             )
 
-        # Return total loss for logging
-        total_loss = (
-            value_loss.item()
-            + critic1_loss.item()
-            + critic2_loss.item()
-            + policy_loss.item()
-            + alpha_loss.item()
+        return SACUpdateLoss(
+            actor_loss=actor_loss.item(),
+            value_loss=value_loss.item(),
+            critic1_loss=critic1_loss.item(),
+            critic2_loss=critic2_loss.item(),
+            alpha_loss=alpha_loss.item(),
         )
-
-        return total_loss
 
     def train_episode(self) -> SingleEpisodeResult:
         """Train for one episode"""

@@ -6,7 +6,7 @@ import torch.optim as optim
 from model.buffer import PPOMemory
 from model.ppo import Actor, Critic
 from schema.config import PPOConfig
-from schema.result import SingleEpisodeResult
+from schema.result import PPOUpdateLoss, SingleEpisodeResult
 from trainer.base_trainer import BaseTrainer
 
 
@@ -112,7 +112,7 @@ class PPOTrainer(BaseTrainer):
         entropy = -(probs * log_probs).sum(dim=-1)
         return entropy
 
-    def update(self):
+    def update(self) -> PPOUpdateLoss:
         total_loss = 0
         states, actions, old_logprobs, returns, advantages = self._sample_transactions()
 
@@ -157,8 +157,14 @@ class PPOTrainer(BaseTrainer):
             self.critic_optimizer.step()
 
             total_loss += actor_loss.item() + critic_loss.item() + entropy_loss.item()
+        # on-policy: clear memory
         self.memory.clear()
-        return total_loss
+
+        return PPOUpdateLoss(
+            actor_loss=actor_loss.item(),
+            critic_loss=critic_loss.item(),
+            entropy_loss=entropy_loss.item(),
+        )
 
     def train_episode(self) -> SingleEpisodeResult:
         state, _ = self.env.reset()
@@ -181,10 +187,10 @@ class PPOTrainer(BaseTrainer):
 
         episode_steps = round(np.mean(episode_steps))
 
-        loss = self.update()
+        update_result = self.update()
 
-        if loss is not None:
-            episode_losses.append(loss)
+        if update_result is not None:
+            episode_losses.append(update_result)
 
         return SingleEpisodeResult(
             episode_rewards=episode_rewards,

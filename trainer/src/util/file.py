@@ -10,7 +10,7 @@ def save_json(data: dict, file_path: str):
 
 
 def log_result(result: Union[SingleEpisodeResult, EvalResult], file_path: str):
-    json_dumped = json.dumps(result.to_dict()) + "\n"
+    json_dumped = json.dumps(result.to_log_dict()) + "\n"
     save_json(json_dumped, file_path)
 
 

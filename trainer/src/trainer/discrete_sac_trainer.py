@@ -21,7 +21,7 @@ from model.buffer import ReplayBuffer
 from model.discrete_sac import DiscreteSACPolicy, DiscreteSACQNetwork
 from model.sac import SACPolicy
 from schema.config import SACConfig
-from schema.result import SingleEpisodeResult
+from schema.result import DiscreteSACUpdateLoss, SingleEpisodeResult
 from trainer.base_trainer import BaseTrainer
 
 
@@ -99,7 +99,7 @@ class DiscreteSACTrainer(BaseTrainer):
         done = torch.FloatTensor(done).unsqueeze(1).to(self.config.device)
         return state, action, reward, next_state, done
 
-    def update(self):
+    def update(self) -> DiscreteSACUpdateLoss:
         if len(self.memory) < self.config.batch_size:
             return
 
@@ -174,11 +174,11 @@ class DiscreteSACTrainer(BaseTrainer):
                 self.config.tau * param.data + (1 - self.config.tau) * target_param.data
             )
 
-        return (
-            actor_loss.item()
-            + critic1_loss.item()
-            + critic2_loss.item()
-            + alpha_loss.item()
+        return DiscreteSACUpdateLoss(
+            actor_loss=actor_loss.item(),
+            critic1_loss=critic1_loss.item(),
+            critic2_loss=critic2_loss.item(),
+            alpha_loss=alpha_loss.item(),
         )
 
     def train_episode(self) -> SingleEpisodeResult:
