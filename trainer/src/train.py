@@ -39,6 +39,9 @@ def main():
         "--hidden_dim", type=int, default=256, help="Hidden dimension for networks"
     )
     parser.add_argument(
+        "--n_layers", type=int, default=3, help="Number of layers for networks"
+    )
+    parser.add_argument(
         "--buffer_size", type=int, default=1000000, help="Replay buffer size"
     )
     parser.add_argument(
