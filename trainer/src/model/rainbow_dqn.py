@@ -49,7 +49,13 @@ class NoisyLinear(nn.Module):
 
 
 class DuelingNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=256, n_layers=2):
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int,
+        hidden_dim: int = 256,
+        n_layers: int = 2,
+    ):
         super().__init__()
         layers = [NoisyLinear(state_dim, hidden_dim), nn.ReLU()]
         for _ in range(n_layers - 1):
