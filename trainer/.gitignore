@@ -10,3 +10,4 @@ wheels/
 .venv
 
 results/*
+optuna_results/*
