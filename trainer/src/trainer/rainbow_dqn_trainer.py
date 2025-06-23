@@ -24,10 +24,16 @@ class RainbowDQNTrainer(BaseTrainer):
     def _init_models(self):
         # Networks
         self.policy_net = DuelingNetwork(
-            self.state_dim, self.action_dim, self.config.hidden_dim
+            self.state_dim,
+            self.action_dim,
+            self.config.hidden_dim,
+            n_layers=self.config.n_layers,
         ).to(self.config.device)
         self.target_net = DuelingNetwork(
-            self.state_dim, self.action_dim, self.config.hidden_dim
+            self.state_dim,
+            self.action_dim,
+            self.config.hidden_dim,
+            n_layers=self.config.n_layers,
         ).to(self.config.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
 

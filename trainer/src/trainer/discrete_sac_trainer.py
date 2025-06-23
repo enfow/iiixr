@@ -36,21 +36,31 @@ class DiscreteSACTrainer(BaseTrainer):
         super().__init__(env, config, save_dir)
 
     def _init_models(self):
-        self.actor = DiscreteSACPolicy(self.state_dim, self.action_dim).to(
-            self.config.device
-        )
-        self.critic1 = DiscreteSACQNetwork(self.state_dim, self.action_dim).to(
-            self.config.device
-        )
-        self.critic2 = DiscreteSACQNetwork(self.state_dim, self.action_dim).to(
-            self.config.device
-        )
-        self.target_critic1 = DiscreteSACQNetwork(self.state_dim, self.action_dim).to(
-            self.config.device
-        )
-        self.target_critic2 = DiscreteSACQNetwork(self.state_dim, self.action_dim).to(
-            self.config.device
-        )
+        self.actor = DiscreteSACPolicy(
+            self.state_dim,
+            self.action_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
+        self.critic1 = DiscreteSACQNetwork(
+            self.state_dim,
+            self.action_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
+        self.critic2 = DiscreteSACQNetwork(
+            self.state_dim,
+            self.action_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
+        self.target_critic1 = DiscreteSACQNetwork(
+            self.state_dim,
+            self.action_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
+        self.target_critic2 = DiscreteSACQNetwork(
+            self.state_dim,
+            self.action_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
         self.target_critic1.load_state_dict(self.critic1.state_dict())
         self.target_critic2.load_state_dict(self.critic2.state_dict())
 

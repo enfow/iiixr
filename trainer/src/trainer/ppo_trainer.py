@@ -20,11 +20,14 @@ class PPOTrainer(BaseTrainer):
             self.state_dim,
             self.action_dim,
             self.config.hidden_dim,
+            n_layers=self.config.n_layers,
             is_discrete=self.is_discrete,
         ).to(self.config.device)
-        self.critic = Critic(self.state_dim, self.config.hidden_dim).to(
-            self.config.device
-        )
+        self.critic = Critic(
+            self.state_dim,
+            self.config.hidden_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
         self.memory = PPOMemory()
         self.actor_optimizer = optim.Adam(
             list(self.actor.parameters()),

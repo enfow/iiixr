@@ -25,6 +25,7 @@ GAMMA ?= 0.99
 BUFFER_SIZE ?= 1000000
 SEED ?= 42
 HIDDEN_DIM ?= 256
+N_LAYERS ?= 3
 
 # rainbow_dqn
 ALPHA ?= 0.6
@@ -76,6 +77,7 @@ docker-run:
 		-e BUFFER_SIZE=$(BUFFER_SIZE) \
 		-e SEED=$(SEED) \
 		-e HIDDEN_DIM=$(HIDDEN_DIM) \
+		-e N_LAYERS=$(N_LAYERS) \
 		-e ALPHA=$(ALPHA) \
 		-e BETA_START=$(BETA_START) \
 		-e BETA_FRAMES=$(BETA_FRAMES) \
@@ -121,6 +123,7 @@ train:
 		--buffer_size $(BUFFER_SIZE) \
 		--seed $(SEED) \
 		--hidden_dim $(HIDDEN_DIM) \
+		--n_layers $(N_LAYERS) \
 		--alpha $(ALPHA) \
 		--beta_start $(BETA_START) \
 		--beta_frames $(BETA_FRAMES) \

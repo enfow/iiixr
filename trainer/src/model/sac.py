@@ -11,12 +11,12 @@ class SACPolicy(nn.Module):
 
     def __init__(
         self,
-        state_dim,
-        action_dim,
-        hidden_dim=256,
-        n_layers=2,
-        log_std_min=-20,
-        log_std_max=2,
+        state_dim: int,
+        action_dim: int,
+        hidden_dim: int = 256,
+        n_layers: int = 2,
+        log_std_min: float = -20,
+        log_std_max: float = 2,
     ):
         super().__init__()
         self.log_std_min = log_std_min
@@ -71,7 +71,13 @@ class SACQNetwork(nn.Module):
     Takes state-action pairs as input
     """
 
-    def __init__(self, state_dim, action_dim, hidden_dim=256, n_layers=2):
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int,
+        hidden_dim: int = 256,
+        n_layers: int = 2,
+    ):
         super().__init__()
         layers = [nn.Linear(state_dim + action_dim, hidden_dim), nn.ReLU()]
         for _ in range(n_layers - 1):
@@ -95,7 +101,12 @@ class SACValueNetwork(nn.Module):
     Estimates the state value function
     """
 
-    def __init__(self, state_dim, hidden_dim=256, n_layers=2):
+    def __init__(
+        self,
+        state_dim: int,
+        hidden_dim: int = 256,
+        n_layers: int = 2,
+    ):
         super().__init__()
         layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
         for _ in range(n_layers - 1):

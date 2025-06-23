@@ -29,19 +29,33 @@ class SACTrainer(BaseTrainer):
 
     def _init_models(self):
         # Policy network: outputs mean and log_std for Gaussian policy
-        self.actor = SACPolicy(self.state_dim, self.action_dim).to(self.config.device)
+        self.actor = SACPolicy(
+            self.state_dim,
+            self.action_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
 
         # Q-networks: Q(s,a) -> R (continuous actions only in original SAC)
-        self.critic1 = SACQNetwork(self.state_dim, self.action_dim).to(
-            self.config.device
-        )
-        self.critic2 = SACQNetwork(self.state_dim, self.action_dim).to(
-            self.config.device
-        )
+        self.critic1 = SACQNetwork(
+            self.state_dim,
+            self.action_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
+        self.critic2 = SACQNetwork(
+            self.state_dim,
+            self.action_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
 
         # Value network: V(s) -> R
-        self.value_net = SACValueNetwork(self.state_dim).to(self.config.device)
-        self.target_value_net = SACValueNetwork(self.state_dim).to(self.config.device)
+        self.value_net = SACValueNetwork(
+            self.state_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
+        self.target_value_net = SACValueNetwork(
+            self.state_dim,
+            n_layers=self.config.n_layers,
+        ).to(self.config.device)
 
         # Initialize target value network
         self.target_value_net.load_state_dict(self.value_net.state_dict())
