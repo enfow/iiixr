@@ -32,6 +32,7 @@ class SACTrainer(BaseTrainer):
         self.actor = SACPolicy(
             self.state_dim,
             self.action_dim,
+            hidden_dim=self.config.hidden_dim,
             n_layers=self.config.n_layers,
         ).to(self.config.device)
 
@@ -39,21 +40,25 @@ class SACTrainer(BaseTrainer):
         self.critic1 = SACQNetwork(
             self.state_dim,
             self.action_dim,
+            hidden_dim=self.config.hidden_dim,
             n_layers=self.config.n_layers,
         ).to(self.config.device)
         self.critic2 = SACQNetwork(
             self.state_dim,
             self.action_dim,
+            hidden_dim=self.config.hidden_dim,
             n_layers=self.config.n_layers,
         ).to(self.config.device)
 
         # Value network: V(s) -> R
         self.value_net = SACValueNetwork(
             self.state_dim,
+            hidden_dim=self.config.hidden_dim,
             n_layers=self.config.n_layers,
         ).to(self.config.device)
         self.target_value_net = SACValueNetwork(
             self.state_dim,
+            hidden_dim=self.config.hidden_dim,
             n_layers=self.config.n_layers,
         ).to(self.config.device)
 
