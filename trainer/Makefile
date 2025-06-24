@@ -41,6 +41,8 @@ START_STEPS ?= 10000
 # ppo
 PPO_EPOCHS ?= 10
 CLIP_EPS ?= 0.2
+N_TRANSACTIONS ?= 1000
+NORMALIZE_ADVANTAGES ?= false
 
 # Default values for evaluation parameters
 EVAL_RESULT_PATH ?= results/ppo
@@ -64,6 +66,8 @@ HPO_CLIP_EPS ?=
 HPO_START_STEPS ?= 
 HPO_ENTROPY_COEF ?= 
 HPO_TARGET_UPDATE ?=
+HPO_N_TRANSACTIONS ?= 
+HPO_NORMALIZE_ADVANTAGES ?=
 
 .PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-sac hpo-rainbow-dqn hpo-custom docker-run-eval docker-run-hpo
 
@@ -105,6 +109,8 @@ docker-run:
 		-e START_STEPS=$(START_STEPS) \
 		-e PPO_EPOCHS=$(PPO_EPOCHS) \
 		-e CLIP_EPS=$(CLIP_EPS) \
+		-e N_TRANSACTIONS=$(N_TRANSACTIONS) \
+		-e NORMALIZE_ADVANTAGES=$(NORMALIZE_ADVANTAGES) \
 		$(DOCKER_IMAGE_NAME)
 
 docker-run-eval:
@@ -143,6 +149,8 @@ docker-run-hpo:
 		-e HPO_START_STEPS=$(HPO_START_STEPS) \
 		-e HPO_ENTROPY_COEF=$(HPO_ENTROPY_COEF) \
 		-e HPO_TARGET_UPDATE=$(HPO_TARGET_UPDATE) \
+		-e HPO_N_TRANSACTIONS=$(HPO_N_TRANSACTIONS) \
+		-e HPO_NORMALIZE_ADVANTAGES=$(HPO_NORMALIZE_ADVANTAGES) \
 		$(DOCKER_IMAGE_NAME) make hpo
 
 docker-stop:
@@ -178,7 +186,9 @@ train:
 		--entropy_coef $(ENTROPY_COEF) \
 		--start_steps $(START_STEPS) \
 		--ppo_epochs $(PPO_EPOCHS) \
-		--clip_eps $(CLIP_EPS)
+		--clip_eps $(CLIP_EPS) \
+		--n_transactions $(N_TRANSACTIONS) \
+		--normalize_advantages $(NORMALIZE_ADVANTAGES)
 
 # Train all algorithms sequentially
 train-all:
@@ -213,7 +223,9 @@ hpo:
 		$(if $(HPO_CLIP_EPS),--clip_eps $(HPO_CLIP_EPS),) \
 		$(if $(HPO_START_STEPS),--start_steps $(HPO_START_STEPS),) \
 		$(if $(HPO_ENTROPY_COEF),--entropy_coef $(HPO_ENTROPY_COEF),) \
-		$(if $(HPO_TARGET_UPDATE),--target_update $(HPO_TARGET_UPDATE),)
+		$(if $(HPO_TARGET_UPDATE),--target_update $(HPO_TARGET_UPDATE),) \
+		$(if $(HPO_N_TRANSACTIONS),--n_transactions $(HPO_N_TRANSACTIONS),) \
+		$(if $(HPO_NORMALIZE_ADVANTAGES),--normalize_advantages $(HPO_NORMALIZE_ADVANTAGES),)
 
 # Specific HPO targets
 hpo-basic:
@@ -224,7 +236,9 @@ hpo-ppo:
 		HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' \
 		HPO_CLIP_EPS='0.1,0.15,0.2' \
 		HPO_BATCH_SIZE='64,128,256' \
-		HPO_GAMMA='0.95,0.97,0.99'
+		HPO_GAMMA='0.95,0.97,0.99' \
+		HPO_N_TRANSACTIONS='500,1000,2000' \
+		HPO_NORMALIZE_ADVANTAGES='true,false'
 
 hpo-sac:
 	make hpo MODEL=sac HPO_N_TRIALS=20 HPO_STUDY_NAME=sac_optimization \
@@ -249,7 +263,9 @@ hpo-custom:
 		HPO_CLIP_EPS='0.1,0.15,0.2,0.25' \
 		HPO_START_STEPS='500,1000,2000' \
 		HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' \
-		HPO_TARGET_UPDATE='5,10,20,50'
+		HPO_TARGET_UPDATE='5,10,20,50' \
+		HPO_N_TRANSACTIONS='500,1000,2000' \
+		HPO_NORMALIZE_ADVANTAGES='true,false'
 
 clean:
 	rm -rf models/
@@ -285,6 +301,7 @@ help:
 	@echo "  make hpo MODEL=sac HPO_START_STEPS='500,1000,2000' HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0'"
 	@echo "  make hpo MODEL=rainbow_dqn HPO_TARGET_UPDATE='5,10,20,50'"
 	@echo "  make hpo MODEL=ppo HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' HPO_CLIP_EPS='0.1,0.15,0.2'"
+	@echo "  make hpo MODEL=ppo HPO_N_TRANSACTIONS='500,1000,2000' HPO_NORMALIZE_ADVANTAGES='true,false'"
 	@echo "  make hpo-ppo ENV=LunarLander-v3"
 	@echo "  make hpo-custom HPO_N_TRIALS=200"
 	@echo ""

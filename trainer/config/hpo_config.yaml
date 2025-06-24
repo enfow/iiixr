@@ -35,4 +35,6 @@ searchable_hyperparameters:
   clip_eps: [0.2]
   start_steps: [1000]
   entropy_coef: [1.0]
-  target_update: [10] 
+  target_update: [10]
+  n_transactions: [1000]
+  normalize_advantages: [false] 

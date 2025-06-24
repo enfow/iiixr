@@ -83,6 +83,18 @@ def main():
     )
     parser.add_argument("--ppo_epochs", type=int, default=10, help="PPO epochs")
     parser.add_argument("--clip_eps", type=float, default=0.2, help="PPO clip epsilon")
+    parser.add_argument(
+        "--n_transactions",
+        type=int,
+        default=1000,
+        help="Number of transactions for PPO",
+    )
+    parser.add_argument(
+        "--normalize_advantages",
+        type=lambda x: x.lower() == "true",
+        default=False,
+        help="Whether to normalize advantages in PPO",
+    )
 
     args = parser.parse_args()
 

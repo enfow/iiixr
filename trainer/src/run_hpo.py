@@ -133,10 +133,17 @@ def parse_categorical_arg(value_str: str) -> List:
     """Parse categorical argument from comma-separated string"""
     if not value_str:
         return []
-    return [
-        int(x.strip()) if x.strip().isdigit() else float(x.strip())
-        for x in value_str.split(",")
-    ]
+
+    result = []
+    for x in value_str.split(","):
+        x = x.strip().lower()
+        if x in ["true", "false"]:
+            result.append(x == "true")
+        elif x.isdigit():
+            result.append(int(x))
+        else:
+            result.append(float(x))
+    return result
 
 
 def main():
@@ -258,6 +265,18 @@ def main():
         default="",
         help="Comma-separated list of target update frequencies to search (e.g., '5,10,20,50')",
     )
+    parser.add_argument(
+        "--n_transactions",
+        type=str,
+        default="",
+        help="Comma-separated list of n_transactions values to search (e.g., '500,1000,2000')",
+    )
+    parser.add_argument(
+        "--normalize_advantages",
+        type=str,
+        default="",
+        help="Comma-separated list of normalize_advantages values to search (e.g., 'true,false')",
+    )
 
     args = parser.parse_args()
 
@@ -329,6 +348,20 @@ def main():
         searchable_params["target_update"] = parse_categorical_arg(args.target_update)
     elif "target_update" in config_searchable:
         searchable_params["target_update"] = config_searchable["target_update"]
+
+    if args.n_transactions:
+        searchable_params["n_transactions"] = parse_categorical_arg(args.n_transactions)
+    elif "n_transactions" in config_searchable:
+        searchable_params["n_transactions"] = config_searchable["n_transactions"]
+
+    if args.normalize_advantages:
+        searchable_params["normalize_advantages"] = parse_categorical_arg(
+            args.normalize_advantages
+        )
+    elif "normalize_advantages" in config_searchable:
+        searchable_params["normalize_advantages"] = config_searchable[
+            "normalize_advantages"
+        ]
 
     n_possible_combinations = 1
     for param_name, param_values in searchable_params.items():
