@@ -1,4 +1,5 @@
 import argparse
+import gc
 import os
 import pickle
 import time
@@ -7,6 +8,7 @@ from typing import Any, Dict, List
 import gymnasium as gym
 import numpy as np
 import optuna
+import torch
 import yaml
 
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
@@ -80,12 +82,16 @@ class OptunaRLOptimizer:
                 }
                 print(f"New best score: {score:.4f} with trial {trial.number}")
 
+            # Clean up memory after successful trial
+            self.cleanup_memory()
             return score
 
         except Exception as e:
             print(f"Trial {trial.number} failed with error: {e}")
             # Clean up failed trial directory
             self.cleanup_trial_dir(trial_save_dir)
+            # Clean up memory after failed trial
+            self.cleanup_memory()
             # Return a very low score for failed trials
             return float("-inf")
 
@@ -132,7 +138,10 @@ class OptunaRLOptimizer:
 
             eval_scores.append(episode_reward)
 
+        # Clean up environment and trainer
         env.close()
+        del trainer
+        del env
 
         # Return mean evaluation score
         mean_score = np.mean(eval_scores)
@@ -164,6 +173,23 @@ class OptunaRLOptimizer:
                 shutil.rmtree(save_dir)
         except Exception as e:
             print(f"Failed to cleanup {save_dir}: {e}")
+
+    def cleanup_memory(self):
+        """Clean up memory after each trial to prevent OOM errors"""
+        try:
+            # Clear GPU memory if CUDA is available
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+                print(
+                    f"Cleared GPU memory. Current GPU memory: {torch.cuda.memory_allocated() / 1024**2:.1f} MB"
+                )
+
+            # Run garbage collection
+            gc.collect()
+
+        except Exception as e:
+            print(f"Memory cleanup failed: {e}")
 
 
 def run_optuna_optimization(
