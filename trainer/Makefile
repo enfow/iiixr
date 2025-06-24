@@ -51,7 +51,7 @@ EVAL_PERIOD ?= 10
 EVAL ?= false
 
 # Default values for HPO parameters
-HPO_N_TRIALS ?= 50
+HPO_N_TRIALS ?= 10
 HPO_STUDY_NAME ?= hpo_experiment
 HPO_CONFIG ?= src/hpo_config.yaml
 HPO_TIMEOUT ?= 
