@@ -30,6 +30,7 @@ class BaseTrainer:
         self.total_train_result = TotalTrainResult.initialize()
         self.best_score = -np.inf
         self.best_results: EvalResult = None
+        self.train_episode_number = 0
         self.log_file = os.path.join(self.save_dir, "metrics.jsonl")
         self.model_file = os.path.join(self.save_dir, "best_model.pth")
         self.config_file = os.path.join(self.save_dir, "config.json")
@@ -60,12 +61,14 @@ class BaseTrainer:
             self.collect_initial_data(self.config.start_steps)
 
         for ep in range(self.config.episodes):
+            self.train_episode_number = ep + 1
             start_time = time.time()
             single_episode_result = self.train_episode()
             elapsed_time = time.time() - start_time
 
             # log train result
             single_episode_result.episode_elapsed_time = elapsed_time
+            single_episode_result.episode_number = self.train_episode_number
             print(single_episode_result)
             self.total_train_result.update(single_episode_result)
             log_result(single_episode_result, self.log_file)
