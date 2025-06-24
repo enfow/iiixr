@@ -240,6 +240,24 @@ def main():
         default="",
         help="Comma-separated list of clip epsilon values to search (e.g., '0.1,0.15,0.2,0.25')",
     )
+    parser.add_argument(
+        "--start_steps",
+        type=str,
+        default="",
+        help="Comma-separated list of start steps to search (e.g., '500,1000,2000')",
+    )
+    parser.add_argument(
+        "--entropy_coef",
+        type=str,
+        default="",
+        help="Comma-separated list of entropy coefficients to search (e.g., '0.01,0.1,0.5,1.0')",
+    )
+    parser.add_argument(
+        "--target_update",
+        type=str,
+        default="",
+        help="Comma-separated list of target update frequencies to search (e.g., '5,10,20,50')",
+    )
 
     args = parser.parse_args()
 
@@ -297,14 +315,24 @@ def main():
     elif "clip_eps" in config_searchable:
         searchable_params["clip_eps"] = config_searchable["clip_eps"]
 
-    n_possible_combinations = (
-        len(searchable_params["batch_size"])
-        * len(searchable_params["gamma"])
-        * len(searchable_params["hidden_dim"])
-        * len(searchable_params["n_layers"])
-        * len(searchable_params["ppo_epochs"])
-        * len(searchable_params["clip_eps"])
-    )
+    if args.start_steps:
+        searchable_params["start_steps"] = parse_categorical_arg(args.start_steps)
+    elif "start_steps" in config_searchable:
+        searchable_params["start_steps"] = config_searchable["start_steps"]
+
+    if args.entropy_coef:
+        searchable_params["entropy_coef"] = parse_categorical_arg(args.entropy_coef)
+    elif "entropy_coef" in config_searchable:
+        searchable_params["entropy_coef"] = config_searchable["entropy_coef"]
+
+    if args.target_update:
+        searchable_params["target_update"] = parse_categorical_arg(args.target_update)
+    elif "target_update" in config_searchable:
+        searchable_params["target_update"] = config_searchable["target_update"]
+
+    n_possible_combinations = 1
+    for param_name, param_values in searchable_params.items():
+        n_possible_combinations *= len(param_values)
 
     print("HPO Config:")
     print(hpo_config)

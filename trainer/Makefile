@@ -61,8 +61,11 @@ HPO_HIDDEN_DIM ?=
 HPO_N_LAYERS ?= 
 HPO_PPO_EPOCHS ?= 
 HPO_CLIP_EPS ?= 
+HPO_START_STEPS ?= 
+HPO_ENTROPY_COEF ?= 
+HPO_TARGET_UPDATE ?=
 
-.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-custom docker-run-eval docker-run-hpo
+.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-sac hpo-rainbow-dqn hpo-custom docker-run-eval docker-run-hpo
 
 format:
 	ruff format src
@@ -137,6 +140,9 @@ docker-run-hpo:
 		-e HPO_N_LAYERS=$(HPO_N_LAYERS) \
 		-e HPO_PPO_EPOCHS=$(HPO_PPO_EPOCHS) \
 		-e HPO_CLIP_EPS=$(HPO_CLIP_EPS) \
+		-e HPO_START_STEPS=$(HPO_START_STEPS) \
+		-e HPO_ENTROPY_COEF=$(HPO_ENTROPY_COEF) \
+		-e HPO_TARGET_UPDATE=$(HPO_TARGET_UPDATE) \
 		$(DOCKER_IMAGE_NAME) make hpo
 
 docker-stop:
@@ -204,7 +210,46 @@ hpo:
 		$(if $(HPO_HIDDEN_DIM),--hidden_dim $(HPO_HIDDEN_DIM),) \
 		$(if $(HPO_N_LAYERS),--n_layers $(HPO_N_LAYERS),) \
 		$(if $(HPO_PPO_EPOCHS),--ppo_epochs $(HPO_PPO_EPOCHS),) \
-		$(if $(HPO_CLIP_EPS),--clip_eps $(HPO_CLIP_EPS),)
+		$(if $(HPO_CLIP_EPS),--clip_eps $(HPO_CLIP_EPS),) \
+		$(if $(HPO_START_STEPS),--start_steps $(HPO_START_STEPS),) \
+		$(if $(HPO_ENTROPY_COEF),--entropy_coef $(HPO_ENTROPY_COEF),) \
+		$(if $(HPO_TARGET_UPDATE),--target_update $(HPO_TARGET_UPDATE),)
+
+# Specific HPO targets
+hpo-basic:
+	make hpo HPO_N_TRIALS=10 HPO_STUDY_NAME=basic_hpo
+
+hpo-ppo:
+	make hpo MODEL=ppo HPO_N_TRIALS=20 HPO_STUDY_NAME=ppo_optimization \
+		HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' \
+		HPO_CLIP_EPS='0.1,0.15,0.2' \
+		HPO_BATCH_SIZE='64,128,256' \
+		HPO_GAMMA='0.95,0.97,0.99'
+
+hpo-sac:
+	make hpo MODEL=sac HPO_N_TRIALS=20 HPO_STUDY_NAME=sac_optimization \
+		HPO_START_STEPS='500,1000,2000' \
+		HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' \
+		HPO_BATCH_SIZE='64,128,256' \
+		HPO_GAMMA='0.95,0.97,0.99'
+
+hpo-rainbow-dqn:
+	make hpo MODEL=rainbow_dqn HPO_N_TRIALS=20 HPO_STUDY_NAME=rainbow_dqn_optimization \
+		HPO_TARGET_UPDATE='5,10,20,50' \
+		HPO_BATCH_SIZE='64,128,256' \
+		HPO_GAMMA='0.95,0.97,0.99'
+
+hpo-custom:
+	make hpo HPO_N_TRIALS=50 HPO_STUDY_NAME=custom_hpo \
+		HPO_BATCH_SIZE='64,128,256,512' \
+		HPO_GAMMA='0.95,0.97,0.99,0.995' \
+		HPO_HIDDEN_DIM='128,256,512' \
+		HPO_N_LAYERS='2,3,4' \
+		HPO_PPO_EPOCHS='4,6,8,10' \
+		HPO_CLIP_EPS='0.1,0.15,0.2,0.25' \
+		HPO_START_STEPS='500,1000,2000' \
+		HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' \
+		HPO_TARGET_UPDATE='5,10,20,50'
 
 clean:
 	rm -rf models/
@@ -221,6 +266,8 @@ help:
 	@echo "  hpo            Run HPO with custom parameters"
 	@echo "  hpo-basic      Run basic HPO with default config"
 	@echo "  hpo-ppo        Run PPO-specific HPO optimization"
+	@echo "  hpo-sac        Run SAC-specific HPO optimization"
+	@echo "  hpo-rainbow-dqn Run Rainbow DQN-specific HPO optimization"
 	@echo "  hpo-custom     Run custom HPO with specific search spaces"
 	@echo "  docker-build   Build Docker image"
 	@echo "  docker-run     Run training in Docker container"
@@ -235,6 +282,9 @@ help:
 	@echo "HPO example usage:"
 	@echo "  make hpo HPO_STUDY_NAME=my_experiment HPO_N_TRIALS=100"
 	@echo "  make hpo ENV=CartPole-v1 HPO_BATCH_SIZE='64,128,256' HPO_HIDDEN_DIM='128,256,512'"
+	@echo "  make hpo MODEL=sac HPO_START_STEPS='500,1000,2000' HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0'"
+	@echo "  make hpo MODEL=rainbow_dqn HPO_TARGET_UPDATE='5,10,20,50'"
+	@echo "  make hpo MODEL=ppo HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' HPO_CLIP_EPS='0.1,0.15,0.2'"
 	@echo "  make hpo-ppo ENV=LunarLander-v3"
 	@echo "  make hpo-custom HPO_N_TRIALS=200"
 	@echo ""

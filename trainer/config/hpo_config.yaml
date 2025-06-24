@@ -11,13 +11,10 @@ lr: 3e-4
 
 # SAC specific hyperparameters (fixed)
 tau: 0.005
-start_steps: 1000
-entropy_coef: 1.0
 
 # Rainbow DQN hyperparameters (fixed)
 alpha: 0.6
 beta_start: 0.4
-target_update: 10
 
 # Evaluation hyperparameters (fixed)
 eval: true
@@ -35,4 +32,7 @@ searchable_hyperparameters:
   hidden_dim: [256]
   n_layers: [3]
   ppo_epochs: [3]
-  clip_eps: [0.2] 
+  clip_eps: [0.2]
+  start_steps: [1000]
+  entropy_coef: [1.0]
+  target_update: [10] 
