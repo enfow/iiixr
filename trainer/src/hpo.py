@@ -315,6 +315,20 @@ def main():
         help="Device to use (cpu/cuda) (overrides config file)",
     )
 
+    # Training parameters
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=None,
+        help="Number of episodes for training (overrides config file)",
+    )
+    parser.add_argument(
+        "--max_steps",
+        type=int,
+        default=None,
+        help="Maximum steps per episode (overrides config file)",
+    )
+
     # HPO-specific arguments
     parser.add_argument(
         "--hpo_n_trials",
@@ -385,6 +399,10 @@ def main():
         hpo_config["device"] = args.device
     if args.model is not None:
         hpo_config["model"] = args.model
+    if args.episodes is not None:
+        hpo_config["episodes"] = args.episodes
+    if args.max_steps is not None:
+        hpo_config["max_steps"] = args.max_steps
     if args.hpo_n_trials is not None:
         hpo_config["hpo_n_trials"] = args.hpo_n_trials
     if args.hpo_study_name is not None:
