@@ -402,8 +402,8 @@ def main():
 
     final_config = hpo_config.copy()
     final_config.update(study.best_params)
-    final_config["episodes"] = (
-        hpo_config["episodes"] * 2
+    final_config["episodes"] = round(
+        hpo_config["episodes"] * 1.2
     )  # Train longer for final model
 
     # Create final save directory
