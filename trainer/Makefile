@@ -94,7 +94,7 @@ docker-run:
 		-e GAMMA=$(GAMMA) \
 		-e EVAL=$(EVAL) \
 		-e EVAL_PERIOD=$(EVAL_PERIOD) \
-		-e EVAL_EPISODES=$(EVAL_EPOCHS) \
+		-e EVAL_EPISODES=$(EVAL_EPISODES) \
 		-e DEVICE=$(DEVICE) \
 		-e BUFFER_SIZE=$(BUFFER_SIZE) \
 		-e SEED=$(SEED) \
@@ -172,7 +172,7 @@ train:
 		--gamma $(GAMMA) \
 		--eval $(EVAL) \
 		--eval_period $(EVAL_PERIOD) \
-		--eval_episodes $(EVAL_EPOCHS) \
+		--eval_episodes $(EVAL_EPISODES) \
 		--device $(DEVICE) \
 		--buffer_size $(BUFFER_SIZE) \
 		--seed $(SEED) \
