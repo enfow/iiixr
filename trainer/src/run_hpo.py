@@ -77,6 +77,7 @@ def run_optuna_optimization(
         n_trials=n_trials,
         timeout=timeout,
         callbacks=[callback],
+        gc_after_trial=True,
         show_progress_bar=True,
     )
 
