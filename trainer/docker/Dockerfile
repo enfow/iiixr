@@ -27,6 +27,4 @@ RUN uv pip install --system .
 COPY src/ ./src/
 COPY Makefile .
 
-RUN mkdir -p /app/models
-
 CMD ["make", "train"]

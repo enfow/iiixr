@@ -36,7 +36,7 @@ TARGET_UPDATE ?= 10
 # sac
 TAU ?= 0.005
 ENTROPY_COEF ?= 1.0
-START_STEPS ?= 1000
+START_STEPS ?= 10000
 
 # ppo
 PPO_EPOCHS ?= 10
@@ -194,6 +194,7 @@ hpo:
 		--device $(DEVICE) \
 		--hpo_n_trials $(HPO_N_TRIALS) \
 		--hpo_study_name $(HPO_STUDY_NAME) \
+		$(if $(N_EPISODES),--episodes $(N_EPISODES),) \
 		$(if $(HPO_TIMEOUT),--timeout $(HPO_TIMEOUT),) \
 		$(if $(HPO_BATCH_SIZE),--batch_size $(HPO_BATCH_SIZE),) \
 		$(if $(HPO_GAMMA),--gamma $(HPO_GAMMA),) \

@@ -121,22 +121,7 @@ class OptunaRLOptimizer:
         trainer.train()
 
         # Evaluate the trained model
-        eval_scores = []
-        for _ in range(self.n_eval_episodes):
-            obs, _ = env.reset()
-            episode_reward = 0
-            done = False
-            step = 0
-
-            while not done and step < config["max_steps"]:
-                # Get action from trained agent
-                action = trainer.get_action(obs, evaluate=True)
-                obs, reward, terminated, truncated, _ = env.step(action)
-                episode_reward += reward
-                done = terminated or truncated
-                step += 1
-
-            eval_scores.append(episode_reward)
+        eval_result = trainer.evaluate(self.n_eval_episodes)
 
         # Clean up environment and trainer
         env.close()
@@ -145,21 +130,21 @@ class OptunaRLOptimizer:
         print("Environment and trainer cleaned up.")
 
         # Return mean evaluation score
-        mean_score = np.mean(eval_scores)
-        std_score = np.std(eval_scores)
+        avg_score = eval_result.avg_score
+        std_score = eval_result.std_score
 
         print(
-            f"Trial {trial.number}: {config['model']} - Score: {mean_score:.4f} ± {std_score:.4f}"
+            f"Trial {trial.number}: {config['model']} - Score: {avg_score:.4f} ± {std_score:.4f}"
         )
 
         # Report intermediate values for pruning
-        trial.report(mean_score, step=config["episodes"])
+        trial.report(avg_score, step=config["episodes"])
 
         # Handle pruning
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
 
-        return mean_score
+        return avg_score
 
     def get_best_trial_info(self):
         """Get information about the best trial"""
