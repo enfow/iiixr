@@ -31,10 +31,13 @@ searchable_hyperparameters:
   gamma: [0.99]
   hidden_dim: [256]
   n_layers: [3]
+  # ppo
   ppo_epochs: [3]
   clip_eps: [0.2]
-  start_steps: [1000]
-  entropy_coef: [1.0]
-  target_update: [10]
   n_transactions: [1000]
   normalize_advantages: [false] 
+  # sac
+  start_steps: [1000]
+  entropy_coef: [1.0]
+  # rainbow_dqn
+  target_update: [10]
