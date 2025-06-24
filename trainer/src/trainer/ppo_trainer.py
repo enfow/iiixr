@@ -58,7 +58,7 @@ class PPOTrainer(BaseTrainer):
             logprob = dist.log_prob(action).sum(dim=-1)
             action = torch.tanh(action)
             return {
-                "action": action.item(),
+                "action": action.cpu().detach().numpy(),
                 "logprob": logprob.item(),
             }
 
@@ -106,10 +106,21 @@ class PPOTrainer(BaseTrainer):
         return states, actions, old_logprobs, returns, advantages
 
     def _get_entropy(self, states):
-        logits = self.actor(states)
-        probs = torch.softmax(logits, dim=-1)
-        log_probs = torch.log_softmax(logits, dim=-1)
-        entropy = -(probs * log_probs).sum(dim=-1)
+        if self.is_discrete:
+            # Discrete action space: use softmax entropy
+            logits = self.actor(states)
+            probs = torch.softmax(logits, dim=-1)
+            log_probs = torch.log_softmax(logits, dim=-1)
+            entropy = -(probs * log_probs).sum(dim=-1)
+        else:
+            # Continuous action space: use normal distribution entropy
+            mean, log_std = self.actor(states)
+            std = log_std.exp()
+            # Entropy of normal distribution: 0.5 * log(2πe) + log(std)
+            # Use torch.tensor for constants to ensure tensor operations
+            pi = torch.tensor(torch.pi, device=states.device, dtype=states.dtype)
+            e = torch.tensor(torch.e, device=states.device, dtype=states.dtype)
+            entropy = 0.5 * (torch.log(2 * pi * e) + 2 * log_std).sum(dim=-1)
         return entropy
 
     def update(self) -> PPOUpdateLoss:
