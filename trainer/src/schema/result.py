@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 from pydantic import BaseModel
 
@@ -123,7 +125,7 @@ class TotalTrainResult(BaseModel):
 
 
 class EvalResult(BaseModel):
-    train_episode_number: int = None
+    train_episode_number: Optional[int] = None
     avg_score: float
     std_score: float
     min_score: float

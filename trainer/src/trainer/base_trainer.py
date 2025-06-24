@@ -110,7 +110,7 @@ class BaseTrainer:
 
         self.eval_mode_off()
 
-        return EvalResult.from_eval_results(scores, steps)
+        return EvalResult.from_eval_results(scores, steps, self.train_episode_number)
 
     def select_action(self, state) -> dict:
         raise NotImplementedError("Subclasses must implement this method")
