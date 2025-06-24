@@ -39,6 +39,7 @@ class OptunaRLOptimizer:
         self.save_dir = save_dir
         self.n_eval_episodes = n_eval_episodes
         self.best_score = float("-inf")
+        self.best_trial_info = None
 
     def objective(self, trial):
         """
@@ -66,17 +67,24 @@ class OptunaRLOptimizer:
             # Train the model
             score = self.train_and_evaluate(trial_config, trial_save_dir, trial)
 
-            # Clean up trial directory if not the best so far
-            if score < self.best_score:
-                self.cleanup_trial_dir(trial_save_dir)
-            else:
+            # Update best score if this trial is better
+            if score > self.best_score:
                 self.best_score = score
+                self.best_trial_info = {
+                    "trial_number": trial.number,
+                    "score": score,
+                    "model": model,
+                    "parameters": suggested_params,
+                    "save_dir": trial_save_dir,
+                    "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+                }
                 print(f"New best score: {score:.4f} with trial {trial.number}")
 
             return score
 
         except Exception as e:
             print(f"Trial {trial.number} failed with error: {e}")
+            # Clean up failed trial directory
             self.cleanup_trial_dir(trial_save_dir)
             # Return a very low score for failed trials
             return float("-inf")
@@ -142,6 +150,10 @@ class OptunaRLOptimizer:
             raise optuna.exceptions.TrialPruned()
 
         return mean_score
+
+    def get_best_trial_info(self):
+        """Get information about the best trial"""
+        return self.best_trial_info
 
     def cleanup_trial_dir(self, save_dir: str):
         """Clean up trial directory to save space"""
@@ -236,6 +248,15 @@ def run_optuna_optimization(
     # Save trials dataframe
     df = study.trials_dataframe()
     df.to_csv(f"{results_dir}/trials.csv", index=False)
+
+    # Save best trial information in result.json
+    best_trial_info = optimizer.get_best_trial_info()
+    if best_trial_info:
+        import json
+
+        with open(f"{results_dir}/result.json", "w") as f:
+            json.dump(best_trial_info, f, indent=2)
+        print(f"Best trial info saved to: {results_dir}/result.json")
 
     print(f"\nResults saved to: {results_dir}")
 
@@ -418,7 +439,7 @@ def main():
         print("Exiting...")
         exit()
 
-    save_dir = f"results/{hpo_config['env']}/{hpo_config['model']}/{hpo_config['hpo_study_name']}"
+    save_dir = f"results/hpo/{hpo_config['env']}/{hpo_config['model']}/{hpo_config['hpo_study_name']}_{time.strftime('%Y%m%d_%H%M%S')}"
 
     # Run optimization
     study = run_optuna_optimization(
