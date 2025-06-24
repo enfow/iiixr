@@ -189,7 +189,7 @@ eval:
 
 # HPO targets
 hpo:
-	$(PYTHON) $(SRC_DIR)/hpo.py \
+	$(PYTHON) $(SRC_DIR)/run_hpo.py \
 		--config $(HPO_CONFIG) \
 		--model $(MODEL) \
 		--env $(ENV) \
