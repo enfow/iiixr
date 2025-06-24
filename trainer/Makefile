@@ -124,6 +124,8 @@ docker-run-hpo:
 		-v $(PWD)/config:/app/config \
 		-e MODEL=$(MODEL) \
 		-e ENV=$(ENV) \
+		-e N_EPISODES=$(N_EPISODES) \
+		-e MAX_STEPS=$(MAX_STEPS) \
 		-e DEVICE=$(DEVICE) \
 		-e HPO_N_TRIALS=$(HPO_N_TRIALS) \
 		-e HPO_STUDY_NAME=$(HPO_STUDY_NAME) \
@@ -195,6 +197,7 @@ hpo:
 		--hpo_n_trials $(HPO_N_TRIALS) \
 		--hpo_study_name $(HPO_STUDY_NAME) \
 		$(if $(N_EPISODES),--episodes $(N_EPISODES),) \
+		$(if $(MAX_STEPS),--max_steps $(MAX_STEPS),) \
 		$(if $(HPO_TIMEOUT),--timeout $(HPO_TIMEOUT),) \
 		$(if $(HPO_BATCH_SIZE),--batch_size $(HPO_BATCH_SIZE),) \
 		$(if $(HPO_GAMMA),--gamma $(HPO_GAMMA),) \
@@ -202,7 +205,6 @@ hpo:
 		$(if $(HPO_N_LAYERS),--n_layers $(HPO_N_LAYERS),) \
 		$(if $(HPO_PPO_EPOCHS),--ppo_epochs $(HPO_PPO_EPOCHS),) \
 		$(if $(HPO_CLIP_EPS),--clip_eps $(HPO_CLIP_EPS),)
-
 
 clean:
 	rm -rf models/
