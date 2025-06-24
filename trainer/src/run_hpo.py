@@ -1,16 +1,14 @@
 import argparse
-import gc
 import os
 import pickle
 import time
 from typing import Any, Dict, List
 
 import gymnasium as gym
-import numpy as np
 import optuna
-import torch
 import yaml
 
+from hpo.optimizer import OptunaRLOptimizer
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
 from trainer.ppo_trainer import PPOTrainer
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
@@ -26,156 +24,6 @@ def load_hpo_config(config_path: str = "hpo_config.yaml") -> Dict[str, Any]:
         config = yaml.safe_load(f)
 
     return config
-
-
-class OptunaRLOptimizer:
-    def __init__(
-        self,
-        hpo_config: Dict[str, Any],
-        searchable_params: Dict[str, List],
-        save_dir: str,
-        n_eval_episodes: int = 10,
-    ):
-        self.hpo_config = hpo_config
-        self.searchable_params = searchable_params
-        self.save_dir = save_dir
-        self.n_eval_episodes = n_eval_episodes
-        self.best_score = float("-inf")
-        self.best_trial_info = None
-
-    def objective(self, trial):
-        """
-        Optuna objective function for RL hyperparameter optimization
-        """
-        # Use model from config (fixed, not searched)
-        model = self.hpo_config["model"]
-
-        # Suggest searchable hyperparameters
-        suggested_params = {}
-        for param_name, param_values in self.searchable_params.items():
-            suggested_params[param_name] = trial.suggest_categorical(
-                param_name, param_values
-            )
-
-        # Create config for this trial
-        trial_config = self.hpo_config.copy()
-        trial_config.update({"model": model, **suggested_params})
-
-        # Create unique save directory for this trial
-        trial_save_dir = f"{self.save_dir}/trial_{trial.number}_{model}_{time.strftime('%Y%m%d_%H%M%S')}"
-        os.makedirs(trial_save_dir, exist_ok=True)
-
-        try:
-            # Train the model
-            score = self.train_and_evaluate(trial_config, trial_save_dir, trial)
-
-            # Update best score if this trial is better
-            if score > self.best_score:
-                self.best_score = score
-                self.best_trial_info = {
-                    "trial_number": trial.number,
-                    "score": score,
-                    "model": model,
-                    "parameters": suggested_params,
-                    "save_dir": trial_save_dir,
-                    "timestamp": time.strftime("%Y%m%d_%H%M%S"),
-                }
-                print(f"New best score: {score:.4f} with trial {trial.number}")
-
-            # Clean up memory after successful trial
-            self.cleanup_memory()
-            return score
-
-        except Exception as e:
-            print(f"Trial {trial.number} failed with error: {e}")
-            # Clean up failed trial directory
-            self.cleanup_trial_dir(trial_save_dir)
-            # Clean up memory after failed trial
-            self.cleanup_memory()
-            # Return a very low score for failed trials
-            return float("-inf")
-
-    def train_and_evaluate(self, config: Dict[str, Any], save_dir: str, trial) -> float:
-        """
-        Train the model and return evaluation score
-        """
-        # Create environment
-        if config["env"] == "BipedalWalker-v3":
-            env = gym.make(config["env"], hardcore=True)
-        else:
-            env = gym.make(config["env"])
-
-        # Select trainer based on model
-        if config["model"] == "ppo":
-            trainer = PPOTrainer(env, config, save_dir=save_dir)
-        elif config["model"] == "sac":
-            trainer = SACTrainer(env, config, save_dir=save_dir)
-        elif config["model"] == "rainbow_dqn":
-            trainer = RainbowDQNTrainer(env, config, save_dir=save_dir)
-        elif config["model"] == "discrete_sac":
-            trainer = DiscreteSACTrainer(env, config, save_dir=save_dir)
-        else:
-            raise ValueError(f"Unknown model: {config['model']}")
-
-        # Train the model
-        trainer.train()
-
-        # Evaluate the trained model
-        eval_result = trainer.evaluate(self.n_eval_episodes)
-
-        # Clean up environment and trainer
-        env.close()
-        del trainer
-        del env
-        print("Environment and trainer cleaned up.")
-
-        # Return mean evaluation score
-        avg_score = eval_result.avg_score
-        std_score = eval_result.std_score
-
-        print(
-            f"Trial {trial.number}: {config['model']} - Score: {avg_score:.4f} ± {std_score:.4f}"
-        )
-
-        # Report intermediate values for pruning
-        trial.report(avg_score, step=config["episodes"])
-
-        # Handle pruning
-        if trial.should_prune():
-            raise optuna.exceptions.TrialPruned()
-
-        return avg_score
-
-    def get_best_trial_info(self):
-        """Get information about the best trial"""
-        return self.best_trial_info
-
-    def cleanup_trial_dir(self, save_dir: str):
-        """Clean up trial directory to save space"""
-        try:
-            import shutil
-
-            if os.path.exists(save_dir):
-                shutil.rmtree(save_dir)
-        except Exception as e:
-            print(f"Failed to cleanup {save_dir}: {e}")
-
-    def cleanup_memory(self):
-        """Clean up memory after each trial to prevent OOM errors"""
-        try:
-            # Clear GPU memory if CUDA is available
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                torch.cuda.synchronize()
-                print(
-                    f"Cleared GPU memory. Current GPU memory: {torch.cuda.memory_allocated() / 1024**2:.1f} MB"
-                )
-
-            # Run garbage collection
-            gc.collect()
-
-        except Exception as e:
-            print(f"Memory cleanup failed: {e}")
 
 
 def run_optuna_optimization(
@@ -261,14 +109,20 @@ def run_optuna_optimization(
     df = study.trials_dataframe()
     df.to_csv(f"{results_dir}/trials.csv", index=False)
 
-    # Save best trial information in result.json
-    best_trial_info = optimizer.get_best_trial_info()
-    if best_trial_info:
-        import json
+    # Get trial log summary
+    trial_log = optimizer.get_trial_log_summary()
+    if trial_log:
+        summary = trial_log["summary"]
+        print(f"\nTrial Log Summary:")
+        print(f"  Total trials: {summary['total_trials']}")
+        print(f"  Completed trials: {summary['completed_trials']}")
+        print(f"  Failed trials: {summary['failed_trials']}")
+        print(f"  Best score: {summary['best_score']:.4f}")
+        print(f"  Start time: {summary['start_time']}")
+        print(f"  Last update: {summary.get('last_update', 'N/A')}")
 
-        with open(f"{results_dir}/result.json", "w") as f:
-            json.dump(best_trial_info, f, indent=2)
-        print(f"Best trial info saved to: {results_dir}/result.json")
+    # Trial log is already being maintained by the optimizer
+    print(f"Trial log saved to: {results_dir}/result.json")
 
     print(f"\nResults saved to: {results_dir}")
 
