@@ -25,7 +25,7 @@ eval_period: 10
 eval_episodes: 5
 
 # HPO hyperparameters (fixed)
-hpo_n_trials: 50
+hpo_n_trials: 10
 hpo_study_name: "rl_hyperopt"
 
 # Searchable hyperparameters (default search spaces)
