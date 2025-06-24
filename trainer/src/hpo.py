@@ -142,6 +142,7 @@ class OptunaRLOptimizer:
         env.close()
         del trainer
         del env
+        print("Environment and trainer cleaned up.")
 
         # Return mean evaluation score
         mean_score = np.mean(eval_scores)
