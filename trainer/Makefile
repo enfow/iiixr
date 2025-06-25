@@ -166,31 +166,42 @@ docker-run-hpo:
 		-v $(PWD)/src:/app/src \
 		-v $(PWD)/results:/app/results \
 		-v $(PWD)/config:/app/config \
-		-e MODEL=$(MODEL) \
-		-e ENV=$(ENV) \
-		-e N_EPISODES=$(N_EPISODES) \
-		-e MAX_STEPS=$(MAX_STEPS) \
-		-e DEVICE=$(DEVICE) \
-		-e HPO_N_TRIALS=$(HPO_N_TRIALS) \
-		-e HPO_STUDY_NAME=$(HPO_STUDY_NAME) \
-		-e HPO_CONFIG=$(HPO_CONFIG) \
-		-e HPO_TIMEOUT=$(HPO_TIMEOUT) \
-		-e HPO_BATCH_SIZE=$(HPO_BATCH_SIZE) \
-		-e HPO_GAMMA=$(HPO_GAMMA) \
-		-e HPO_HIDDEN_DIM=$(HPO_HIDDEN_DIM) \
-		-e HPO_N_LAYERS=$(HPO_N_LAYERS) \
-		-e HPO_PPO_EPOCHS=$(HPO_PPO_EPOCHS) \
-		-e HPO_CLIP_EPS=$(HPO_CLIP_EPS) \
-		-e HPO_START_STEPS=$(HPO_START_STEPS) \
-		-e HPO_ENTROPY_COEF=$(HPO_ENTROPY_COEF) \
-		-e HPO_TARGET_UPDATE=$(HPO_TARGET_UPDATE) \
-		-e HPO_TARGET_UPDATE_INTERVAL=$(HPO_TARGET_UPDATE_INTERVAL) \
-		-e HPO_N_STEPS=$(HPO_N_STEPS) \
-		-e HPO_N_ATOMS=$(HPO_N_ATOMS) \
-		-e HPO_V_MIN=$(HPO_V_MIN) \
-		-e HPO_V_MAX=$(HPO_V_MAX) \
-		-e HPO_N_TRANSACTIONS=$(HPO_N_TRANSACTIONS) \
-		-e HPO_NORMALIZE_ADVANTAGES=$(HPO_NORMALIZE_ADVANTAGES) \
+		$(if $(ENV),--env $(ENV),) \
+		$(if $(MODEL),--model $(MODEL),) \
+		$(if $(TRAIN_CONFIG),--config $(TRAIN_CONFIG),) \
+		$(if $(N_EPISODES),--episodes $(N_EPISODES),) \
+		$(if $(MAX_STEPS),--max_steps $(MAX_STEPS),) \
+		$(if $(RESULTS_DIR),--save_dir $(RESULTS_DIR),) \
+		$(if $(LEARNING_RATE),--lr $(LEARNING_RATE),) \
+		$(if $(BATCH_SIZE),--batch_size $(BATCH_SIZE),) \
+		$(if $(GAMMA),--gamma $(GAMMA),) \
+		$(if $(EVAL),--eval $(EVAL),) \
+		$(if $(EVAL_PERIOD),--eval_period $(EVAL_PERIOD),) \
+		$(if $(EVAL_EPISODES),--eval_episodes $(EVAL_EPISODES),) \
+		$(if $(DEVICE),--device $(DEVICE),) \
+		$(if $(BUFFER_SIZE),--buffer_size $(BUFFER_SIZE),) \
+		$(if $(SEED),--seed $(SEED),) \
+		$(if $(HIDDEN_DIM),--hidden_dim $(HIDDEN_DIM),) \
+		$(if $(N_LAYERS),--n_layers $(N_LAYERS),) \
+		$(if $(ALPHA),--alpha $(ALPHA),) \
+		$(if $(BETA_START),--beta_start $(BETA_START),) \
+		$(if $(BETA_FRAMES),--beta_frames $(BETA_FRAMES),) \
+		$(if $(TARGET_UPDATE_INTERVAL),--target_update_interval $(TARGET_UPDATE_INTERVAL),) \
+		$(if $(N_STEPS),--n_steps $(N_STEPS),) \
+		$(if $(N_ATOMS),--n_atoms $(N_ATOMS),) \
+		$(if $(V_MIN),--v_min $(V_MIN),) \
+		$(if $(V_MAX),--v_max $(V_MAX),) \
+		$(if $(TAU),--tau $(TAU),) \
+		$(if $(ENTROPY_COEF),--entropy_coef $(ENTROPY_COEF),) \
+		$(if $(START_STEPS),--start_steps $(START_STEPS),) \
+		$(if $(PPO_EPOCHS),--ppo_epochs $(PPO_EPOCHS),) \
+		$(if $(CLIP_EPS),--clip_eps $(CLIP_EPS),) \
+		$(if $(N_TRANSACTIONS),--n_transactions $(N_TRANSACTIONS),) \
+		$(if $(NORMALIZE_ADVANTAGES),--normalize_advantages $(NORMALIZE_ADVANTAGES),) \
+		$(if $(POLICY_DELAY),--policy_delay $(POLICY_DELAY),) \
+		$(if $(POLICY_NOISE),--policy_noise $(POLICY_NOISE),) \
+		$(if $(NOISE_CLIP),--noise_clip $(NOISE_CLIP),) \
+		$(if $(EXPLORATION_NOISE),--exploration_noise $(EXPLORATION_NOISE),)
 		$(DOCKER_IMAGE_NAME) make hpo
 
 docker-stop:
