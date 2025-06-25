@@ -10,6 +10,9 @@ from trainer.ppo_trainer import PPOTrainer
 
 
 class DiscretePPOTrainer(PPOTrainer):
+    name = "discrete_ppo"
+    config_class = PPOConfig
+
     def __init__(self, env_name: str, config: PPOConfig, save_dir: str = "results/ppo"):
         super().__init__(env_name, config, save_dir)
 

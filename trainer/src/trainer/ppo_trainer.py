@@ -13,6 +13,9 @@ from trainer.base_trainer import BaseTrainer
 
 
 class PPOTrainer(BaseTrainer):
+    name = "ppo"
+    config_class = PPOConfig
+
     def __init__(self, env_name: str, config: PPOConfig, save_dir: str = "results/ppo"):
         super().__init__(env_name, config, save_dir)
 

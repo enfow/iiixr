@@ -5,7 +5,7 @@ from trainer.discrete_ppo_trainer import DiscretePPOTrainer
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
 from trainer.ppo_trainer import PPOTrainer
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
-from trainer.sac_trainer import SACTrainer
+from trainer.sac_trainer import SACTrainer, SACV2Trainer
 from trainer.td3_trainer import TD3Trainer
 from util.gym_env import is_discrete_action_space
 
@@ -24,7 +24,14 @@ class PPOTrainerFactory:
 
 
 class TrainerFactory:
-    selectable_models = ["ppo", "sac", "rainbow_dqn", "discrete_sac", "td3"]
+    selectable_models = [
+        "ppo",
+        SACTrainer.name,
+        "rainbow_dqn",
+        "discrete_sac",
+        "td3",
+        SACV2Trainer.name,
+    ]
 
     def __new__(cls, env_name: str, config_dict: dict, save_dir: str):
         model_name = config_dict["model"]
@@ -32,6 +39,8 @@ class TrainerFactory:
             return PPOTrainerFactory(env_name, config_dict, save_dir)
         elif model_name == "sac":
             return SACTrainer(env_name, config_dict, save_dir)
+        elif model_name == "sac_v2":
+            return SACV2Trainer(env_name, config_dict, save_dir)
         elif model_name == "rainbow_dqn":
             return RainbowDQNTrainer(env_name, config_dict, save_dir)
         elif model_name == "discrete_sac":

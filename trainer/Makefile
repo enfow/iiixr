@@ -15,7 +15,7 @@ SRC_DIR := src
 RESULTS_DIR := results
 
 # Default values for training parameters
-MODEL ?= ppo  # ppo, sac, rainbow_dqn, discrete_sac
+MODEL ?= ppo  # ppo, sac, rainbow_dqn, discrete_sac, sac_v2, td3
 ENV ?= LunarLander-v3  # LunarLander-v3, BipedalWalkerHardcore-v3
 N_EPISODES ?= 1000
 MAX_STEPS ?= 1000

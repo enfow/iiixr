@@ -26,6 +26,9 @@ from trainer.base_trainer import BaseTrainer
 
 
 class DiscreteSACTrainer(BaseTrainer):
+    name = "discrete_sac"
+    config_class = SACConfig
+
     def __init__(
         self, env_name: str, config: SACConfig, save_dir: str = "results/discrete_sac"
     ):

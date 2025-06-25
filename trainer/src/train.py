@@ -2,7 +2,6 @@ import argparse
 import os
 import random
 import time
-from pathlib import Path
 
 from trainer.trainer_factory import TrainerFactory
 from util.config import load_config_from_yaml, merge_configs

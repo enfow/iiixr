@@ -12,6 +12,9 @@ from trainer.base_trainer import BaseTrainer
 
 
 class RainbowDQNTrainer(BaseTrainer):
+    name = "rainbow_dqn"
+    config_class = RainbowDQNConfig
+
     def __init__(
         self,
         env_name: str,

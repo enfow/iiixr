@@ -19,6 +19,9 @@ from trainer.base_trainer import BaseTrainer
 
 
 class TD3Trainer(BaseTrainer):
+    name = "td3"
+    config_class = TD3Config
+
     def __init__(self, env_name: str, config: TD3Config, save_dir: str = "results/td3"):
         super().__init__(env_name, config, save_dir)
         self.total_it = 0

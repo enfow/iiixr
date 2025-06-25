@@ -89,18 +89,3 @@ class EvalConfig:
     @classmethod
     def from_dict(cls, config: dict):
         return cls(**config)
-
-
-class TrainingConfigFactory:
-    def __new__(cls, config_dict: dict):
-        model_name = config_dict["model"]
-        if model_name == "ppo":
-            return PPOConfig.from_dict(config_dict)
-        elif model_name in ["sac", "discrete_sac"]:
-            return SACConfig.from_dict(config_dict)
-        elif model_name == "rainbow_dqn":
-            return RainbowDQNConfig.from_dict(config_dict)
-        elif model_name == "td3":
-            return TD3Config.from_dict(config_dict)
-        else:
-            raise ValueError(f"Unknown model for configuration: {model_name}")
