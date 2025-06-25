@@ -5,7 +5,8 @@ from trainer.discrete_ppo_trainer import DiscretePPOTrainer
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
 from trainer.ppo_trainer import PPOTrainer
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
-from trainer.sac_trainer import SACTrainer, SACV2Trainer
+from trainer.sac_trainer import SACTrainer
+from trainer.sac_v2_trainer import SACV2Trainer
 from trainer.td3_trainer import TD3Trainer
 from util.gym_env import is_discrete_action_space
 
