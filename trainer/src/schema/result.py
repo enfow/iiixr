@@ -52,6 +52,15 @@ class RainbowDQNUpdateLoss(UpdateLoss):
         return self.loss
 
 
+class TD3UpdateLoss(UpdateLoss):
+    actor_loss: float
+    critic_loss: float
+
+    @property
+    def total_loss(self):
+        return self.actor_loss + self.critic_loss
+
+
 class SingleEpisodeResult(BaseModel):
     episode_number: int = None
     episode_rewards: list[float] = None

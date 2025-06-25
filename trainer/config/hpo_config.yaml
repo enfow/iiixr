@@ -41,3 +41,8 @@ searchable_hyperparameters:
   entropy_coef: [1.0]
   # rainbow_dqn
   target_update: [10]
+  # td3
+  policy_delay: [2]
+  policy_noise: [0.2]
+  noise_clip: [0.5]
+  exploration_noise: [0.1]

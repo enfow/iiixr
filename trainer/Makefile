@@ -69,6 +69,12 @@ HPO_TARGET_UPDATE ?=
 HPO_N_TRANSACTIONS ?= 
 HPO_NORMALIZE_ADVANTAGES ?=
 
+# TD3 specific parameters
+HPO_POLICY_DELAY ?=
+HPO_POLICY_NOISE ?=
+HPO_NOISE_CLIP ?= 
+HPO_EXPLORATION_NOISE ?= 
+
 .PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-sac hpo-rainbow-dqn hpo-custom docker-run-eval docker-run-hpo
 
 format:
@@ -111,6 +117,10 @@ docker-run:
 		-e CLIP_EPS=$(CLIP_EPS) \
 		-e N_TRANSACTIONS=$(N_TRANSACTIONS) \
 		-e NORMALIZE_ADVANTAGES=$(NORMALIZE_ADVANTAGES) \
+		-e POLICY_DELAY=$(POLICY_DELAY) \
+		-e POLICY_NOISE=$(POLICY_NOISE) \
+		-e NOISE_CLIP=$(NOISE_CLIP) \
+		-e EXPLORATION_NOISE=$(EXPLORATION_NOISE) \
 		$(DOCKER_IMAGE_NAME)
 
 docker-run-eval:
@@ -188,7 +198,11 @@ train:
 		--ppo_epochs $(PPO_EPOCHS) \
 		--clip_eps $(CLIP_EPS) \
 		--n_transactions $(N_TRANSACTIONS) \
-		--normalize_advantages $(NORMALIZE_ADVANTAGES)
+		--normalize_advantages $(NORMALIZE_ADVANTAGES) \
+		--policy_delay $(POLICY_DELAY) \
+		--policy_noise $(POLICY_NOISE) \
+		--noise_clip $(NOISE_CLIP) \
+		--exploration_noise $(EXPLORATION_NOISE)
 
 # Train all algorithms sequentially
 train-all:
@@ -225,7 +239,11 @@ hpo:
 		$(if $(HPO_ENTROPY_COEF),--entropy_coef $(HPO_ENTROPY_COEF),) \
 		$(if $(HPO_TARGET_UPDATE),--target_update $(HPO_TARGET_UPDATE),) \
 		$(if $(HPO_N_TRANSACTIONS),--n_transactions $(HPO_N_TRANSACTIONS),) \
-		$(if $(HPO_NORMALIZE_ADVANTAGES),--normalize_advantages $(HPO_NORMALIZE_ADVANTAGES),)
+		$(if $(HPO_NORMALIZE_ADVANTAGES),--normalize_advantages $(HPO_NORMALIZE_ADVANTAGES),) \
+		$(if $(HPO_POLICY_DELAY),--policy_delay $(HPO_POLICY_DELAY),) \
+		$(if $(HPO_POLICY_NOISE),--policy_noise $(HPO_POLICY_NOISE),) \
+		$(if $(HPO_NOISE_CLIP),--noise_clip $(HPO_NOISE_CLIP),) \
+		$(if $(HPO_EXPLORATION_NOISE),--exploration_noise $(HPO_EXPLORATION_NOISE),)
 
 # Specific HPO targets
 hpo-basic:

@@ -1,6 +1,7 @@
 import gc
 import json
 import os
+import pickle
 import time
 from typing import Any, Dict, List
 
@@ -8,7 +9,7 @@ import gymnasium as gym
 import optuna
 import torch
 
-from trainer.src.trainer.trainer_factory import TrainerFactory
+from trainer.trainer_factory import TrainerFactory
 
 
 class OptunaRLOptimizer:

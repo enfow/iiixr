@@ -72,6 +72,15 @@ class RainbowDQNConfig(BaseConfig):
     target_update: int = 10
 
 
+class TD3Config(BaseConfig):
+    tau: float = 0.005
+    policy_delay: int = 2
+    policy_noise: float = 0.2
+    noise_clip: float = 0.5
+    exploration_noise: float = 0.1
+    start_steps: int = 25000
+
+
 class EvalConfig:
     eval_episodes: int = 10
     eval_render: bool = False

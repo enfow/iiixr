@@ -169,6 +169,31 @@ def main():
         default="",
         help="Comma-separated list of normalize_advantages values to search (e.g., 'true,false')",
     )
+    # TD3 specific parameters
+    parser.add_argument(
+        "--policy_delay",
+        type=str,
+        default="",
+        help="Comma-separated list of policy_delay values to search (e.g., '1,2,3,4')",
+    )
+    parser.add_argument(
+        "--policy_noise",
+        type=str,
+        default="",
+        help="Comma-separated list of policy_noise values to search (e.g., '0.1,0.2,0.3,0.4')",
+    )
+    parser.add_argument(
+        "--noise_clip",
+        type=str,
+        default="",
+        help="Comma-separated list of noise_clip values to search (e.g., '0.1,0.2,0.3,0.4')",
+    )
+    parser.add_argument(
+        "--exploration_noise",
+        type=str,
+        default="",
+        help="Comma-separated list of exploration_noise values to search (e.g., '0.1,0.2,0.3,0.4')",
+    )
 
     args = parser.parse_args()
 

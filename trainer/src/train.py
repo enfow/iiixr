@@ -17,7 +17,7 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        choices=["ppo", "sac", "rainbow_dqn", "discrete_sac"],
+        choices=TrainerFactory.selectable_models,
         default="ppo",
         help="Model to train",
     )
@@ -70,13 +70,13 @@ def main():
         "--target_update", type=int, default=10, help="Target network update frequency"
     )
     parser.add_argument(
-        "--tau", type=float, default=0.005, help="Tau parameter for SAC"
+        "--tau", type=float, default=0.005, help="Tau parameter for SAC/TD3"
     )
     parser.add_argument(
         "--entropy_coef", type=float, default=1.0, help="Entropy coefficient for SAC"
     )
     parser.add_argument(
-        "--start_steps", type=int, default=1000, help="Start steps for SAC"
+        "--start_steps", type=int, default=1000, help="Start steps for SAC/TD3"
     )
     parser.add_argument("--ppo_epochs", type=int, default=10, help="PPO epochs")
     parser.add_argument("--clip_eps", type=float, default=0.2, help="PPO clip epsilon")
@@ -92,7 +92,19 @@ def main():
         default=False,
         help="Whether to normalize advantages in PPO",
     )
-
+    # TD3 specific parameters
+    parser.add_argument(
+        "--policy_delay", type=int, default=2, help="Policy delay for TD3"
+    )
+    parser.add_argument(
+        "--policy_noise", type=float, default=0.2, help="Policy noise for TD3"
+    )
+    parser.add_argument(
+        "--noise_clip", type=float, default=0.5, help="Noise clip for TD3"
+    )
+    parser.add_argument(
+        "--exploration_noise", type=float, default=0.1, help="Exploration noise for TD3"
+    )
     args = parser.parse_args()
 
     config = vars(args)
