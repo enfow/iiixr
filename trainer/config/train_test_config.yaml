@@ -5,8 +5,8 @@ model: "ppo"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
 
 # Training parameters
 seed: 42
-episodes: 1000
-max_steps: 1000
+episodes: 10
+max_steps: 1
 lr: 3e-4
 gamma: 0.99
 hidden_dim: 256
