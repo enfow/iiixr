@@ -40,7 +40,11 @@ start_steps: 1000
 alpha: 0.6
 beta_start: 0.4
 beta_frames: 100000
-target_update: 10
+target_update_interval: 10000
+n_steps: 3
+n_atoms: 51
+v_min: -10.0
+v_max: 10.0
 
 # TD3 specific parameters
 policy_delay: 2

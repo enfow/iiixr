@@ -66,10 +66,17 @@ class SACConfig(BaseConfig):
 
 
 class RainbowDQNConfig(BaseConfig):
-    alpha: float = 0.6
+    target_update_interval: int = 10000
+    # Prioritized Experience Replay
+    alpha: float = 0.5
     beta_start: float = 0.4
     beta_frames: int = 100000
-    target_update: int = 10
+    # Multi-step Learning
+    n_steps: int = 3
+    # Distributional RL (Categorical DQN)
+    n_atoms: int = 51
+    v_min: float = -10.0
+    v_max: float = 10.0
 
 
 class TD3Config(BaseConfig):

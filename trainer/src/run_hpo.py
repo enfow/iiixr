@@ -156,6 +156,37 @@ def main():
         default="",
         help="Comma-separated list of target update frequencies to search (e.g., '5,10,20,50')",
     )
+    # Rainbow DQN specific parameters
+    parser.add_argument(
+        "--target_update_interval",
+        type=str,
+        default="",
+        help="Comma-separated list of target update intervals to search (e.g., '5000,10000,20000')",
+    )
+    parser.add_argument(
+        "--n_steps",
+        type=str,
+        default="",
+        help="Comma-separated list of n_steps values to search (e.g., '1,3,5')",
+    )
+    parser.add_argument(
+        "--n_atoms",
+        type=str,
+        default="",
+        help="Comma-separated list of n_atoms values to search (e.g., '21,51,101')",
+    )
+    parser.add_argument(
+        "--v_min",
+        type=str,
+        default="",
+        help="Comma-separated list of v_min values to search (e.g., '-10.0,-5.0')",
+    )
+    parser.add_argument(
+        "--v_max",
+        type=str,
+        default="",
+        help="Comma-separated list of v_max values to search (e.g., '5.0,10.0')",
+    )
     parser.add_argument(
         "--n_transactions",
         type=str,
@@ -264,6 +295,35 @@ def main():
         searchable_params["target_update"] = parse_categorical_arg(args.target_update)
     elif "target_update" in config_searchable:
         searchable_params["target_update"] = config_searchable["target_update"]
+
+    if args.target_update_interval:
+        searchable_params["target_update_interval"] = parse_categorical_arg(
+            args.target_update_interval
+        )
+    elif "target_update_interval" in config_searchable:
+        searchable_params["target_update_interval"] = config_searchable[
+            "target_update_interval"
+        ]
+
+    if args.n_steps:
+        searchable_params["n_steps"] = parse_categorical_arg(args.n_steps)
+    elif "n_steps" in config_searchable:
+        searchable_params["n_steps"] = config_searchable["n_steps"]
+
+    if args.n_atoms:
+        searchable_params["n_atoms"] = parse_categorical_arg(args.n_atoms)
+    elif "n_atoms" in config_searchable:
+        searchable_params["n_atoms"] = config_searchable["n_atoms"]
+
+    if args.v_min:
+        searchable_params["v_min"] = parse_categorical_arg(args.v_min)
+    elif "v_min" in config_searchable:
+        searchable_params["v_min"] = config_searchable["v_min"]
+
+    if args.v_max:
+        searchable_params["v_max"] = parse_categorical_arg(args.v_max)
+    elif "v_max" in config_searchable:
+        searchable_params["v_max"] = config_searchable["v_max"]
 
     if args.n_transactions:
         searchable_params["n_transactions"] = parse_categorical_arg(args.n_transactions)

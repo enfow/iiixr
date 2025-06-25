@@ -106,7 +106,7 @@ class PPOTrainer(BaseTrainer):
         for _ in range(self.config.ppo_epochs):
             logprobs = self._get_current_logprobs(states, actions)
 
-            # probability ratio: prob of action under new policy / prob of action under old policy
+            # importance sampling ratio: prob of action under new policy / prob of action under old policy
             ratio = torch.exp(logprobs - old_logprobs)
             surr1 = ratio * advantages
             # clip the ratio to be between 1-epsilon and 1+epsilon

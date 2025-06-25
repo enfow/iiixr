@@ -30,8 +30,12 @@ N_LAYERS ?= 3
 # rainbow_dqn
 ALPHA ?= 0.6
 BETA_START ?= 0.4
-BETA_FRAMES ?= 100000
-TARGET_UPDATE ?= 10
+BETA_FRAMES ?= 1000000
+TARGET_UPDATE_INTERVAL ?= 32000
+N_STEPS ?= 3
+N_ATOMS ?= 51
+V_MIN ?= -10.0
+V_MAX ?= 10.0
 
 # sac
 TAU ?= 0.005
@@ -72,6 +76,11 @@ HPO_CLIP_EPS ?=
 HPO_START_STEPS ?= 
 HPO_ENTROPY_COEF ?= 
 HPO_TARGET_UPDATE ?=
+HPO_TARGET_UPDATE_INTERVAL ?=
+HPO_N_STEPS ?=
+HPO_N_ATOMS ?=
+HPO_V_MIN ?=
+HPO_V_MAX ?=
 HPO_N_TRANSACTIONS ?= 
 HPO_NORMALIZE_ADVANTAGES ?=
 
@@ -118,7 +127,11 @@ docker-run:
 		-e ALPHA=$(ALPHA) \
 		-e BETA_START=$(BETA_START) \
 		-e BETA_FRAMES=$(BETA_FRAMES) \
-		-e TARGET_UPDATE=$(TARGET_UPDATE) \
+		-e TARGET_UPDATE_INTERVAL=$(TARGET_UPDATE_INTERVAL) \
+		-e N_STEPS=$(N_STEPS) \
+		-e N_ATOMS=$(N_ATOMS) \
+		-e V_MIN=$(V_MIN) \
+		-e V_MAX=$(V_MAX) \
 		-e TAU=$(TAU) \
 		-e ENTROPY_COEF=$(ENTROPY_COEF) \
 		-e START_STEPS=$(START_STEPS) \
@@ -168,6 +181,11 @@ docker-run-hpo:
 		-e HPO_START_STEPS=$(HPO_START_STEPS) \
 		-e HPO_ENTROPY_COEF=$(HPO_ENTROPY_COEF) \
 		-e HPO_TARGET_UPDATE=$(HPO_TARGET_UPDATE) \
+		-e HPO_TARGET_UPDATE_INTERVAL=$(HPO_TARGET_UPDATE_INTERVAL) \
+		-e HPO_N_STEPS=$(HPO_N_STEPS) \
+		-e HPO_N_ATOMS=$(HPO_N_ATOMS) \
+		-e HPO_V_MIN=$(HPO_V_MIN) \
+		-e HPO_V_MAX=$(HPO_V_MAX) \
 		-e HPO_N_TRANSACTIONS=$(HPO_N_TRANSACTIONS) \
 		-e HPO_NORMALIZE_ADVANTAGES=$(HPO_NORMALIZE_ADVANTAGES) \
 		$(DOCKER_IMAGE_NAME) make hpo
@@ -201,7 +219,11 @@ train:
 		--alpha $(ALPHA) \
 		--beta_start $(BETA_START) \
 		--beta_frames $(BETA_FRAMES) \
-		--target_update $(TARGET_UPDATE) \
+		--target_update_interval $(TARGET_UPDATE_INTERVAL) \
+		--n_steps $(N_STEPS) \
+		--n_atoms $(N_ATOMS) \
+		--v_min $(V_MIN) \
+		--v_max $(V_MAX) \
 		--tau $(TAU) \
 		--entropy_coef $(ENTROPY_COEF) \
 		--start_steps $(START_STEPS) \
@@ -249,119 +271,14 @@ hpo:
 		$(if $(HPO_START_STEPS),--start_steps $(HPO_START_STEPS),) \
 		$(if $(HPO_ENTROPY_COEF),--entropy_coef $(HPO_ENTROPY_COEF),) \
 		$(if $(HPO_TARGET_UPDATE),--target_update $(HPO_TARGET_UPDATE),) \
+		$(if $(HPO_TARGET_UPDATE_INTERVAL),--target_update_interval $(HPO_TARGET_UPDATE_INTERVAL),) \
+		$(if $(HPO_N_STEPS),--n_steps $(HPO_N_STEPS),) \
+		$(if $(HPO_N_ATOMS),--n_atoms $(HPO_N_ATOMS),) \
+		$(if $(HPO_V_MIN),--v_min $(HPO_V_MIN),) \
+		$(if $(HPO_V_MAX),--v_max $(HPO_V_MAX),) \
 		$(if $(HPO_N_TRANSACTIONS),--n_transactions $(HPO_N_TRANSACTIONS),) \
 		$(if $(HPO_NORMALIZE_ADVANTAGES),--normalize_advantages $(HPO_NORMALIZE_ADVANTAGES),) \
 		$(if $(HPO_POLICY_DELAY),--policy_delay $(HPO_POLICY_DELAY),) \
 		$(if $(HPO_POLICY_NOISE),--policy_noise $(HPO_POLICY_NOISE),) \
 		$(if $(HPO_NOISE_CLIP),--noise_clip $(HPO_NOISE_CLIP),) \
 		$(if $(HPO_EXPLORATION_NOISE),--exploration_noise $(HPO_EXPLORATION_NOISE),)
-
-# Specific HPO targets
-hpo-basic:
-	make hpo HPO_N_TRIALS=10 HPO_STUDY_NAME=basic_hpo
-
-hpo-ppo:
-	make hpo MODEL=ppo HPO_N_TRIALS=20 HPO_STUDY_NAME=ppo_optimization \
-		HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' \
-		HPO_CLIP_EPS='0.1,0.15,0.2' \
-		HPO_BATCH_SIZE='64,128,256' \
-		HPO_GAMMA='0.95,0.97,0.99' \
-		HPO_N_TRANSACTIONS='500,1000,2000' \
-		HPO_NORMALIZE_ADVANTAGES='true,false'
-
-hpo-sac:
-	make hpo MODEL=sac HPO_N_TRIALS=20 HPO_STUDY_NAME=sac_optimization \
-		HPO_START_STEPS='500,1000,2000' \
-		HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' \
-		HPO_BATCH_SIZE='64,128,256' \
-		HPO_GAMMA='0.95,0.97,0.99'
-
-hpo-rainbow-dqn:
-	make hpo MODEL=rainbow_dqn HPO_N_TRIALS=20 HPO_STUDY_NAME=rainbow_dqn_optimization \
-		HPO_TARGET_UPDATE='5,10,20,50' \
-		HPO_BATCH_SIZE='64,128,256' \
-		HPO_GAMMA='0.95,0.97,0.99'
-
-hpo-custom:
-	make hpo HPO_N_TRIALS=50 HPO_STUDY_NAME=custom_hpo \
-		HPO_BATCH_SIZE='64,128,256,512' \
-		HPO_GAMMA='0.95,0.97,0.99,0.995' \
-		HPO_HIDDEN_DIM='128,256,512' \
-		HPO_N_LAYERS='2,3,4' \
-		HPO_PPO_EPOCHS='4,6,8,10' \
-		HPO_CLIP_EPS='0.1,0.15,0.2,0.25' \
-		HPO_START_STEPS='500,1000,2000' \
-		HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' \
-		HPO_TARGET_UPDATE='5,10,20,50' \
-		HPO_N_TRANSACTIONS='500,1000,2000' \
-		HPO_NORMALIZE_ADVANTAGES='true,false'
-
-clean:
-	rm -rf models/
-	find . -type d -name "__pycache__" -exec rm -rf {} +
-	find . -type f -name "*.pyc" -delete
-
-help:
-	@echo "Available targets:"
-	@echo "  install        Install dependencies"
-	@echo "  clean          Clean results directory"
-	@echo "  train          Train a model (default: PPO) - CLI arguments"
-	@echo "  train-all      Train all agents sequentially - CLI arguments"
-	@echo "  train-yaml     Train a model using YAML config file"
-	@echo "  train-yaml-ppo Train PPO using YAML config file"
-	@echo "  train-yaml-sac Train SAC using YAML config file"
-	@echo "  train-yaml-rainbow-dqn Train Rainbow DQN using YAML config file"
-	@echo "  train-yaml-discrete-sac Train Discrete SAC using YAML config file"
-	@echo "  train-yaml-td3 Train TD3 using YAML config file"
-	@echo "  train-yaml-all Train all agents sequentially using YAML config"
-	@echo "  eval           Evaluate a trained model"
-	@echo "  hpo            Run HPO with custom parameters"
-	@echo "  hpo-basic      Run basic HPO with default config"
-	@echo "  hpo-ppo        Run PPO-specific HPO optimization"
-	@echo "  hpo-sac        Run SAC-specific HPO optimization"
-	@echo "  hpo-rainbow-dqn Run Rainbow DQN-specific HPO optimization"
-	@echo "  hpo-custom     Run custom HPO with specific search spaces"
-	@echo "  docker-build   Build Docker image"
-	@echo "  docker-run     Run training in Docker container"
-	@echo "  docker-run-eval Run evaluation in Docker container"
-	@echo "  docker-run-hpo Run HPO in Docker container"
-	@echo ""
-	@echo "YAML Configuration Training:"
-	@echo "  make train-yaml                    # Use default config/train_config.yaml"
-	@echo "  make train-yaml TRAIN_CONFIG=config/my_config.yaml"
-	@echo "  make train-yaml-ppo               # Train PPO with YAML config"
-	@echo "  make train-yaml-sac               # Train SAC with YAML config"
-	@echo "  make train-yaml-rainbow-dqn       # Train Rainbow DQN with YAML config"
-	@echo "  make train-yaml-discrete-sac      # Train Discrete SAC with YAML config"
-	@echo "  make train-yaml-td3               # Train TD3 with YAML config"
-	@echo "  make train-yaml-all               # Train all models with YAML config"
-	@echo ""
-	@echo "CLI Training example usage:"
-	@echo "  make train MODEL=ppo ENV=LunarLander-v3 N_EPISODES=1000"
-	@echo "  make train MODEL=sac ENV=Pendulum-v1 LEARNING_RATE=0.0003"
-	@echo "  make train MODEL=rainbow_dqn ENV=CartPole-v1"
-	@echo ""
-	@echo "YAML Training example usage:"
-	@echo "  make train-yaml                    # Use default config"
-	@echo "  make train-yaml-ppo               # Train PPO with YAML"
-	@echo "  make train-yaml-sac ENV=BipedalWalker-v3  # Override environment"
-	@echo "  make train-yaml-rainbow-dqn --episodes 2000  # Override episodes"
-	@echo "  python src/train.py --config config/train_config.yaml --seed 42  # CLI overrides YAML"
-	@echo ""
-	@echo "HPO example usage:"
-	@echo "  make hpo HPO_STUDY_NAME=my_experiment HPO_N_TRIALS=100"
-	@echo "  make hpo ENV=CartPole-v1 HPO_BATCH_SIZE='64,128,256' HPO_HIDDEN_DIM='128,256,512'"
-	@echo "  make hpo MODEL=sac HPO_START_STEPS='500,1000,2000' HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0'"
-	@echo "  make hpo MODEL=rainbow_dqn HPO_TARGET_UPDATE='5,10,20,50'"
-	@echo "  make hpo MODEL=ppo HPO_ENTROPY_COEF='0.01,0.1,0.5,1.0' HPO_CLIP_EPS='0.1,0.15,0.2'"
-	@echo "  make hpo MODEL=ppo HPO_N_TRANSACTIONS='500,1000,2000' HPO_NORMALIZE_ADVANTAGES='true,false'"
-	@echo "  make hpo-ppo ENV=LunarLander-v3"
-	@echo "  make hpo-custom HPO_N_TRIALS=200"
-	@echo ""
-	@echo "Docker example usage:"
-	@echo "  make docker-run MODEL=ppo ENV=LunarLander-v3"
-	@echo "  make docker-run-eval MODEL=ppo EVAL_RESULT_PATH=results/ppo"
-	@echo "  make docker-run-hpo MODEL=ppo ENV=LunarLander-v3 HPO_N_TRIALS=100"
-	@echo ""
-	@echo "Evaluation example usage:"
-	@echo "  make eval EVAL_RESULT_PATH=results/ppo EVAL_EPISODES=20"

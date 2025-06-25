@@ -77,7 +77,31 @@ def main():
         "--beta_frames", type=int, default=100000, help="Beta frames for Rainbow DQN"
     )
     parser.add_argument(
-        "--target_update", type=int, default=10, help="Target network update frequency"
+        "--target_update_interval",
+        type=int,
+        default=10000,
+        help="Target network update interval for Rainbow DQN",
+    )
+    parser.add_argument(
+        "--n_steps", type=int, default=3, help="Multi-step learning for Rainbow DQN"
+    )
+    parser.add_argument(
+        "--n_atoms",
+        type=int,
+        default=51,
+        help="Number of atoms for distributional RL in Rainbow DQN",
+    )
+    parser.add_argument(
+        "--v_min",
+        type=float,
+        default=-10.0,
+        help="Minimum value for distributional RL in Rainbow DQN",
+    )
+    parser.add_argument(
+        "--v_max",
+        type=float,
+        default=10.0,
+        help="Maximum value for distributional RL in Rainbow DQN",
     )
     parser.add_argument(
         "--tau", type=float, default=0.005, help="Tau parameter for SAC/TD3"
