@@ -1,7 +1,6 @@
 import gymnasium as gym
 
-from schema.config import (BaseConfig, PPOConfig, RainbowDQNConfig, SACConfig,
-                           TD3Config)
+from env.gym import GymEnvFactory
 from trainer.discrete_ppo_trainer import DiscretePPOTrainer
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
 from trainer.ppo_trainer import PPOTrainer
@@ -13,12 +12,15 @@ from util.gym_env import is_discrete_action_space
 
 class PPOTrainerFactory:
     # factory pattern
-    def __new__(cls, env: gym.Env, config: BaseConfig, save_dir: str):
-        if is_discrete_action_space(env):
+    def __new__(cls, env_name: str, config_dict: dict, save_dir: str):
+        env = GymEnvFactory(env_name)
+        is_discrete = is_discrete_action_space(env)
+        del env
+        if is_discrete:
             print("Discrete action space")
-            return DiscretePPOTrainer(env, config, save_dir)
+            return DiscretePPOTrainer(env_name, config_dict, save_dir)
         print("Continuous action space")
-        return PPOTrainer(env, config, save_dir)
+        return PPOTrainer(env_name, config_dict, save_dir)
 
 
 class TrainerFactory:
@@ -27,19 +29,14 @@ class TrainerFactory:
     def __new__(cls, env_name: str, config_dict: dict, save_dir: str):
         model_name = config_dict["model"]
         if model_name == "ppo":
-            config = PPOConfig.from_dict(config_dict)
-            return PPOTrainerFactory(env_name, config, save_dir)
+            return PPOTrainerFactory(env_name, config_dict, save_dir)
         elif model_name == "sac":
-            config = SACConfig.from_dict(config_dict)
-            return SACTrainer(env_name, config, save_dir)
+            return SACTrainer(env_name, config_dict, save_dir)
         elif model_name == "rainbow_dqn":
-            config = RainbowDQNConfig.from_dict(config_dict)
-            return RainbowDQNTrainer(env_name, config, save_dir)
+            return RainbowDQNTrainer(env_name, config_dict, save_dir)
         elif model_name == "discrete_sac":
-            config = SACConfig.from_dict(config_dict)
-            return DiscreteSACTrainer(env_name, config, save_dir)
+            return DiscreteSACTrainer(env_name, config_dict, save_dir)
         elif model_name == "td3":
-            config = TD3Config.from_dict(config_dict)
-            return TD3Trainer(env_name, config, save_dir)
+            return TD3Trainer(env_name, config_dict, save_dir)
         else:
             raise ValueError(f"Unknown model: {model_name}")

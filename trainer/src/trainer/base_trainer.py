@@ -4,7 +4,7 @@ import time
 import numpy as np
 
 from env.gym import GymEnvFactory
-from schema.config import BaseConfig
+from schema.config import TrainingConfigFactory
 from schema.result import EvalResult, TotalTrainResult
 from util.file import log_result, save_json
 from util.gym_env import is_discrete_action_space
@@ -12,7 +12,8 @@ from util.settings import set_seed
 
 
 class BaseTrainer:
-    def __init__(self, env_name: str, config: BaseConfig, save_dir: str):
+    def __init__(self, env_name: str, config_dict: dict, save_dir: str):
+        config = TrainingConfigFactory(config_dict)
         set_seed(config.seed)
 
         self.env = GymEnvFactory(env_name)

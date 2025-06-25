@@ -1,0 +1,49 @@
+# Training Configuration File
+# Environment settings
+env: "LunarLander-v3"
+model: "ppo"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
+
+# Training parameters
+seed: 42
+episodes: 1000
+max_steps: 1000
+lr: 3e-4
+gamma: 0.99
+hidden_dim: 256
+n_layers: 3
+buffer_size: 1000000
+batch_size: 256
+
+# Device settings
+device: "cpu"  # Options: cpu, cuda
+
+# Evaluation settings
+eval: false
+eval_period: 10
+eval_episodes: 10
+
+# Save settings
+save_dir: "results"
+
+# PPO specific parameters
+ppo_epochs: 10
+clip_eps: 0.2
+n_transactions: 1000
+normalize_advantages: false
+
+# SAC specific parameters
+tau: 0.005
+entropy_coef: 1.0
+start_steps: 1000
+
+# Rainbow DQN specific parameters
+alpha: 0.6
+beta_start: 0.4
+beta_frames: 100000
+target_update: 10
+
+# TD3 specific parameters
+policy_delay: 2
+policy_noise: 0.2
+noise_clip: 0.5
+exploration_noise: 0.1 

@@ -9,7 +9,7 @@ from hpo.optimizer import run_optuna_optimization
 from trainer.trainer_factory import TrainerFactory
 
 
-def load_hpo_config(config_path: str = "hpo_config.yaml") -> Dict[str, Any]:
+def load_config_from_yaml(config_path: str = "hpo_config.yaml") -> Dict[str, Any]:
     """Load HPO configuration from YAML file"""
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"HPO config file not found: {config_path}")
@@ -197,7 +197,7 @@ def main():
     args = parser.parse_args()
 
     # Load HPO configuration from YAML file
-    hpo_config = load_hpo_config(args.config)
+    hpo_config = load_config_from_yaml(args.config)
 
     # Override config with command line arguments
     if args.env is not None:

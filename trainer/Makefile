@@ -16,7 +16,7 @@ RESULTS_DIR := results
 
 # Default values for training parameters
 MODEL ?= ppo  # ppo, sac, rainbow_dqn, discrete_sac
-ENV ?= LunarLander-v3  # LunarLander-v3, BipedalWalker-v3
+ENV ?= LunarLander-v3  # LunarLander-v3, BipedalWalkerHardcore-v3
 N_EPISODES ?= 1000
 MAX_STEPS ?= 1000
 BATCH_SIZE ?= 64
@@ -81,7 +81,10 @@ HPO_POLICY_NOISE ?=
 HPO_NOISE_CLIP ?= 
 HPO_EXPLORATION_NOISE ?= 
 
-.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-sac hpo-rainbow-dqn hpo-custom docker-run-eval docker-run-hpo
+# YAML configuration
+TRAIN_CONFIG ?= config/train_config.yaml
+
+.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-sac hpo-rainbow-dqn hpo-custom docker-run-eval docker-run-hpo train-yaml train-yaml-ppo train-yaml-sac train-yaml-rainbow-dqn train-yaml-discrete-sac train-yaml-td3 train-yaml-custom
 
 format:
 	ruff format src
@@ -180,6 +183,7 @@ train:
 	$(PYTHON) $(SRC_DIR)/train.py \
 		--model $(MODEL) \
 		--env $(ENV) \
+		--config $(TRAIN_CONFIG) \
 		--episodes $(N_EPISODES) \
 		--max_steps $(MAX_STEPS) \
 		--save_dir $(RESULTS_DIR) \
@@ -209,6 +213,7 @@ train:
 		--policy_noise $(POLICY_NOISE) \
 		--noise_clip $(NOISE_CLIP) \
 		--exploration_noise $(EXPLORATION_NOISE)
+
 
 # Train all algorithms sequentially
 train-all:
@@ -300,8 +305,15 @@ help:
 	@echo "Available targets:"
 	@echo "  install        Install dependencies"
 	@echo "  clean          Clean results directory"
-	@echo "  train          Train a model (default: PPO)"
-	@echo "  train-all      Train all agents sequentially"
+	@echo "  train          Train a model (default: PPO) - CLI arguments"
+	@echo "  train-all      Train all agents sequentially - CLI arguments"
+	@echo "  train-yaml     Train a model using YAML config file"
+	@echo "  train-yaml-ppo Train PPO using YAML config file"
+	@echo "  train-yaml-sac Train SAC using YAML config file"
+	@echo "  train-yaml-rainbow-dqn Train Rainbow DQN using YAML config file"
+	@echo "  train-yaml-discrete-sac Train Discrete SAC using YAML config file"
+	@echo "  train-yaml-td3 Train TD3 using YAML config file"
+	@echo "  train-yaml-all Train all agents sequentially using YAML config"
 	@echo "  eval           Evaluate a trained model"
 	@echo "  hpo            Run HPO with custom parameters"
 	@echo "  hpo-basic      Run basic HPO with default config"
@@ -314,10 +326,27 @@ help:
 	@echo "  docker-run-eval Run evaluation in Docker container"
 	@echo "  docker-run-hpo Run HPO in Docker container"
 	@echo ""
-	@echo "Training example usage:"
+	@echo "YAML Configuration Training:"
+	@echo "  make train-yaml                    # Use default config/train_config.yaml"
+	@echo "  make train-yaml TRAIN_CONFIG=config/my_config.yaml"
+	@echo "  make train-yaml-ppo               # Train PPO with YAML config"
+	@echo "  make train-yaml-sac               # Train SAC with YAML config"
+	@echo "  make train-yaml-rainbow-dqn       # Train Rainbow DQN with YAML config"
+	@echo "  make train-yaml-discrete-sac      # Train Discrete SAC with YAML config"
+	@echo "  make train-yaml-td3               # Train TD3 with YAML config"
+	@echo "  make train-yaml-all               # Train all models with YAML config"
+	@echo ""
+	@echo "CLI Training example usage:"
 	@echo "  make train MODEL=ppo ENV=LunarLander-v3 N_EPISODES=1000"
 	@echo "  make train MODEL=sac ENV=Pendulum-v1 LEARNING_RATE=0.0003"
 	@echo "  make train MODEL=rainbow_dqn ENV=CartPole-v1"
+	@echo ""
+	@echo "YAML Training example usage:"
+	@echo "  make train-yaml                    # Use default config"
+	@echo "  make train-yaml-ppo               # Train PPO with YAML"
+	@echo "  make train-yaml-sac ENV=BipedalWalker-v3  # Override environment"
+	@echo "  make train-yaml-rainbow-dqn --episodes 2000  # Override episodes"
+	@echo "  python src/train.py --config config/train_config.yaml --seed 42  # CLI overrides YAML"
 	@echo ""
 	@echo "HPO example usage:"
 	@echo "  make hpo HPO_STUDY_NAME=my_experiment HPO_N_TRIALS=100"

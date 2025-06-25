@@ -1,4 +1,5 @@
 import json
+import time
 
 import torch
 from pydantic import BaseModel
@@ -16,7 +17,7 @@ class BaseConfig(BaseModel):
     buffer_size: int = 1000000
     batch_size: int = 256
     # env
-    env_name: str = None
+    env: str = None
     state_dim: int = None
     action_dim: int = None
     is_discrete: bool = None
@@ -30,7 +31,6 @@ class BaseConfig(BaseModel):
     @classmethod
     def from_dict(cls, config: dict):
         cls._check_device(config)
-        print(config)
         return cls(**config)
 
     @staticmethod
@@ -89,3 +89,18 @@ class EvalConfig:
     @classmethod
     def from_dict(cls, config: dict):
         return cls(**config)
+
+
+class TrainingConfigFactory:
+    def __new__(cls, config_dict: dict):
+        model_name = config_dict["model"]
+        if model_name == "ppo":
+            return PPOConfig.from_dict(config_dict)
+        elif model_name in ["sac", "discrete_sac"]:
+            return SACConfig.from_dict(config_dict)
+        elif model_name == "rainbow_dqn":
+            return RainbowDQNConfig.from_dict(config_dict)
+        elif model_name == "td3":
+            return TD3Config.from_dict(config_dict)
+        else:
+            raise ValueError(f"Unknown model for configuration: {model_name}")

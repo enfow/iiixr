@@ -1,15 +1,27 @@
 import argparse
+import os
 import random
 import time
+from pathlib import Path
 
-from env.gym import GymEnvFactory
 from trainer.trainer_factory import TrainerFactory
+from util.config import load_config_from_yaml, merge_configs
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Train a reinforcement learning model."
     )
+
+    # Add config file argument
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config/train_config.yaml",
+        help="Path to YAML configuration file",
+    )
+
+    # Keep all existing arguments with their default values
     parser.add_argument(
         "--env", type=str, default="LunarLander-v3", help="Gymnasium environment name"
     )
@@ -104,16 +116,38 @@ def main():
     parser.add_argument(
         "--exploration_noise", type=float, default=0.1, help="Exploration noise for TD3"
     )
+
     args = parser.parse_args()
 
-    config = vars(args)
+    # Load YAML config if file exists
+    yaml_config = {}
+    if os.path.exists(args.config):
+        try:
+            yaml_config = load_config_from_yaml(args.config)
+            print(f"Loaded configuration from: {args.config}")
+        except Exception as e:
+            print(f"Warning: Failed to load config file {args.config}: {e}")
+            print("Using default values.")
+    else:
+        print(f"Config file {args.config} not found. Using default values.")
 
-    save_dir = (
-        f"{args.save_dir}/{args.env}/{args.model}/{time.strftime('%Y%m%d_%H%M%S')}"
-    )
+    # Convert CLI args to dict
+    cli_args = vars(args)
 
-    trainer = TrainerFactory(args.env, config, save_dir=save_dir)
+    # Merge configs with proper precedence: CLI args > YAML config
+    config = merge_configs(primary_config=cli_args, secondary_config=yaml_config)
 
+    # Create save directory path
+    save_dir = f"{config['save_dir']}/{config['env']}/{config['model']}/{time.strftime('%Y%m%d_%H%M%S')}"
+
+    print(f"Training configuration:")
+    print(f"  Environment: {config['env']}")
+    print(f"  Model: {config['model']}")
+    print(f"  Episodes: {config['episodes']}")
+    print(f"  Device: {config['device']}")
+    print(f"  Save directory: {save_dir}")
+
+    trainer = TrainerFactory(config["env"], config, save_dir=save_dir)
     trainer.train()
 
 
