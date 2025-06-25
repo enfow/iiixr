@@ -9,6 +9,15 @@ from trainer.sac_trainer import SACTrainer, SACV2Trainer
 from trainer.td3_trainer import TD3Trainer
 from util.gym_env import is_discrete_action_space
 
+SELECTABLE_MODELS = [
+    PPOTrainer.name,
+    RainbowDQNTrainer.name,
+    TD3Trainer.name,
+    SACTrainer.name,
+    SACV2Trainer.name,
+    DiscreteSACTrainer.name,
+]
+
 
 class PPOTrainerFactory:
     # factory pattern
@@ -24,28 +33,21 @@ class PPOTrainerFactory:
 
 
 class TrainerFactory:
-    selectable_models = [
-        "ppo",
-        SACTrainer.name,
-        "rainbow_dqn",
-        "discrete_sac",
-        "td3",
-        SACV2Trainer.name,
-    ]
+    selectable_models = SELECTABLE_MODELS
 
     def __new__(cls, env_name: str, config_dict: dict, save_dir: str):
         model_name = config_dict["model"]
-        if model_name == "ppo":
+        if model_name == PPOTrainer.name:
             return PPOTrainerFactory(env_name, config_dict, save_dir)
-        elif model_name == "sac":
+        elif model_name == SACTrainer.name:
             return SACTrainer(env_name, config_dict, save_dir)
-        elif model_name == "sac_v2":
+        elif model_name == SACV2Trainer.name:
             return SACV2Trainer(env_name, config_dict, save_dir)
-        elif model_name == "rainbow_dqn":
+        elif model_name == RainbowDQNTrainer.name:
             return RainbowDQNTrainer(env_name, config_dict, save_dir)
-        elif model_name == "discrete_sac":
+        elif model_name == DiscreteSACTrainer.name:
             return DiscreteSACTrainer(env_name, config_dict, save_dir)
-        elif model_name == "td3":
+        elif model_name == TD3Trainer.name:
             return TD3Trainer(env_name, config_dict, save_dir)
         else:
             raise ValueError(f"Unknown model: {model_name}")
