@@ -10,7 +10,7 @@ import yaml
 
 from hpo.optimizer import OptunaRLOptimizer
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
-from trainer.ppo_trainer_factory import PPOTrainer
+from trainer.ppo_trainer_factory import PPOTrainerFactory
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
 from trainer.sac_trainer import SACTrainer
 
@@ -417,7 +417,7 @@ def main():
 
     # Train final model
     if final_config["model"] == "ppo":
-        trainer = PPOTrainer(env, final_config, save_dir=final_save_dir)
+        trainer = PPOTrainerFactory(env, final_config, save_dir=final_save_dir)
     elif final_config["model"] == "sac":
         trainer = SACTrainer(env, final_config, save_dir=final_save_dir)
     elif final_config["model"] == "rainbow_dqn":

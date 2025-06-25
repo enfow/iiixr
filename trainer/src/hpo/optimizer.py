@@ -187,7 +187,7 @@ class OptunaRLOptimizer:
 
         # Select trainer based on model
         if config["model"] == "ppo":
-            trainer = PPOTrainer(env, config, save_dir=save_dir)
+            trainer = PPOTrainerFactory(env, config, save_dir=save_dir)
         elif config["model"] == "sac":
             trainer = SACTrainer(env, config, save_dir=save_dir)
         elif config["model"] == "rainbow_dqn":
