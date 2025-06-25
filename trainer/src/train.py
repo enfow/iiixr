@@ -101,7 +101,8 @@ def main():
     config = vars(args)
 
     if args.env == "BipedalWalker-v3":
-        env = gym.make(args.env, hardcore=True)
+        # env = gym.make(args.env, hardcore=True)
+        env = gym.make(args.env)
     else:
         env = gym.make(args.env)
 

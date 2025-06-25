@@ -7,6 +7,7 @@ import numpy as np
 from schema.config import BaseConfig
 from schema.result import EvalResult, TotalTrainResult
 from util.file import log_result, save_json
+from util.gym_env import is_discrete_action_space
 from util.settings import set_seed
 
 
@@ -18,15 +19,13 @@ class BaseTrainer:
         self.config = config
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
+        self.is_discrete = is_discrete_action_space(env)
 
         self.state_dim = env.observation_space.shape[0]
-        self.action_dim = int(
-            env.action_space.n
-            if isinstance(env.action_space, gym.spaces.Discrete)
-            else env.action_space.shape[0]
+        self.action_dim = (
+            env.action_space.n if self.is_discrete else env.action_space.shape[0]
         )
         self.memory = None
-        self.is_discrete = isinstance(env.action_space, gym.spaces.Discrete)
         self.total_train_result = TotalTrainResult.initialize()
         self.best_score = -np.inf
         self.best_results: EvalResult = None
