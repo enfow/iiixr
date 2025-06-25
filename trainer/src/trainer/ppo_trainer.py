@@ -1,8 +1,11 @@
-import gymnasium as gym
+"""
+PPO
+Proximal Policy Optimization Algorithms(Schulman, et al. 2017)
+https://arxiv.org/pdf/1707.06347
+"""
+
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 
 from model.buffer import PPOMemory
@@ -48,7 +51,7 @@ class PPOTrainer(BaseTrainer):
         std = torch.exp(log_std)
         dist = torch.distributions.Normal(mean, std)
         action = dist.sample()
-        logprob = dist.log_prob(action).sum(dim=-1)  # Sum over action dimensions
+        logprob = dist.log_prob(action).sum(dim=-1)
 
         return {
             "action": action.cpu().numpy(),
@@ -69,7 +72,7 @@ class PPOTrainer(BaseTrainer):
         mean, log_std = self.actor(states)
         std = torch.exp(log_std)
         dist = torch.distributions.Normal(mean, std)
-        logprobs = dist.log_prob(actions).sum(dim=-1)  # Sum over action dimensions
+        logprobs = dist.log_prob(actions).sum(dim=-1)
         return logprobs
 
     def _sample_transactions(self):
@@ -90,7 +93,7 @@ class PPOTrainer(BaseTrainer):
         mean, log_std = self.actor(states)
         std = torch.exp(log_std)
         dist = torch.distributions.Normal(mean, std)
-        entropy = dist.entropy().sum(dim=-1)  # Sum over action dimensions
+        entropy = dist.entropy().sum(dim=-1)
         return entropy
 
     def update(self) -> PPOUpdateLoss:
