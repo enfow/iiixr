@@ -11,7 +11,6 @@ from trainer.ppo_trainer import PPOTrainer
 
 class DiscretePPOTrainer(PPOTrainer):
     def __init__(self, env: gym.Env, config: PPOConfig, save_dir: str = "results/ppo"):
-        # config = PPOConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 
     def _init_models(self):
