@@ -5,7 +5,7 @@ import time
 import gymnasium as gym
 
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
-from trainer.ppo_trainer import PPOTrainer
+from trainer.ppo_trainer_factory import PPOTrainerFactory
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
 from trainer.sac_trainer import SACTrainer
 
@@ -111,7 +111,7 @@ def main():
     )
 
     if args.model == "ppo":
-        trainer = PPOTrainer(env, config, save_dir=save_dir)
+        trainer = PPOTrainerFactory(env, config, save_dir=save_dir)
     elif args.model == "sac":
         trainer = SACTrainer(env, config, save_dir=save_dir)
     elif args.model == "rainbow_dqn":
