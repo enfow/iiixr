@@ -10,8 +10,8 @@ from trainer.ppo_trainer import PPOTrainer
 
 
 class DiscretePPOTrainer(PPOTrainer):
-    def __init__(self, env: gym.Env, config: PPOConfig, save_dir: str = "results/ppo"):
-        super().__init__(env, config, save_dir)
+    def __init__(self, env_name: str, config: PPOConfig, save_dir: str = "results/ppo"):
+        super().__init__(env_name, config, save_dir)
 
     def _init_models(self):
         self.actor = DiscreteActor(

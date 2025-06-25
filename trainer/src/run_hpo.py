@@ -3,7 +3,6 @@ import os
 import time
 from typing import Any, Dict, List
 
-import gymnasium as gym
 import yaml
 
 from hpo.optimizer import run_optuna_optimization
@@ -326,13 +325,8 @@ def main():
     # Create final save directory
     final_save_dir = f"{save_dir}/final_model"
 
-    if final_config["env"] == "BipedalWalker-v3":
-        env = gym.make(final_config["env"], hardcore=True)
-    else:
-        env = gym.make(final_config["env"])
-
     # Train final model
-    trainer = TrainerFactory(env, final_config, save_dir=final_save_dir)
+    trainer = TrainerFactory(final_config["env"], final_config, save_dir=final_save_dir)
 
     trainer.train()
     print(f"Final model saved to: {final_save_dir}")

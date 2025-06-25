@@ -1,3 +1,8 @@
+"""
+TD3
+https://arxiv.org/pdf/1802.09477
+"""
+
 import copy
 
 import gymnasium as gym
@@ -14,13 +19,12 @@ from trainer.base_trainer import BaseTrainer
 
 
 class TD3Trainer(BaseTrainer):
-    def __init__(self, env: gym.Env, config: dict, save_dir: str = "results/td3"):
-        self.max_action = float(env.action_space.high[0])
+    def __init__(self, env_name: str, config: TD3Config, save_dir: str = "results/td3"):
+        super().__init__(env_name, config, save_dir)
         self.total_it = 0
-        config = TD3Config.from_dict(config)
-        super().__init__(env, config, save_dir)
 
     def _init_models(self):
+        self.max_action = float(self.env.action_space.high[0])
         self.actor = TD3Actor(
             self.state_dim,
             self.action_dim,

@@ -27,13 +27,9 @@ from trainer.base_trainer import BaseTrainer
 
 class DiscreteSACTrainer(BaseTrainer):
     def __init__(
-        self,
-        env: gym.Env,
-        config: dict,
-        save_dir: str = "results/discrete_sac",
+        self, env_name: str, config: SACConfig, save_dir: str = "results/discrete_sac"
     ):
-        config = SACConfig.from_dict(config)
-        super().__init__(env, config, save_dir)
+        super().__init__(env_name, config, save_dir)
 
     def _init_models(self):
         self.actor = DiscreteSACPolicy(

@@ -1,9 +1,9 @@
 import os
 import time
 
-import gymnasium as gym
 import numpy as np
 
+from env.gym import GymEnvFactory
 from schema.config import BaseConfig
 from schema.result import EvalResult, TotalTrainResult
 from util.file import log_result, save_json
@@ -12,18 +12,20 @@ from util.settings import set_seed
 
 
 class BaseTrainer:
-    def __init__(self, env: gym.Env, config: BaseConfig, save_dir: str):
+    def __init__(self, env_name: str, config: BaseConfig, save_dir: str):
         set_seed(config.seed)
 
-        self.env = env
+        self.env = GymEnvFactory(env_name)
         self.config = config
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
-        self.is_discrete = is_discrete_action_space(env)
+        self.is_discrete = is_discrete_action_space(self.env)
 
-        self.state_dim = env.observation_space.shape[0]
+        self.state_dim = self.env.observation_space.shape[0]
         self.action_dim = (
-            env.action_space.n if self.is_discrete else env.action_space.shape[0]
+            self.env.action_space.n
+            if self.is_discrete
+            else self.env.action_space.shape[0]
         )
         self.memory = None
         self.total_train_result = TotalTrainResult.initialize()

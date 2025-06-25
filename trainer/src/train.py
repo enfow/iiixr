@@ -2,8 +2,7 @@ import argparse
 import random
 import time
 
-import gymnasium as gym
-
+from env.gym import GymEnvFactory
 from trainer.trainer_factory import TrainerFactory
 
 
@@ -109,16 +108,11 @@ def main():
 
     config = vars(args)
 
-    if args.env == "BipedalWalker-v3":
-        env = gym.make(args.env, hardcore=True)
-    else:
-        env = gym.make(args.env)
-
     save_dir = (
         f"{args.save_dir}/{args.env}/{args.model}/{time.strftime('%Y%m%d_%H%M%S')}"
     )
 
-    trainer = TrainerFactory(env, config, save_dir=save_dir)
+    trainer = TrainerFactory(args.env, config, save_dir=save_dir)
 
     trainer.train()
 

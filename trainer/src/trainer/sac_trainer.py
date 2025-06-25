@@ -18,14 +18,8 @@ from trainer.base_trainer import BaseTrainer
 
 
 class SACTrainer(BaseTrainer):
-    def __init__(
-        self,
-        env: gym.Env,
-        config: dict,
-        save_dir: str = "results/sac",
-    ):
-        config = SACConfig.from_dict(config)
-        super().__init__(env, config, save_dir)
+    def __init__(self, env_name: str, config: SACConfig, save_dir: str = "results/sac"):
+        super().__init__(env_name, config, save_dir)
 
     def _init_models(self):
         # Policy network: outputs mean and log_std for Gaussian policy
