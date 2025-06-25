@@ -1,5 +1,9 @@
-import gymnasium as gym
-import numpy as np
+"""
+Rainbow DQN
+Rainbow: Combining Improvements in Deep Reinforcement Learning(Hessel, et al. 2017)
+https://arxiv.org/pdf/1710.02298
+"""
+
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
@@ -60,20 +64,25 @@ class RainbowDQNTrainer(BaseTrainer):
             "q_values": q_values.detach().cpu().numpy(),
         }
 
-    def update(self) -> RainbowDQNUpdateLoss:
-        if len(self.replay_buffer) < self.config.batch_size:
-            return
-
+    def _sample_transactions(self):
         states, actions, rewards, next_states, dones, indices, weights = (
             self.replay_buffer.sample(self.config.batch_size)
         )
-
         states = torch.FloatTensor(states).to(self.config.device)
         actions = torch.LongTensor(actions).unsqueeze(1).to(self.config.device)
         rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.config.device)
         next_states = torch.FloatTensor(next_states).to(self.config.device)
         dones = torch.FloatTensor(dones).unsqueeze(1).to(self.config.device)
         weights = torch.FloatTensor(weights).unsqueeze(1).to(self.config.device)
+        return states, actions, rewards, next_states, dones, indices, weights
+
+    def update(self) -> RainbowDQNUpdateLoss:
+        if len(self.replay_buffer) < self.config.batch_size:
+            return
+
+        states, actions, rewards, next_states, dones, indices, weights = (
+            self._sample_transactions()
+        )
 
         q_values = self.policy_net(states).gather(1, actions)
 
