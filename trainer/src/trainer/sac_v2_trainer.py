@@ -1,6 +1,6 @@
 """
 SACv2
-Soft Actor-Critic Algorithms and Applications(Tuomas Haarnoja, et al. 2018)
+Soft Actor-Critic Algorithms and Applications(Haarnoja, et al. 2018)
 https://arxiv.org/pdf/1812.05905
 
 Differences from SAC:
@@ -23,7 +23,9 @@ class SACV2Trainer(SACTrainer):
     name = "sac_v2"
     config_class = SACConfig
 
-    def __init__(self, env_name: str, config: SACConfig, save_dir: str = "results/sac"):
+    def __init__(
+        self, env_name: str, config: SACConfig, save_dir: str = "results/sac_v2"
+    ):
         super().__init__(env_name, config, save_dir)
 
     def _init_models(self):

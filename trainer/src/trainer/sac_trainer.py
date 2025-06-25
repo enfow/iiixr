@@ -1,6 +1,6 @@
 """
 SAC
-Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor
+Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor(Haarnoja, et al. 2018)
 https://arxiv.org/pdf/1812.05905
 """
 
