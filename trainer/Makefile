@@ -44,6 +44,12 @@ CLIP_EPS ?= 0.2
 N_TRANSACTIONS ?= 1000
 NORMALIZE_ADVANTAGES ?= false
 
+# td3
+POLICY_DELAY ?= 2
+POLICY_NOISE ?= 0.2
+NOISE_CLIP ?= 0.5
+EXPLORATION_NOISE ?= 0.1
+
 # Default values for evaluation parameters
 EVAL_RESULT_PATH ?= results/ppo
 EVAL_EPISODES ?= 10

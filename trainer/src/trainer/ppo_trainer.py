@@ -13,7 +13,7 @@ from trainer.base_trainer import BaseTrainer
 
 
 class PPOTrainer(BaseTrainer):
-    def __init__(self, env: gym.Env, config: PPOConfig, save_dir: str = "results/ppo"):
+    def __init__(self, env: gym.Env, config: dict, save_dir: str = "results/ppo"):
         config = PPOConfig.from_dict(config)
         super().__init__(env, config, save_dir)
 

@@ -14,13 +14,10 @@ from trainer.base_trainer import BaseTrainer
 
 
 class TD3Trainer(BaseTrainer):
-    def __init__(self, env: gym.Env, config: TD3Config, save_dir: str = "results/td3"):
-        if not isinstance(config, TD3Config):
-            config = TD3Config.from_dict(config)
-
+    def __init__(self, env: gym.Env, config: dict, save_dir: str = "results/td3"):
         self.max_action = float(env.action_space.high[0])
         self.total_it = 0
-
+        config = TD3Config.from_dict(config)
         super().__init__(env, config, save_dir)
 
     def _init_models(self):

@@ -21,7 +21,7 @@ class SACTrainer(BaseTrainer):
     def __init__(
         self,
         env: gym.Env,
-        config: SACConfig,
+        config: dict,
         save_dir: str = "results/sac",
     ):
         config = SACConfig.from_dict(config)

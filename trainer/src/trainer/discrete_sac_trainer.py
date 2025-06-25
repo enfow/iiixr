@@ -29,7 +29,7 @@ class DiscreteSACTrainer(BaseTrainer):
     def __init__(
         self,
         env: gym.Env,
-        config: SACConfig,
+        config: dict,
         save_dir: str = "results/discrete_sac",
     ):
         config = SACConfig.from_dict(config)

@@ -15,7 +15,7 @@ class RainbowDQNTrainer(BaseTrainer):
     def __init__(
         self,
         env: gym.Env,
-        config: RainbowDQNConfig,
+        config: dict,
         save_dir: str = "results/rainbow_dqn",
     ):
         config = RainbowDQNConfig.from_dict(config)
