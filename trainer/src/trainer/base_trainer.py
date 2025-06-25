@@ -29,6 +29,7 @@ class BaseTrainer:
             if self.is_discrete
             else self.env.action_space.shape[0]
         )
+        print(f"State dim: {self.state_dim}, Action dim: {self.action_dim}")
         self.memory = None
         self.total_train_result = TotalTrainResult.initialize()
         self.best_score = -np.inf

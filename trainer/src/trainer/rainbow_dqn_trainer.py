@@ -76,10 +76,13 @@ class RainbowDQNTrainer(BaseTrainer):
         """Selects an action using the policy network."""
         state = torch.FloatTensor(state).unsqueeze(0).to(self.config.device)
         with torch.no_grad():
-            q_values = self.policy_net(state)
-        self.policy_net.reset_noise()  # Reset noise after action selection
+            dist = self.policy_net(state)
+            q_values = (dist * self.policy_net.support).sum(2)
+            action = q_values.argmax().item()
+
+        self.policy_net.reset_noise()
         return {
-            "action": q_values.argmax().item(),
+            "action": action,
             "q_values": q_values.cpu().numpy(),
         }
 
@@ -90,7 +93,6 @@ class RainbowDQNTrainer(BaseTrainer):
         )
 
         states = torch.FloatTensor(states).to(self.config.device)
-        # Actions is a 1D LongTensor of shape [batch_size]
         actions = torch.LongTensor(actions).to(self.config.device)
         rewards = torch.FloatTensor(rewards).unsqueeze(1).to(self.config.device)
         next_states = torch.FloatTensor(next_states).to(self.config.device)
@@ -111,9 +113,16 @@ class RainbowDQNTrainer(BaseTrainer):
         # Calculate the target distribution for the N-step return
         with torch.no_grad():
             # Double DQN: select action with policy_net, evaluate with target_net
-            next_actions = self.policy_net(next_states).argmax(dim=1)
-            next_dist = self.target_net.dist(next_states)
-            next_dist = next_dist[range(self.config.batch_size), next_actions]
+            # 1. Calculate expected Q-values for next_states from the policy network
+            next_q_values_policy = (
+                self.policy_net(next_states) * self.policy_net.support
+            ).sum(2)
+            # 2. Select the best actions using argmax on these Q-values
+            next_actions = next_q_values_policy.argmax(1)
+
+            # 3. Get the probability distribution for these actions from the target network
+            next_dist_target = self.target_net(next_states)
+            next_dist = next_dist_target[range(self.config.batch_size), next_actions]
 
             # Compute the projection of the target distribution onto the support
             t_z = (
@@ -127,22 +136,8 @@ class RainbowDQNTrainer(BaseTrainer):
             l = b.floor().long()
             u = b.ceil().long()
 
-            # Calculate the weights for the lower and upper bins
-            # These are the interpolation weights for distributing probability
-            lw = u.float() - b
-            uw = b - l.float()
-
-            # Handle the case where l = u (i.e., b is an integer)
-            # In this case, the probability mass should go entirely to bin l.
-            # We set the lower weight to 1 and upper to 0 for these cases.
-            eq_mask = l == u
-            lw[eq_mask] = 1.0
-            uw[eq_mask] = 0.0
-
-            # Create the projected distribution tensor
-            proj_dist = torch.zeros(next_dist.size(), device=self.config.device)
-
-            # Create offset to map from 2D (batch, atom) to 1D
+            # Distribute probability
+            proj_dist = torch.zeros_like(next_dist)
             offset = (
                 torch.linspace(
                     0,
@@ -155,19 +150,19 @@ class RainbowDQNTrainer(BaseTrainer):
                 .to(self.config.device)
             )
 
-            # Distribute the probability mass to the lower and upper bins
             proj_dist.view(-1).index_add_(
-                0, (l + offset).view(-1), (next_dist * lw).view(-1)
+                0, (l + offset).view(-1), (next_dist * (u.float() - b)).view(-1)
             )
             proj_dist.view(-1).index_add_(
-                0, (u + offset).view(-1), (next_dist * uw).view(-1)
+                0, (u + offset).view(-1), (next_dist * (b - l.float())).view(-1)
             )
 
         # Calculate the cross-entropy loss
-        dist = self.policy_net.dist(states)
+        dist = self.policy_net(states)
         log_p = torch.log(dist[range(self.config.batch_size), actions])
 
-        # The loss is the negative dot product of the projected target distribution and the log of the predicted distribution
+        # The loss is the negative dot product of the projected target distribution
+        # and the log of the predicted distribution
         loss = -(proj_dist * log_p).sum(1)
 
         # Update priorities in the replay buffer
