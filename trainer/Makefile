@@ -15,56 +15,55 @@ SRC_DIR := src
 RESULTS_DIR := results
 
 # Default values for training parameters
-MODEL ?= ppo  # ppo, sac, rainbow_dqn, discrete_sac, sac_v2, td3
-ENV ?= LunarLander-v3  # LunarLander-v3, BipedalWalkerHardcore-v3
-N_EPISODES ?= 1000
-MAX_STEPS ?= 1000
-BATCH_SIZE ?= 64
-LEARNING_RATE ?= 0.001
-GAMMA ?= 0.99
-BUFFER_SIZE ?= 1000000
-SEED ?= 42
-HIDDEN_DIM ?= 256
-N_LAYERS ?= 3
+MODEL ?=
+ENV ?=
+N_EPISODES ?=
+MAX_STEPS ?=
+BATCH_SIZE ?=
+LEARNING_RATE ?=
+GAMMA ?=
+BUFFER_SIZE ?=
+SEED ?=
+HIDDEN_DIM ?=
+N_LAYERS ?=
 
 # rainbow_dqn
-ALPHA ?= 0.6
-BETA_START ?= 0.4
-BETA_FRAMES ?= 1000000
-TARGET_UPDATE_INTERVAL ?= 32000
-N_STEPS ?= 3
-N_ATOMS ?= 51
-V_MIN ?= -10.0
-V_MAX ?= 10.0
+ALPHA ?=
+BETA_START ?=
+BETA_FRAMES ?=
+TARGET_UPDATE_INTERVAL ?=
+N_STEPS ?=
+N_ATOMS ?=
+V_MIN ?=
+V_MAX ?=
 
 # sac
-TAU ?= 0.005
-ENTROPY_COEF ?= 1.0
-START_STEPS ?= 10000
+TAU ?=
+ENTROPY_COEF ?=
+START_STEPS ?=
 
 # ppo
-PPO_EPOCHS ?= 10
-CLIP_EPS ?= 0.2
-N_TRANSACTIONS ?= 1000
-NORMALIZE_ADVANTAGES ?= false
+PPO_EPOCHS ?=
+CLIP_EPS ?=
+N_TRANSACTIONS ?=
+NORMALIZE_ADVANTAGES ?=
 
 # td3
-POLICY_DELAY ?= 2
-POLICY_NOISE ?= 0.2
-NOISE_CLIP ?= 0.5
-EXPLORATION_NOISE ?= 0.1
+POLICY_DELAY ?=
+POLICY_NOISE ?=
+NOISE_CLIP ?=
+EXPLORATION_NOISE ?=
 
 # Default values for evaluation parameters
-EVAL_RESULT_PATH ?= results/ppo
-EVAL_EPISODES ?= 10
-EVAL_PERIOD ?= 10
-EVAL ?= false
+EVAL_RESULT_PATH ?=
+EVAL_EPISODES ?=
+EVAL_PERIOD ?=
+EVAL ?=
 
 # Default values for HPO parameters
-HPO_N_TRIALS ?= 10
-HPO_STUDY_NAME ?= hpo_experiment
-HPO_CONFIG ?= src/hpo_config.yaml
-HPO_TIMEOUT ?= 
+HPO_N_TRIALS ?=
+HPO_STUDY_NAME ?=
+HPO_TIMEOUT ?=
 
 # HPO searchable hyperparameters (comma-separated values)
 HPO_BATCH_SIZE ?= 
@@ -92,8 +91,12 @@ HPO_EXPLORATION_NOISE ?=
 
 # YAML configuration
 TRAIN_CONFIG ?= config/train_config.yaml
+HPO_CONFIG ?= config/hpo_config.yaml
 
-.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-sac hpo-rainbow-dqn hpo-custom docker-run-eval docker-run-hpo train-yaml train-yaml-ppo train-yaml-sac train-yaml-rainbow-dqn train-yaml-discrete-sac train-yaml-td3 train-yaml-custom
+# Plot target parameters
+PLOT_RESULT_DIR ?=
+
+.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-sac hpo-rainbow-dqn hpo-custom docker-run-eval docker-run-hpo train-yaml train-yaml-ppo train-yaml-sac train-yaml-rainbow-dqn train-yaml-discrete-sac train-yaml-td3 train-yaml-custom plot
 
 format:
 	ruff format src
@@ -199,42 +202,42 @@ docker-remove:
 # Training targets
 train:
 	$(PYTHON) $(SRC_DIR)/train.py \
-		--model $(MODEL) \
-		--env $(ENV) \
-		--config $(TRAIN_CONFIG) \
-		--episodes $(N_EPISODES) \
-		--max_steps $(MAX_STEPS) \
-		--save_dir $(RESULTS_DIR) \
-		--lr $(LEARNING_RATE) \
-		--batch_size $(BATCH_SIZE) \
-		--gamma $(GAMMA) \
-		--eval $(EVAL) \
-		--eval_period $(EVAL_PERIOD) \
-		--eval_episodes $(EVAL_EPISODES) \
-		--device $(DEVICE) \
-		--buffer_size $(BUFFER_SIZE) \
-		--seed $(SEED) \
-		--hidden_dim $(HIDDEN_DIM) \
-		--n_layers $(N_LAYERS) \
-		--alpha $(ALPHA) \
-		--beta_start $(BETA_START) \
-		--beta_frames $(BETA_FRAMES) \
-		--target_update_interval $(TARGET_UPDATE_INTERVAL) \
-		--n_steps $(N_STEPS) \
-		--n_atoms $(N_ATOMS) \
-		--v_min $(V_MIN) \
-		--v_max $(V_MAX) \
-		--tau $(TAU) \
-		--entropy_coef $(ENTROPY_COEF) \
-		--start_steps $(START_STEPS) \
-		--ppo_epochs $(PPO_EPOCHS) \
-		--clip_eps $(CLIP_EPS) \
-		--n_transactions $(N_TRANSACTIONS) \
-		--normalize_advantages $(NORMALIZE_ADVANTAGES) \
-		--policy_delay $(POLICY_DELAY) \
-		--policy_noise $(POLICY_NOISE) \
-		--noise_clip $(NOISE_CLIP) \
-		--exploration_noise $(EXPLORATION_NOISE)
+		$(if $(ENV),--env $(ENV),) \
+		$(if $(MODEL),--model $(MODEL),) \
+		$(if $(TRAIN_CONFIG),--config $(TRAIN_CONFIG),) \
+		$(if $(N_EPISODES),--episodes $(N_EPISODES),) \
+		$(if $(MAX_STEPS),--max_steps $(MAX_STEPS),) \
+		$(if $(RESULTS_DIR),--save_dir $(RESULTS_DIR),) \
+		$(if $(LEARNING_RATE),--lr $(LEARNING_RATE),) \
+		$(if $(BATCH_SIZE),--batch_size $(BATCH_SIZE),) \
+		$(if $(GAMMA),--gamma $(GAMMA),) \
+		$(if $(EVAL),--eval $(EVAL),) \
+		$(if $(EVAL_PERIOD),--eval_period $(EVAL_PERIOD),) \
+		$(if $(EVAL_EPISODES),--eval_episodes $(EVAL_EPISODES),) \
+		$(if $(DEVICE),--device $(DEVICE),) \
+		$(if $(BUFFER_SIZE),--buffer_size $(BUFFER_SIZE),) \
+		$(if $(SEED),--seed $(SEED),) \
+		$(if $(HIDDEN_DIM),--hidden_dim $(HIDDEN_DIM),) \
+		$(if $(N_LAYERS),--n_layers $(N_LAYERS),) \
+		$(if $(ALPHA),--alpha $(ALPHA),) \
+		$(if $(BETA_START),--beta_start $(BETA_START),) \
+		$(if $(BETA_FRAMES),--beta_frames $(BETA_FRAMES),) \
+		$(if $(TARGET_UPDATE_INTERVAL),--target_update_interval $(TARGET_UPDATE_INTERVAL),) \
+		$(if $(N_STEPS),--n_steps $(N_STEPS),) \
+		$(if $(N_ATOMS),--n_atoms $(N_ATOMS),) \
+		$(if $(V_MIN),--v_min $(V_MIN),) \
+		$(if $(V_MAX),--v_max $(V_MAX),) \
+		$(if $(TAU),--tau $(TAU),) \
+		$(if $(ENTROPY_COEF),--entropy_coef $(ENTROPY_COEF),) \
+		$(if $(START_STEPS),--start_steps $(START_STEPS),) \
+		$(if $(PPO_EPOCHS),--ppo_epochs $(PPO_EPOCHS),) \
+		$(if $(CLIP_EPS),--clip_eps $(CLIP_EPS),) \
+		$(if $(N_TRANSACTIONS),--n_transactions $(N_TRANSACTIONS),) \
+		$(if $(NORMALIZE_ADVANTAGES),--normalize_advantages $(NORMALIZE_ADVANTAGES),) \
+		$(if $(POLICY_DELAY),--policy_delay $(POLICY_DELAY),) \
+		$(if $(POLICY_NOISE),--policy_noise $(POLICY_NOISE),) \
+		$(if $(NOISE_CLIP),--noise_clip $(NOISE_CLIP),) \
+		$(if $(EXPLORATION_NOISE),--exploration_noise $(EXPLORATION_NOISE),)
 
 
 # Train all algorithms sequentially
@@ -254,11 +257,11 @@ eval:
 hpo:
 	$(PYTHON) $(SRC_DIR)/run_hpo.py \
 		--config $(HPO_CONFIG) \
-		--model $(MODEL) \
-		--env $(ENV) \
-		--device $(DEVICE) \
-		--hpo_n_trials $(HPO_N_TRIALS) \
-		--hpo_study_name $(HPO_STUDY_NAME) \
+		$(if $(MODEL),--model $(MODEL),) \
+		$(if $(ENV),--env $(ENV),) \
+		$(if $(DEVICE),--device $(DEVICE),) \
+		$(if $(HPO_N_TRIALS),--hpo_n_trials $(HPO_N_TRIALS),) \
+		$(if $(HPO_STUDY_NAME),--hpo_study_name $(HPO_STUDY_NAME),) \
 		$(if $(N_EPISODES),--episodes $(N_EPISODES),) \
 		$(if $(MAX_STEPS),--max_steps $(MAX_STEPS),) \
 		$(if $(HPO_TIMEOUT),--timeout $(HPO_TIMEOUT),) \
@@ -282,3 +285,7 @@ hpo:
 		$(if $(HPO_POLICY_NOISE),--policy_noise $(HPO_POLICY_NOISE),) \
 		$(if $(HPO_NOISE_CLIP),--noise_clip $(HPO_NOISE_CLIP),) \
 		$(if $(HPO_EXPLORATION_NOISE),--exploration_noise $(HPO_EXPLORATION_NOISE),)
+
+# Plot target
+plot:
+	PYTHONPATH=./src $(PYTHON) $(SRC_DIR)/result_parser/plot.py $(PLOT_RESULT_DIR)
