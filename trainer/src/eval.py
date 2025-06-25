@@ -1,32 +1,11 @@
 import argparse
 import json
 import os
-from dataclasses import dataclass
-from pathlib import Path
 
 import gymnasium as gym
 
-from trainer.discrete_sac_trainer import DiscreteSACTrainer
-from trainer.ppo_trainer import PPOTrainer
-from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
-from trainer.sac_trainer import SACTrainer
-
-
-@dataclass
-class EvalConfig:
-    result_path: str = None
-    eval_episodes: int = 10
-    eval_render: bool = False
-    eval_save_dir: str = None
-
-    @classmethod
-    def from_dict(cls, args):
-        return cls(
-            result_path=args.result_path,
-            eval_episodes=args.episodes,
-            eval_render=args.render,
-            eval_save_dir=f"{args.result_path}/eval.json",
-        )
+from schema.config import EvalConfig
+from trainer.trainer_factory import TrainerFactory
 
 
 def load_config_from_result(result_path):
@@ -37,25 +16,6 @@ def load_config_from_result(result_path):
             return json.load(f)
     else:
         raise FileNotFoundError(f"Config file not found at {config_file}")
-
-
-def create_trainer_from_results(env, train_config, eval_config):
-    """Create a trainer instance based on the results directory structure."""
-
-    model_type = train_config["model"]
-
-    if model_type == "ppo":
-        trainer = PPOTrainer(env, train_config, eval_config.result_path)
-    elif model_type == "sac":
-        trainer = SACTrainer(env, train_config, eval_config.result_path)
-    elif model_type == "rainbow_dqn":
-        trainer = RainbowDQNTrainer(env, train_config, eval_config.result_path)
-    elif model_type == "discrete_sac":
-        trainer = DiscreteSACTrainer(env, train_config, eval_config.result_path)
-    else:
-        raise ValueError(f"Unknown model type: {model_type}")
-
-    return trainer
 
 
 def evaluate_model(eval_config):
@@ -72,7 +32,7 @@ def evaluate_model(eval_config):
         render_mode="human" if eval_config.eval_render else None,
     )
 
-    trainer = create_trainer_from_results(env, train_config, eval_config)
+    trainer = TrainerFactory(env, train_config, eval_config.result_path)
 
     # Run evaluation
     trainer.load_model()

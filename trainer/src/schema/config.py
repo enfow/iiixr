@@ -70,3 +70,13 @@ class RainbowDQNConfig(BaseConfig):
     beta_start: float = 0.4
     beta_frames: int = 100000
     target_update: int = 10
+
+
+class EvalConfig:
+    eval_episodes: int = 10
+    eval_render: bool = False
+    eval_save_dir: str = None
+
+    @classmethod
+    def from_dict(cls, config: dict):
+        return cls(**config)
