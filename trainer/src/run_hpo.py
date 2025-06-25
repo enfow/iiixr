@@ -10,7 +10,7 @@ import yaml
 
 from hpo.optimizer import OptunaRLOptimizer
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
-from trainer.ppo_trainer import PPOTrainer
+from trainer.ppo_trainer_factory import PPOTrainer
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
 from trainer.sac_trainer import SACTrainer
 

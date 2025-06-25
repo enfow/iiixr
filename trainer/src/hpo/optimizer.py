@@ -9,7 +9,7 @@ import optuna
 import torch
 
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
-from trainer.ppo_trainer import PPOTrainer
+from trainer.ppo_trainer_factory import PPOTrainerFactory
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
 from trainer.sac_trainer import SACTrainer
 
