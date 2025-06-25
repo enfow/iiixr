@@ -2,6 +2,9 @@
 SAC
 Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor(Haarnoja, et al. 2018)
 https://arxiv.org/pdf/1812.05905
+
+Note
+- introduces a temperature parameter alpha(SACv2) to control policy entropy, unlike the original paper
 """
 
 import torch
