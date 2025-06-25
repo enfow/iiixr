@@ -8,10 +8,7 @@ import gymnasium as gym
 import optuna
 import torch
 
-from trainer.discrete_sac_trainer import DiscreteSACTrainer
-from trainer.ppo_trainer_factory import PPOTrainerFactory
-from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
-from trainer.sac_trainer import SACTrainer
+from trainer.src.trainer.trainer_factory import TrainerFactory
 
 
 class OptunaRLOptimizer:
@@ -186,16 +183,7 @@ class OptunaRLOptimizer:
             env = gym.make(config["env"])
 
         # Select trainer based on model
-        if config["model"] == "ppo":
-            trainer = PPOTrainerFactory(env, config, save_dir=save_dir)
-        elif config["model"] == "sac":
-            trainer = SACTrainer(env, config, save_dir=save_dir)
-        elif config["model"] == "rainbow_dqn":
-            trainer = RainbowDQNTrainer(env, config, save_dir=save_dir)
-        elif config["model"] == "discrete_sac":
-            trainer = DiscreteSACTrainer(env, config, save_dir=save_dir)
-        else:
-            raise ValueError(f"Unknown model: {config['model']}")
+        trainer = TrainerFactory(env, config, save_dir=save_dir)
 
         # Train the model
         trainer.train()
@@ -269,3 +257,107 @@ class OptunaRLOptimizer:
 
         except Exception as e:
             print(f"Memory cleanup failed: {e}")
+
+
+def run_optuna_optimization(
+    hpo_config: Dict[str, Any],
+    searchable_params: Dict[str, List],
+    n_trials: int = 50,
+    timeout: int = None,
+    study_name: str = "rl_optimization",
+    save_dir: str = "results",
+):
+    """
+    Run Optuna hyperparameter optimization
+    """
+    optimizer = OptunaRLOptimizer(
+        hpo_config, searchable_params, save_dir, n_eval_episodes=5
+    )
+
+    # Create study
+    study = optuna.create_study(
+        study_name=study_name,
+        direction="maximize",
+        sampler=optuna.samplers.TPESampler(
+            seed=hpo_config.get("seed", 42), n_startup_trials=10, n_ei_candidates=24
+        ),
+        pruner=optuna.pruners.MedianPruner(
+            n_startup_trials=5, n_warmup_steps=10, interval_steps=10
+        ),
+    )
+
+    # Optimization callback
+    def callback(study, trial):
+        if trial.number % 5 == 0:
+            print(f"\nTrial {trial.number} completed")
+            print(f"Current best score: {study.best_value:.4f}")
+            print(f"Best parameters so far:")
+            for key, value in study.best_params.items():
+                print(f"  {key}: {value}")
+            print("-" * 50)
+
+    # Run optimization
+    print(f"Starting hyperparameter optimization with {n_trials} trials...")
+    print(f"Environment: {hpo_config['env']}")
+    print(f"Base episodes per trial: {hpo_config['episodes']}")
+    print("Searchable hyperparameters:")
+    for param, values in searchable_params.items():
+        print(f"  {param}: {values}")
+    print("=" * 50)
+
+    study.optimize(
+        optimizer.objective,
+        n_trials=n_trials,
+        timeout=timeout,
+        callbacks=[callback],
+        gc_after_trial=True,
+        show_progress_bar=True,
+    )
+
+    # Print final results
+    print("\n" + "=" * 50)
+    print("OPTIMIZATION COMPLETED!")
+    print(f"Number of finished trials: {len(study.trials)}")
+    print(f"Best trial: {study.best_trial.number}")
+    print(f"Best score: {study.best_value:.4f}")
+    print("\nBest hyperparameters:")
+    for key, value in study.best_params.items():
+        print(f"  {key}: {value}")
+
+    # Save study results
+    results_dir = f"{save_dir}/{study_name}_{time.strftime('%Y%m%d_%H%M%S')}"
+    os.makedirs(results_dir, exist_ok=True)
+
+    # Save study object
+    with open(f"{results_dir}/study.pkl", "wb") as f:
+        pickle.dump(study, f)
+
+    # Save best parameters
+    with open(f"{results_dir}/best_params.txt", "w") as f:
+        f.write(f"Best score: {study.best_value:.4f}\n")
+        f.write("Best parameters:\n")
+        for key, value in study.best_params.items():
+            f.write(f"{key}: {value}\n")
+
+    # Save trials dataframe
+    df = study.trials_dataframe()
+    df.to_csv(f"{results_dir}/trials.csv", index=False)
+
+    # Get trial log summary
+    trial_log = optimizer.get_trial_log_summary()
+    if trial_log:
+        summary = trial_log["summary"]
+        print(f"\nTrial Log Summary:")
+        print(f"  Total trials: {summary['total_trials']}")
+        print(f"  Completed trials: {summary['completed_trials']}")
+        print(f"  Failed trials: {summary['failed_trials']}")
+        print(f"  Best score: {summary['best_score']:.4f}")
+        print(f"  Start time: {summary['start_time']}")
+        print(f"  Last update: {summary.get('last_update', 'N/A')}")
+
+    # Trial log is already being maintained by the optimizer
+    print(f"Trial log saved to: {results_dir}/result.json")
+
+    print(f"\nResults saved to: {results_dir}")
+
+    return study

@@ -4,10 +4,7 @@ import time
 
 import gymnasium as gym
 
-from trainer.discrete_sac_trainer import DiscreteSACTrainer
-from trainer.ppo_trainer_factory import PPOTrainerFactory
-from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
-from trainer.sac_trainer import SACTrainer
+from trainer.trainer_factory import TrainerFactory
 
 
 def main():
@@ -101,8 +98,7 @@ def main():
     config = vars(args)
 
     if args.env == "BipedalWalker-v3":
-        # env = gym.make(args.env, hardcore=True)
-        env = gym.make(args.env)
+        env = gym.make(args.env, hardcore=True)
     else:
         env = gym.make(args.env)
 
@@ -110,16 +106,7 @@ def main():
         f"{args.save_dir}/{args.env}/{args.model}/{time.strftime('%Y%m%d_%H%M%S')}"
     )
 
-    if args.model == "ppo":
-        trainer = PPOTrainerFactory(env, config, save_dir=save_dir)
-    elif args.model == "sac":
-        trainer = SACTrainer(env, config, save_dir=save_dir)
-    elif args.model == "rainbow_dqn":
-        trainer = RainbowDQNTrainer(env, config, save_dir=save_dir)
-    elif args.model == "discrete_sac":
-        trainer = DiscreteSACTrainer(env, config, save_dir=save_dir)
-    else:
-        raise ValueError(f"Unknown model: {args.model}")
+    trainer = TrainerFactory(env, config, save_dir=save_dir)
 
     trainer.train()
 
