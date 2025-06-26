@@ -176,8 +176,8 @@ class PPOTrainer(BaseTrainer):
         # Because of the ppo algorithm, need to divide the total reward by the number of episodes
         # to get the average reward per episode.
         return SingleEpisodeResult(
-            episode_total_reward=round(np.sum(episode_rewards)/len(episode_steps),2),
-            episode_steps=round(np.mean(episode_steps),2),
+            episode_total_reward=round(np.sum(episode_rewards) / len(episode_steps), 2),
+            episode_steps=round(np.mean(episode_steps), 2),
             episode_losses=episode_losses,
         )
 
