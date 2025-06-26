@@ -98,6 +98,8 @@ class ResultParser:
                     continue
 
         self.total_train_result = total_train_result
+        print("train_results:", len(self.train_results))
+        print("eval_results:", len(self.eval_results))
         return self.train_results, self.eval_results
 
     def _parse_line(
@@ -377,35 +379,49 @@ class ResultParser:
             return {}
 
         # Initialize component lists
-        components = {}
+        loss_per_episode = {}
 
+        zero_episode_indices = []
         for result in self.train_results:
             if not result.episode_losses:
+                zero_episode_indices.append(result.episode_number)
                 continue
+
+            episode_losses = {}
 
             for loss_obj in result.episode_losses:
                 # Get all attributes of the loss object
                 loss_dict = loss_obj.to_dict()
 
                 # Add each component
-                for component_name, component_value in loss_dict.items():
-                    if component_name not in components:
-                        components[component_name] = []
-                    components[component_name].append(component_value)
+                for loss_name, loss_value in loss_dict.items():
+                    if loss_name not in episode_losses:
+                        episode_losses[loss_name] = []
+                    episode_losses[loss_name].append(loss_value)
+
+            for loss_name in episode_losses.keys():
+                if loss_name not in loss_per_episode:
+                    loss_per_episode[loss_name] = []
+                loss_per_episode[loss_name].append(np.mean(episode_losses[loss_name]))
+
+        for loss_name in loss_per_episode.keys():
+            # insert 0.0 for zero_episode_indices
+            for zero_episode_index in zero_episode_indices:
+                loss_per_episode[loss_name].insert(zero_episode_index, 0.0)
 
         # Ensure all component lists have the same length
         max_length = (
-            max(len(comp_list) for comp_list in components.values())
-            if components
+            max(len(comp_list) for comp_list in loss_per_episode.values())
+            if loss_per_episode
             else 0
         )
 
-        for component_name in components:
+        for loss_name in loss_per_episode:
             # Pad shorter lists with zeros
-            while len(components[component_name]) < max_length:
-                components[component_name].append(0.0)
+            while len(loss_per_episode[loss_name]) < max_length:
+                loss_per_episode[loss_name].append(0.0)
 
-        return components
+        return loss_per_episode
 
     def _plot_simple_loss(
         self,
@@ -661,7 +677,6 @@ def main():
     print("Plotting results...")
     try:
         result_parser = ResultParser(args.results_dir)
-        result_parser.parse()
 
         # Print summary
         result_parser.print_summary()
