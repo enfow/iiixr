@@ -60,6 +60,10 @@ class BaseTrainer:
                 break
         print(f"Collected {start_steps} initial data")
 
+    def _print_trainer_summary(self):
+        # print env and model info
+        print(f"Env: {self.env_name} Model: {self.model_name}")
+
     def train(self):
         if hasattr(self.config, "start_steps") and self.config.start_steps > 0:
             self.collect_initial_data(self.config.start_steps)
@@ -83,6 +87,7 @@ class BaseTrainer:
                 if self.best_results is None or eval_result > self.best_results:
                     self.best_results = eval_result
                     print("New best results:")
+                self._print_trainer_summary()
                 print(eval_result)
                 log_result(eval_result, self.log_file)
                 self.save_model()
