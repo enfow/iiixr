@@ -63,8 +63,8 @@ class TD3UpdateLoss(UpdateLoss):
 
 class SingleEpisodeResult(BaseModel):
     episode_number: int = None
-    episode_rewards: list[float] = None
-    episode_steps: int = None
+    episode_total_reward: float = None
+    episode_steps: float = None  # average steps if there are multiple episode(ppo)
     episode_losses: list[UpdateLoss] = None
     episode_elapsed_time: float = None
 
@@ -78,7 +78,7 @@ class SingleEpisodeResult(BaseModel):
     def to_log_dict(self):
         return {
             "ep": self.episode_number,
-            "total_rewards": np.sum(self.episode_rewards),
+            "total_rewards": self.episode_total_reward,
             "episode_steps": self.episode_steps,
             "total_loss": self.episode_total_loss,
             "loss_details": [loss.to_dict() for loss in self.episode_losses],
@@ -90,7 +90,7 @@ class SingleEpisodeResult(BaseModel):
         return np.sum([loss.total_loss for loss in self.episode_losses])
 
     def __str__(self):
-        return f"ep={self.episode_number}, total_rewards={round(np.sum(self.episode_rewards), 2)}, episode_steps={self.episode_steps}, total_loss={round(self.episode_total_loss, 2)}, episode_elapsed_time={round(self.episode_elapsed_time, 2) if self.episode_elapsed_time is not None else None}"
+        return f"ep={self.episode_number}, total_rewards={round(self.episode_total_reward, 2)}, episode_steps={self.episode_steps}, total_loss={round(self.episode_total_loss, 2)}, episode_elapsed_time={round(self.episode_elapsed_time, 2) if self.episode_elapsed_time is not None else None}"
 
     def __repr__(self):
         return self.__str__()
@@ -117,7 +117,7 @@ class TotalTrainResult(BaseModel):
 
     def update(self, episode_result: SingleEpisodeResult):
         self.total_episodes += 1
-        self.returns.append(np.sum(episode_result.episode_rewards))
+        self.returns.append(episode_result.episode_total_reward)
         self.total_losses.append(episode_result.episode_total_loss)
         self.losses.append(episode_result.episode_losses)
         self.elapsed_times.append(episode_result.episode_elapsed_time)

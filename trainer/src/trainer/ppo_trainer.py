@@ -169,16 +169,15 @@ class PPOTrainer(BaseTrainer):
                 state, _ = self.env.reset()
                 episode_steps.append(0)
 
-        episode_steps = round(np.mean(episode_steps))
-
         update_result = self.update()
 
         if update_result is not None:
             episode_losses.append(update_result)
-
+        # Because of the ppo algorithm, need to divide the total reward by the number of episodes
+        # to get the average reward per episode.
         return SingleEpisodeResult(
-            episode_rewards=episode_rewards,
-            episode_steps=episode_steps,
+            episode_total_reward=round(np.sum(episode_rewards)/len(episode_steps),2),
+            episode_steps=round(np.mean(episode_steps),2),
             episode_losses=episode_losses,
         )
 

@@ -174,7 +174,7 @@ class TD3Trainer(BaseTrainer):
                     episode_losses.append(update_result)
 
         return SingleEpisodeResult(
-            episode_rewards=episode_rewards,
+            episode_total_reward=np.sum(episode_rewards),
             episode_steps=step,
             episode_losses=episode_losses,
         )

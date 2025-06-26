@@ -202,7 +202,7 @@ class DiscreteSACTrainer(BaseTrainer):
                 break
 
         return SingleEpisodeResult(
-            episode_rewards=episode_rewards,
+            episode_total_reward=np.sum(episode_rewards),
             episode_steps=episode_steps,
             episode_losses=episode_losses,
         )

@@ -223,7 +223,7 @@ class RainbowDQNTrainer(BaseTrainer):
         avg_loss = np.mean(episode_losses) if episode_losses else 0.0
 
         return SingleEpisodeResult(
-            episode_rewards=episode_rewards,
+            episode_total_reward=np.sum(episode_rewards),
             episode_steps=episode_steps,
             episode_losses=[RainbowDQNUpdateLoss(loss=avg_loss)],
         )
