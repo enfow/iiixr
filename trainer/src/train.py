@@ -3,7 +3,7 @@ import os
 import random
 import time
 
-from result_parser.plot import ResultParser
+from result_handler.plot import ResultParser
 from schema.config import ModelEmbeddingType
 from trainer.trainer_factory import TrainerFactory
 from util.config import load_config_from_yaml, merge_configs
