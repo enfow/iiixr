@@ -2,10 +2,15 @@
 # Environment settings
 env: "BipedalWalker-v3"
 model:
-  model: "td3"
+  model: "td3_seq"
   hidden_dim: 256
   n_layers: 3
-  embedding_type: "fc"  # Options: fc, transformer
+  embedding_type: "transformer"  # Options: fc, transformer
+
+buffer:
+  buffer_size: 1000000
+  buffer_type: "default"
+  seq_len: 10
 
 # Training parameters
 seed: 42
@@ -13,7 +18,6 @@ episodes: 1000
 max_steps: 1000
 lr: 3e-4
 gamma: 0.99
-buffer_size: 1000000
 batch_size: 256
 start_steps: 25000
 

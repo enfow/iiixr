@@ -3,20 +3,14 @@ from collections import deque
 
 import numpy as np
 
-from schema.config import ModelEmbeddingType
-
-SEQ_LEN = 10
-
 
 class ReplayBuffer:
     def __init__(
         self,
         capacity,
-        embedding_type: ModelEmbeddingType = ModelEmbeddingType.FC,
         seq_len: int = 10,
     ):
         self.buffer = deque(maxlen=capacity)
-        self.embedding_type: ModelEmbeddingType = embedding_type
         self.seq_len: int = seq_len
         self.episode_starts = []
 
@@ -24,24 +18,24 @@ class ReplayBuffer:
         self.buffer.append((state, action, reward, next_state, done))
 
     def sample(self, batch_size):
-        if self.embedding_type == ModelEmbeddingType.FC:
+        if self.seq_len == 1:
             batch = random.sample(self.buffer, batch_size)
             state, action, reward, next_state, done = map(np.stack, zip(*batch))
             return state, action, reward, next_state, done
-        elif self.embedding_type == ModelEmbeddingType.TRANSFORMER:
-            return self.sample_sequences(batch_size, self.seq_len)
+        else:
+            return self._sample_sequences(batch_size)
 
-    def sample_sequences(self, batch_size, seq_len):
+    def _sample_sequences(self, batch_size):
         """Sample sequences that don't cross episode boundaries"""
-        if len(self.buffer) < seq_len:
+        if len(self.buffer) < self.seq_len:
             return None
 
         # Find all valid starting positions
         valid_starts = []
-        for i in range(len(self.buffer) - seq_len + 1):
+        for i in range(len(self.buffer) - self.seq_len + 1):
             # Check if any episode starts within this sequence
             sequence_indices = set(
-                range(i + 1, i + seq_len)
+                range(i + 1, i + self.seq_len)
             )  # Don't include start index
             if not sequence_indices.intersection(self.episode_starts):
                 valid_starts.append(i)
@@ -55,7 +49,7 @@ class ReplayBuffer:
         # Extract sequences
         sequences = []
         for start in selected_starts:
-            sequence = list(self.buffer)[start : start + seq_len]
+            sequence = list(self.buffer)[start : start + self.seq_len]
             sequences.append(sequence)
 
         return self._format_sequences(sequences)

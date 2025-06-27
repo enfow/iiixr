@@ -4,8 +4,8 @@ import random
 import time
 
 from result_handler.gif_generator import run_gif_generator
+from result_handler.plot_generator import ResultParser
 from schema.config import ModelEmbeddingType
-from trainer.src.result_handler.plot_generator import ResultParser
 from trainer.trainer_factory import TrainerFactory
 from util.config import load_config_from_yaml, merge_configs
 

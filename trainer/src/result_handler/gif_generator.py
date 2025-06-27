@@ -36,6 +36,29 @@ class GIFGenerator:
                 "embedding_type": self.config.get("embedding_type", "fc"),
             }
 
+        # Handle buffer config compatibility
+        if "buffer" not in self.config:
+            # Create buffer config from legacy fields
+            self.config["buffer"] = {
+                "buffer_size": self.config.get("buffer_size", 1000000),
+                "buffer_type": self.config.get("buffer_type", "default"),
+                "alpha": self.config.get("alpha", 0.6),
+                "beta_start": self.config.get("beta_start", 0.4),
+                "beta_frames": self.config.get("beta_frames", 100000),
+                "seq_len": self.config.get("seq_len", 1),
+            }
+        elif isinstance(self.config.get("buffer"), str):
+            # Convert string buffer type to buffer config
+            buffer_type = self.config["buffer"]
+            self.config["buffer"] = {
+                "buffer_type": buffer_type,
+                "buffer_size": self.config.get("buffer_size", 1000000),
+                "alpha": self.config.get("alpha", 0.6),
+                "beta_start": self.config.get("beta_start", 0.4),
+                "beta_frames": self.config.get("beta_frames", 100000),
+                "seq_len": self.config.get("seq_len", 1),
+            }
+
         self.model_config = self.config.get("model", {})
 
         # Set up environment and model

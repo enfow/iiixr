@@ -1,9 +1,12 @@
 import os
 import time
+from collections import deque
 
 import numpy as np
 
 from env.gym import GymEnvFactory
+from model.buffer import PrioritizedReplayBuffer, ReplayBuffer
+from schema.config import BufferType
 from schema.result import EvalResult, TotalTrainResult
 from util.file import log_result, save_json
 from util.gym_env import is_discrete_action_space
@@ -31,7 +34,19 @@ class BaseTrainer:
             else self.env.action_space.shape[0]
         )
         print(f"State dim: {self.state_dim}, Action dim: {self.action_dim}")
-        self.memory = None
+        if self.config.buffer.buffer_type == BufferType.PER:
+            self.memory = PrioritizedReplayBuffer(
+                capacity=self.config.buffer.buffer_size,
+                alpha=self.config.buffer.alpha,
+                beta_start=self.config.buffer.beta_start,
+                beta_frames=self.config.buffer.beta_frames,
+            )
+        else:
+            self.memory = ReplayBuffer(
+                capacity=self.config.buffer.buffer_size,
+                seq_len=self.config.buffer.seq_len,
+            )
+        self.state_history = deque(maxlen=self.config.buffer.seq_len)
         self.total_train_result = TotalTrainResult.initialize()
         self.best_score = -np.inf
         self.best_results: EvalResult = None

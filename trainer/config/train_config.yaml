@@ -7,13 +7,20 @@ model:
   n_layers: 3
   embedding_type: "fc"  # Options: fc, transformer
 
+buffer:
+  buffer_size: 1000000
+  buffer_type: "default"
+  seq_len: 1
+  alpha: 0.6
+  beta_start: 0.4
+  beta_frames: 100000
+
 # Training parameters
 seed: 42
 episodes: 1000
 max_steps: 1000
 lr: 3e-4
 gamma: 0.99
-buffer_size: 1000000
 batch_size: 256
 start_steps: 10000
 
@@ -42,9 +49,6 @@ tau: 0.005
 entropy_coef: 0.2
 
 # Rainbow DQN specific parameters
-alpha: 0.6
-beta_start: 0.4
-beta_frames: 100000
 n_steps: 3
 n_atoms: 51
 v_min: -10.0

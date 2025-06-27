@@ -12,7 +12,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-from model.buffer import ModelEmbeddingType, ReplayBuffer
+from model.buffer import ReplayBuffer
 from model.td3 import TD3Critic, TransformerTD3Actor
 from schema.config import TD3Config
 from schema.result import SingleEpisodeResult, TD3UpdateLoss
@@ -30,12 +30,9 @@ class TD3SequentialTrainer(BaseTrainer):
         env_name: str,
         config: TD3Config,
         save_dir: str = "results/td3_sequential",
-        seq_len: int = 10,
     ):
         super().__init__(env_name, config, save_dir)
         self.total_it = 0
-        self.seq_len = SEQ_LEN
-        self.state_history = deque(maxlen=SEQ_LEN)
 
     def _init_models(self):
         self.max_action = float(self.env.action_space.high[0])
@@ -63,11 +60,10 @@ class TD3SequentialTrainer(BaseTrainer):
         self.critic_target = copy.deepcopy(self.critic)
 
         # Replay buffer with transformer support
-        self.memory = ReplayBuffer(
-            self.config.buffer_size,
-            embedding_type=ModelEmbeddingType.TRANSFORMER,
-            seq_len=SEQ_LEN,
-        )
+        # self.memory = ReplayBuffer(
+        #     self.config.buffer.buffer_size,
+        #     seq_len=self.config.buffer.seq_len,
+        # )
 
         # Optimizers
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
@@ -82,14 +78,15 @@ class TD3SequentialTrainer(BaseTrainer):
         self.state_history.append(state)
 
         # Create sequence with padding if necessary
-        if len(self.state_history) < self.seq_len:
+        if len(self.state_history) < self.config.buffer.seq_len:
             # Pad with the current state (repeat current state)
-            padding_needed = self.seq_len - len(self.state_history)
+            padding_needed = self.config.buffer.seq_len - len(self.state_history)
             padded_states = [state] * padding_needed + list(self.state_history)
         else:
             padded_states = list(self.state_history)
 
         # Convert to tensor: (1, seq_len, state_dim)
+        padded_states = np.array(padded_states)
         state_sequence = (
             torch.FloatTensor(padded_states).unsqueeze(0).to(self.config.device)
         )

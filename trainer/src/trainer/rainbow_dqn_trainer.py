@@ -62,16 +62,6 @@ class RainbowDQNTrainer(BaseTrainer):
         # Optimizer
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.config.lr)
 
-        # Replay Buffer
-        self.replay_buffer = PrioritizedReplayBuffer(
-            capacity=self.config.buffer_size,
-            alpha=self.config.alpha,
-            beta_start=self.config.beta_start,
-            beta_frames=self.config.beta_frames,
-            n_steps=self.config.n_steps,
-            gamma=self.config.gamma,
-        )
-
     def select_action(self, state: np.ndarray) -> dict:
         """Selects an action using the policy network."""
         state = torch.FloatTensor(state).unsqueeze(0).to(self.config.device)
@@ -89,7 +79,7 @@ class RainbowDQNTrainer(BaseTrainer):
     def _sample_transactions(self):
         """Samples a batch of transitions from the replay buffer."""
         states, actions, rewards, next_states, dones, indices, weights = (
-            self.replay_buffer.sample(self.config.batch_size)
+            self.memory.sample(self.config.batch_size)
         )
 
         states = torch.FloatTensor(states).to(self.config.device)
@@ -103,7 +93,7 @@ class RainbowDQNTrainer(BaseTrainer):
 
     def update(self) -> RainbowDQNUpdateLoss:
         """Updates the network weights."""
-        if len(self.replay_buffer) < self.config.batch_size:
+        if len(self.memory) < self.config.batch_size:
             return None
 
         states, actions, rewards, next_states, dones, indices, weights = (
@@ -167,7 +157,7 @@ class RainbowDQNTrainer(BaseTrainer):
 
         # Update priorities in the replay buffer
         td_errors = loss.detach().cpu().numpy()
-        self.replay_buffer.update_priorities(indices, td_errors)
+        self.memory.update_priorities(indices, td_errors)
 
         # Apply importance-sampling weights to the loss
         loss = (weights * loss).mean()
@@ -208,14 +198,14 @@ class RainbowDQNTrainer(BaseTrainer):
             done = terminated or truncated
 
             # Store transition in replay buffer
-            self.replay_buffer.push(state, action, reward, next_state, done)
+            self.memory.push(state, action, reward, next_state, done)
 
             state = next_state
             episode_rewards.append(reward)
             episode_steps += 1
 
             # Update networks if enough samples
-            if len(self.replay_buffer) >= self.config.batch_size:
+            if len(self.memory) >= self.config.batch_size:
                 update_result = self.update()
                 if update_result is not None:
                     episode_losses.append(update_result)

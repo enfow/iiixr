@@ -63,7 +63,7 @@ class DiscreteSACTrainer(BaseTrainer):
         self.target_critic1.load_state_dict(self.critic1.state_dict())
         self.target_critic2.load_state_dict(self.critic2.state_dict())
 
-        self.memory = ReplayBuffer(self.config.buffer_size)
+        # self.memory = ReplayBuffer(self.config.buffer.buffer_size)
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
         self.critic1_optimizer = optim.Adam(
