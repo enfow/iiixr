@@ -105,6 +105,18 @@ def main():
 
     args = parser.parse_args()
 
+    # Convert CLI args to dict
+    cli_args = vars(args)
+
+    model_config_from_cli = {
+        "model": args.model,
+        "embedding_type": args.embedding_type,
+        "hidden_dim": args.hidden_dim,
+        "n_layers": args.n_layers,
+    }
+
+    cli_args["model"] = model_config_from_cli
+
     # Load YAML config if file exists
     yaml_config = {}
     if os.path.exists(args.config):
@@ -117,23 +129,12 @@ def main():
     else:
         print(f"Config file {args.config} not found. Using default values.")
 
-    # Convert CLI args to dict
-    cli_args = vars(args)
-
     # Merge configs with proper precedence: CLI args > YAML config
     config = merge_configs(primary_config=cli_args, secondary_config=yaml_config)
 
     # Restructure config to handle nested model config
     # Move model-specific parameters to nested structure
     model_params = config.get("model", {})
-    # if config.get("model") is not None:V
-    #     model_params["model"] = config["model"]["model"]
-    # if config.get("hidden_dim") is not None:
-    #     model_params["hidden_dim"] = config["hidden_dim"]
-    # if config.get("n_layers") is not None:
-    #     model_params["n_layers"] = config["n_layers"]
-    # if config.get("embedding_type") is not None:
-    #     model_params["embedding_type"] = config["embedding_type"]
 
     config["model"] = model_params
 
