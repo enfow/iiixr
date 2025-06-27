@@ -26,6 +26,16 @@ class GIFGenerator:
 
         # Load configuration
         self.config = self._load_config()
+
+        config_model_field = self.config.get("model")
+        if isinstance(config_model_field, str):
+            self.config["model"] = {
+                "model": config_model_field,
+                "hidden_dim": self.config.get("hidden_dim"),
+                "n_layers": self.config.get("n_layers"),
+                "embedding_type": self.config.get("embedding_type", "fc"),
+            }
+
         self.model_config = self.config.get("model", {})
 
         # Set up environment and model
@@ -291,18 +301,18 @@ def main():
 
     args = parser.parse_args()
 
-    try:
-        run_gif_generator(
-            args.results_dir,
-            args.max_steps,
-            args.fps,
-            args.episodes,
-            args.num_gifs,
-            args.render_mode,
-        )
-    except Exception as e:
-        print(f"Error generating GIF: {e}")
-        return 1
+    # try:
+    run_gif_generator(
+        args.results_dir,
+        args.max_steps,
+        args.fps,
+        args.episodes,
+        args.num_gifs,
+        args.render_mode,
+    )
+    # except Exception as e:
+    #     print(f"Error generating GIF: {e}")
+    #     return 1
 
     return 0
 
