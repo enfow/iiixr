@@ -128,12 +128,12 @@ export default function MDXContent({ post }: MDXContentProps) {
   return (
     <article className="max-w-4xl mx-auto px-4 py-8">
       <header className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">{post.title}</h1>
+        {/* <h1 className="text-4xl font-boldV text-gray-900 mb-4">{post.title}</h1>
         <div className="flex items-center text-gray-600 mb-4">
           <time dateTime={post.date} className="text-sm">
             {format(new Date(post.date), 'MMMM d, yyyy')}
           </time>
-        </div>
+        </div> */}
         {post.description && (
           <p className="text-lg text-gray-600 mb-4">{post.description}</p>
         )}
