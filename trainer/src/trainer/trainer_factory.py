@@ -7,6 +7,7 @@ from trainer.ppo_trainer import PPOTrainer
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
 from trainer.sac_trainer import SACTrainer
 from trainer.sac_v2_trainer import SACV2Trainer
+from trainer.td3_sequential_trainer import TD3SequentialTrainer
 from trainer.td3_trainer import TD3Trainer
 from util.gym_env import is_discrete_action_space
 
@@ -17,6 +18,7 @@ SELECTABLE_MODELS = [
     SACTrainer.name,
     SACV2Trainer.name,
     DiscreteSACTrainer.name,
+    TD3SequentialTrainer.name,
 ]
 
 
@@ -50,5 +52,7 @@ class TrainerFactory:
             return DiscreteSACTrainer(env_name, config_dict, save_dir)
         elif model_name == TD3Trainer.name:
             return TD3Trainer(env_name, config_dict, save_dir)
+        elif model_name == TD3SequentialTrainer.name:
+            return TD3SequentialTrainer(env_name, config_dict, save_dir)
         else:
             raise ValueError(f"Unknown model: {model_name}")

@@ -3,18 +3,33 @@ from collections import deque
 
 import numpy as np
 
+from schema.config import ModelEmbeddingType
+
+SEQ_LEN = 10
+
 
 class ReplayBuffer:
-    def __init__(self, capacity):
+    def __init__(
+        self,
+        capacity,
+        embedding_type: ModelEmbeddingType = ModelEmbeddingType.FC,
+        seq_len: int = 10,
+    ):
         self.buffer = deque(maxlen=capacity)
+        self.embedding_type: ModelEmbeddingType = embedding_type
+        self.seq_len: int = seq_len
+        self.episode_starts = []
 
     def push(self, state, action, reward, next_state, done):
         self.buffer.append((state, action, reward, next_state, done))
 
     def sample(self, batch_size):
-        batch = random.sample(self.buffer, batch_size)
-        state, action, reward, next_state, done = map(np.stack, zip(*batch))
-        return state, action, reward, next_state, done
+        if self.embedding_type == ModelEmbeddingType.FC:
+            batch = random.sample(self.buffer, batch_size)
+            state, action, reward, next_state, done = map(np.stack, zip(*batch))
+            return state, action, reward, next_state, done
+        elif self.embedding_type == ModelEmbeddingType.TRANSFORMER:
+            return self.sample_sequences(batch_size, self.seq_len)
 
     def sample_sequences(self, batch_size, seq_len):
         """Sample sequences that don't cross episode boundaries"""
