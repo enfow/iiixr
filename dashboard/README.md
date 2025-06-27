@@ -1,22 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# iiixr Dashboard
 
-## Getting Started
+A Next.js dashboard application with MDX content support for displaying reinforcement learning documentation and training results.
 
-First, run the development server:
+## Features
 
+- **MDX Content Support**: Display rich content with math equations, code highlighting, and images
+- **Training Control**: Interface for managing reinforcement learning training sessions
+- **Responsive Design**: Modern UI built with Tailwind CSS
+- **TypeScript**: Full type safety throughout the application
+
+## MDX Content Features
+
+The application supports:
+- **Math Equations**: Using KaTeX for beautiful mathematical notation
+- **Code Highlighting**: Syntax highlighting for code blocks
+- **GitHub Flavored Markdown**: Tables, strikethrough, task lists, etc.
+- **Images and GIFs**: Support for displaying training progress and results
+- **Custom Components**: Extensible component system for rich content
+
+## Setup
+
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Run the development server:
+```bash
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Content Structure
+
+MDX files are stored in the `content/` directory and automatically processed by contentlayer. Each MDX file should have frontmatter with:
+
+```yaml
+---
+title: "Your Post Title"
+date: "2024-01-15"
+description: "Brief description of the post"
+tags: ["tag1", "tag2"]
+---
+```
+
+## Adding New Content
+
+1. Create a new `.mdx` file in the `content/` directory
+2. Add frontmatter with required metadata
+3. Write your content using Markdown with support for:
+   - Math equations: `$E = mc^2$` or `$$\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}$$`
+   - Code blocks with syntax highlighting
+   - Images and GIFs
+   - Tables and other GitHub Flavored Markdown features
+
+## Configuration
+
+The application uses:
+- **contentlayer2**: For MDX processing
+- **remark-math/rehype-katex**: For math equation rendering
+- **remark-gfm/rehype-highlight**: For GitHub Flavored Markdown and syntax highlighting
+- **date-fns**: For date formatting
+- **Tailwind CSS**: For styling
+
+## Building for Production
+
+```bash
+npm run build
+npm start
+```
+
+## Customization
+
+You can customize the MDX rendering by modifying:
+- `contentlayer.config.ts`: Content processing configuration
+- `src/components/MDXContent.tsx`: Component styling and layout
+- `src/app/globals.css`: Global styles for content elements
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

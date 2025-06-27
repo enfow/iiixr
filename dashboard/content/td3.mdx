@@ -1,0 +1,136 @@
+---
+title: "Twin Delayed DDPG (TD3) Algorithm"
+date: 2024-01-17
+description: "An introduction to Twin Delayed Deep Deterministic Policy Gradient with implementation details."
+tags: ["reinforcement-learning", "td3", "deep-learning", "continuous-control"]
+---
+
+# Twin Delayed DDPG (TD3) Algorithm
+
+Twin Delayed Deep Deterministic Policy Gradient (TD3) is an improvement over DDPG that addresses overestimation bias in Q-functions through the use of twin critics and delayed policy updates.
+
+## Mathematical Foundation
+
+TD3 uses two Q-functions to reduce overestimation bias. The target Q-value is computed as:
+
+$$
+Q_{target}(s_t, a_t) = r(s_t, a_t) + \gamma \min_{i=1,2} Q_{\theta_i'}(s_{t+1}, \pi_{\phi'}(s_{t+1}))
+$$
+
+Where:
+- $Q_{\theta_1'}$ and $Q_{\theta_2'}$ are the target Q-networks
+- $\pi_{\phi'}$ is the target policy network
+- The minimum of the two Q-values helps reduce overestimation
+
+The policy loss is:
+
+$$
+L(\phi) = -\mathbb{E}_{s_t \sim \mathcal{D}} \left[ Q_{\theta_1}(s_t, \pi_{\phi}(s_t)) \right]
+$$
+
+## Implementation Example
+
+Here's a PyTorch implementation of TD3:
+
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+
+class TD3Network(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=256):
+        super().__init__()
+        # Actor network
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim),
+            nn.Tanh()  # Output actions in [-1, 1]
+        )
+        
+        # Twin critics
+        self.critic1 = nn.Sequential(
+            nn.Linear(state_dim + action_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
+        
+        self.critic2 = nn.Sequential(
+            nn.Linear(state_dim + action_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
+    
+    def forward(self, state):
+        return self.actor(state)
+    
+    def get_q_values(self, state, action):
+        q1 = self.critic1(torch.cat([state, action], dim=-1))
+        q2 = self.critic2(torch.cat([state, action], dim=-1))
+        return q1, q2
+
+def compute_td3_loss(states, actions, rewards, next_states, dones, 
+                    policy_noise=0.2, noise_clip=0.5, gamma=0.99):
+    """
+    Compute TD3 loss with twin critics and delayed policy updates
+    """
+    # Critic loss
+    with torch.no_grad():
+        next_actions = td3_network(next_states)
+        noise = torch.randn_like(next_actions) * policy_noise
+        noise = torch.clamp(noise, -noise_clip, noise_clip)
+        next_actions = torch.clamp(next_actions + noise, -1, 1)
+        
+        q1_next, q2_next = td3_network.get_q_values(next_states, next_actions)
+        q_next = torch.min(q1_next, q2_next)
+        target_q = rewards + gamma * (1 - dones) * q_next
+    
+    q1, q2 = td3_network.get_q_values(states, actions)
+    critic1_loss = F.mse_loss(q1, target_q)
+    critic2_loss = F.mse_loss(q2, target_q)
+    
+    # Actor loss (computed less frequently)
+    actor_loss = -td3_network.get_q_values(states, td3_network(states))[0].mean()
+    
+    return actor_loss, critic1_loss, critic2_loss
+```
+
+## Key Advantages of TD3
+
+1. **Reduced Overestimation**: Twin critics help reduce Q-value overestimation
+2. **Delayed Policy Updates**: Policy is updated less frequently than critics
+3. **Target Policy Smoothing**: Noise is added to target actions for regularization
+4. **Improved Stability**: More stable training compared to DDPG
+
+## Training Results
+
+TD3 shows improved performance over DDPG on continuous control tasks:
+
+![TD3 Training Progress](./td3-training.gif)
+
+The algorithm demonstrates more stable learning curves and better final performance.
+
+## Algorithm Comparison
+
+| Feature | DDPG | TD3 | SAC |
+|---------|------|-----|-----|
+| Overestimation Bias | High | Low | Low |
+| Sample Efficiency | Medium | High | Very High |
+| Stability | Low | High | Very High |
+| Continuous Control | Good | Excellent | Excellent |
+
+## Conclusion
+
+TD3 successfully addresses the main limitations of DDPG while maintaining its efficiency for continuous control problems. The twin critic architecture and delayed policy updates make it a robust choice for many RL applications.
+
+For further exploration:
+- TD3 with prioritized experience replay
+- Multi-agent TD3
+- TD3 for robotics applications 
