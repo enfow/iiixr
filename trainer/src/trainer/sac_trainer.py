@@ -31,34 +31,34 @@ class SACTrainer(BaseTrainer):
         self.actor = SACPolicy(
             self.state_dim,
             self.action_dim,
-            hidden_dim=self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            hidden_dim=self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
         # Q-networks: Q(s,a) -> R (continuous actions only in original SAC)
         self.critic1 = SACQNetwork(
             self.state_dim,
             self.action_dim,
-            hidden_dim=self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            hidden_dim=self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.critic2 = SACQNetwork(
             self.state_dim,
             self.action_dim,
-            hidden_dim=self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            hidden_dim=self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
         # Value network: V(s) -> R
         self.value_net = SACValueNetwork(
             self.state_dim,
-            hidden_dim=self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            hidden_dim=self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.target_value_net = SACValueNetwork(
             self.state_dim,
-            hidden_dim=self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            hidden_dim=self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
         # Initialize target value network
@@ -198,86 +198,91 @@ class SACTrainer(BaseTrainer):
             _, log_prob_detached = self._get_actor_action_and_log_prob(state)
 
         # Alpha loss: α * (log π(a|s) + target_entropy)
-        alpha_loss = (
-            self.log_alpha * (-log_prob_detached - self.target_entropy)
+        alpha_loss = -(
+            self.log_alpha * (log_prob_detached + self.target_entropy)
         ).mean()
 
         self.alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.alpha_optimizer.step()
 
-        # Update alpha
+        # Update alpha value
         self.alpha = self.log_alpha.exp()
 
-        # 5. Soft update target value network
-        for param, target_param in zip(
-            self.value_net.parameters(), self.target_value_net.parameters()
-        ):
-            target_param.data.copy_(
-                self.config.tau * param.data + (1 - self.config.tau) * target_param.data
-            )
+        # 5. Soft update target networks
+        self._soft_update_target()
 
         return SACUpdateLoss(
             actor_loss=actor_loss.item(),
-            value_loss=value_loss.item(),
             critic1_loss=critic1_loss.item(),
             critic2_loss=critic2_loss.item(),
+            value_loss=value_loss.item(),
             alpha_loss=alpha_loss.item(),
+            alpha=self.alpha.item(),
         )
 
+    def _soft_update_target(self):
+        """Soft update target networks"""
+        tau = self.config.tau
+        for target_param, param in zip(
+            self.target_value_net.parameters(), self.value_net.parameters()
+        ):
+            target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
+
     def train_episode(self) -> SingleEpisodeResult:
-        """Train for one episode"""
         state, _ = self.env.reset()
         done = False
-        episode_rewards, episode_losses, episode_steps = [], [], 0
+        episode_rewards, episode_losses, episode_steps = [], [], []
 
-        for step in range(self.config.max_steps):
-            action = self.select_action(state)["action"]
+        while not done and len(episode_steps) < self.config.max_steps:
+            action_info = self.select_action(state)
+            action = action_info["action"]
             next_state, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
+
+            # Store transition in replay buffer
             self.memory.push(state, action, reward, next_state, done)
+
             state = next_state
             episode_rewards.append(reward)
+            episode_steps.append(1)
 
-            loss = self.update()
-            if loss is not None:
-                episode_losses.append(loss)
-
-            if done:
-                episode_steps = step
-                break
+            # Update networks if enough samples
+            if len(self.memory) > self.config.batch_size:
+                update_result = self.update()
+                if update_result is not None:
+                    episode_losses.append(update_result)
 
         return SingleEpisodeResult(
-            episode_total_reward=np.sum(episode_rewards),
-            episode_steps=episode_steps,
+            episode_total_reward=round(np.sum(episode_rewards), 2),
+            episode_steps=round(np.sum(episode_steps), 2),
             episode_losses=episode_losses,
         )
 
     def save_model(self):
-        """Save model parameters"""
         torch.save(
             {
                 "actor": self.actor.state_dict(),
                 "critic1": self.critic1.state_dict(),
                 "critic2": self.critic2.state_dict(),
                 "value_net": self.value_net.state_dict(),
+                "target_value_net": self.target_value_net.state_dict(),
                 "log_alpha": self.log_alpha,
             },
             self.model_file,
         )
 
     def load_model(self):
-        """Load model parameters"""
         checkpoint = torch.load(self.model_file)
         self.actor.load_state_dict(checkpoint["actor"])
         self.critic1.load_state_dict(checkpoint["critic1"])
         self.critic2.load_state_dict(checkpoint["critic2"])
         self.value_net.load_state_dict(checkpoint["value_net"])
-        self.log_alpha.data = checkpoint["log_alpha"]
+        self.target_value_net.load_state_dict(checkpoint["target_value_net"])
+        self.log_alpha = checkpoint["log_alpha"]
         self.alpha = self.log_alpha.exp()
 
     def eval_mode_on(self):
-        """Set networks to evaluation mode"""
         self.actor.eval()
         self.critic1.eval()
         self.critic2.eval()
@@ -285,7 +290,6 @@ class SACTrainer(BaseTrainer):
         self.target_value_net.eval()
 
     def eval_mode_off(self):
-        """Set networks to training mode"""
         self.actor.train()
         self.critic1.train()
         self.critic2.train()

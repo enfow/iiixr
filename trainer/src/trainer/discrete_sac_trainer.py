@@ -38,27 +38,27 @@ class DiscreteSACTrainer(BaseTrainer):
         self.actor = DiscreteSACPolicy(
             self.state_dim,
             self.action_dim,
-            n_layers=self.config.n_layers,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.critic1 = DiscreteSACQNetwork(
             self.state_dim,
             self.action_dim,
-            n_layers=self.config.n_layers,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.critic2 = DiscreteSACQNetwork(
             self.state_dim,
             self.action_dim,
-            n_layers=self.config.n_layers,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.target_critic1 = DiscreteSACQNetwork(
             self.state_dim,
             self.action_dim,
-            n_layers=self.config.n_layers,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.target_critic2 = DiscreteSACQNetwork(
             self.state_dim,
             self.action_dim,
-            n_layers=self.config.n_layers,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.target_critic1.load_state_dict(self.critic1.state_dict())
         self.target_critic2.load_state_dict(self.critic2.state_dict())
@@ -198,7 +198,7 @@ class DiscreteSACTrainer(BaseTrainer):
                 episode_losses.append(loss)
 
             if done:
-                episode_steps = step
+                episode_steps = step + 1
                 break
 
         return SingleEpisodeResult(
@@ -211,14 +211,24 @@ class DiscreteSACTrainer(BaseTrainer):
         torch.save(
             {
                 "actor": self.actor.state_dict(),
-                "critic": self.critic1.state_dict(),
+                "critic1": self.critic1.state_dict(),
+                "critic2": self.critic2.state_dict(),
+                "target_critic1": self.target_critic1.state_dict(),
+                "target_critic2": self.target_critic2.state_dict(),
+                "log_alpha": self.log_alpha,
             },
             self.model_file,
         )
 
     def load_model(self):
-        self.actor.load_state_dict(torch.load(self.model_file)["actor"])
-        self.critic1.load_state_dict(torch.load(self.model_file)["critic"])
+        checkpoint = torch.load(self.model_file)
+        self.actor.load_state_dict(checkpoint["actor"])
+        self.critic1.load_state_dict(checkpoint["critic1"])
+        self.critic2.load_state_dict(checkpoint["critic2"])
+        self.target_critic1.load_state_dict(checkpoint["target_critic1"])
+        self.target_critic2.load_state_dict(checkpoint["target_critic2"])
+        self.log_alpha = checkpoint["log_alpha"]
+        self.alpha = self.log_alpha.exp()
 
     def eval_mode_on(self):
         self.actor.eval()

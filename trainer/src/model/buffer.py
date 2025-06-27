@@ -16,6 +16,63 @@ class ReplayBuffer:
         state, action, reward, next_state, done = map(np.stack, zip(*batch))
         return state, action, reward, next_state, done
 
+    def sample_sequences(self, batch_size, seq_len):
+        """Sample sequences that don't cross episode boundaries"""
+        if len(self.buffer) < seq_len:
+            return None
+
+        # Find all valid starting positions
+        valid_starts = []
+        for i in range(len(self.buffer) - seq_len + 1):
+            # Check if any episode starts within this sequence
+            sequence_indices = set(
+                range(i + 1, i + seq_len)
+            )  # Don't include start index
+            if not sequence_indices.intersection(self.episode_starts):
+                valid_starts.append(i)
+
+        if len(valid_starts) < batch_size:
+            # Sample with replacement if not enough valid sequences
+            selected_starts = random.choices(valid_starts, k=batch_size)
+        else:
+            selected_starts = random.sample(valid_starts, batch_size)
+
+        # Extract sequences
+        sequences = []
+        for start in selected_starts:
+            sequence = list(self.buffer)[start : start + seq_len]
+            sequences.append(sequence)
+
+        return self._format_sequences(sequences)
+
+    def _format_sequences(self, sequences):
+        state_seqs = []
+        action_seqs = []
+        reward_seqs = []
+        next_state_seqs = []
+        done_seqs = []
+
+        for seq in sequences:
+            states = [transition[0] for transition in seq]
+            actions = [transition[1] for transition in seq]
+            rewards = [transition[2] for transition in seq]
+            next_states = [transition[3] for transition in seq]
+            dones = [transition[4] for transition in seq]
+
+            state_seqs.append(states)
+            action_seqs.append(actions)
+            reward_seqs.append(rewards)
+            next_state_seqs.append(next_states)
+            done_seqs.append(dones)
+
+        return (
+            np.array(state_seqs),
+            np.array(action_seqs),
+            np.array(reward_seqs),
+            np.array(next_state_seqs),
+            np.array(done_seqs),
+        )
+
     def __len__(self):
         return len(self.buffer)
 

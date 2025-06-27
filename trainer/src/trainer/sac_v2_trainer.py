@@ -33,35 +33,35 @@ class SACV2Trainer(SACTrainer):
         self.actor = SACPolicy(
             self.state_dim,
             self.action_dim,
-            hidden_dim=self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            hidden_dim=self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
         # Q-networks
         self.critic1 = SACQNetwork(
             self.state_dim,
             self.action_dim,
-            hidden_dim=self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            hidden_dim=self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.critic2 = SACQNetwork(
             self.state_dim,
             self.action_dim,
-            hidden_dim=self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            hidden_dim=self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
         self.target_critic1 = SACQNetwork(
             self.state_dim,
             self.action_dim,
-            hidden_dim=self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            hidden_dim=self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.target_critic2 = SACQNetwork(
             self.state_dim,
             self.action_dim,
-            hidden_dim=self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            hidden_dim=self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
         # Double Target Q-networks

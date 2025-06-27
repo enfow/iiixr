@@ -63,7 +63,7 @@ class BaseTrainer:
 
     def _print_trainer_summary(self):
         # print env and model info
-        print(f"Env: {self.env_name} Model: {self.config.model}")
+        print(f"Env: {self.env_name} Model: {self.config.model.model}")
 
     def train(self):
         if hasattr(self.config, "start_steps") and self.config.start_steps > 0:

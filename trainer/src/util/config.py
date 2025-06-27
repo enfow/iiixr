@@ -26,4 +26,21 @@ def merge_configs(primary_config: dict, secondary_config: dict) -> dict:
         if value is not None:
             merged_config[key] = value
 
+    # Handle nested model config merging
+    if "model" in merged_config and isinstance(merged_config["model"], dict):
+        # If both configs have model as dict, merge them
+        if "model" in primary_config and isinstance(primary_config["model"], dict):
+            if "model" in secondary_config and isinstance(
+                secondary_config["model"], dict
+            ):
+                # Merge nested model configs
+                merged_model_config = {}
+                for k, v in secondary_config["model"].items():
+                    if v is not None:
+                        merged_model_config[k] = v
+                for k, v in primary_config["model"].items():
+                    if v is not None:
+                        merged_model_config[k] = v
+                merged_config["model"] = merged_model_config
+
     return merged_config

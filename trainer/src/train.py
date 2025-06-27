@@ -116,15 +116,25 @@ def main():
     # Merge configs with proper precedence: CLI args > YAML config
     config = merge_configs(primary_config=cli_args, secondary_config=yaml_config)
 
-    print(config)
+    # Restructure config to handle nested model config
+    # Move model-specific parameters to nested structure
+    model_params = {}
+    if config.get("model") is not None:
+        model_params["model"] = config["model"]
+    if config.get("hidden_dim") is not None:
+        model_params["hidden_dim"] = config["hidden_dim"]
+    if config.get("n_layers") is not None:
+        model_params["n_layers"] = config["n_layers"]
+
+    config["model"] = model_params
 
     # Create save directory path
-    save_dir = f"{config['save_dir']}/{config['env']}/{config['model']}/{time.strftime('%Y%m%d_%H%M%S')}"
+    save_dir = f"{config['save_dir']}/{config['env']}/{config['model']['model']}/{time.strftime('%Y%m%d_%H%M%S')}"
 
     print(f"Training configuration:")
     print(f"  Environment: {config['env']}")
-    print(f"  Model: {config['model']}")
-    print(f"  Episodes: {config['episodes']}")
+    print(f"  Model: {config['model']['model']}")
+    print(f"  Episodes: {config.get('episodes', 'default')}")
     print(f"  Device: {config['device']}")
     print(f"  Save directory: {save_dir}")
 

@@ -1,7 +1,10 @@
 # Training Configuration File
 # Environment settings
 env: "LunarLander-v3"
-model: "ppo"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
+model:
+  model: "ppo"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
+  hidden_dim: 256
+  n_layers: 3
 
 # Training parameters
 seed: 42
@@ -9,8 +12,6 @@ episodes: 1000
 max_steps: 1000
 lr: 3e-4
 gamma: 0.99
-hidden_dim: 256
-n_layers: 3
 buffer_size: 1000000
 batch_size: 256
 start_steps: 10000

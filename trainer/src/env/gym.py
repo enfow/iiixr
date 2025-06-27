@@ -7,10 +7,28 @@ class CustomEnv(BaseModel):
     kwargs: dict
 
 
+class TestGymEnv(gym.Env):
+    def __init__(self, env_name: str, **kwargs):
+        self.env_name = env_name
+        self.kwargs = kwargs
+        self.action_space = gym.spaces.Box(low=-1, high=1, shape=(2,))
+        self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(2,))
+
+    def reset(self):
+        return self.observation_space.sample(), {}
+
+    def step(self, action):
+        return self.observation_space.sample(), 0, False, False, {}
+
+    def close(self):
+        return
+
+
 CUSTOM_ENVS = {
     "BipedalWalkerHardcore-v3": CustomEnv(
         env_name="BipedalWalker-v3", kwargs={"hardcore": True}
     ),
+    "TestGymEnv": CustomEnv(env_name="TestGymEnv", kwargs={}),
 }
 
 
@@ -23,9 +41,12 @@ class GymEnvFactory:
 
     def __new__(cls, env_name: str, **kwargs):
         if env_name in CUSTOM_ENVS:
-            return gym.make(
-                CUSTOM_ENVS[env_name].env_name, **CUSTOM_ENVS[env_name].kwargs
-            )
+            if env_name == "TestGymEnv":
+                return TestGymEnv(env_name, **kwargs)
+            else:
+                return gym.make(
+                    CUSTOM_ENVS[env_name].env_name, **CUSTOM_ENVS[env_name].kwargs
+                )
         elif env_name in cls._registered_envs:
             return gym.make(env_name, **kwargs)
         else:

@@ -26,6 +26,28 @@ class TD3Actor(nn.Module):
         return action * self.max_action
 
 
+class TransformerTD3Actor(nn.Module):
+    def __init__(
+        self, state_dim, action_dim, max_action, d_model=256, nhead=8, num_layers=6
+    ):
+        super().__init__()
+        self.max_action = max_action
+        self.embedding = nn.Linear(state_dim, d_model)
+        self.transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(d_model, nhead), num_layers
+        )
+        self.action_head = nn.Linear(d_model, action_dim)
+
+    def forward(self, state_sequence):
+        # state_sequence: (batch, seq_len, state_dim)
+        embedded = self.embedding(state_sequence).transpose(
+            0, 1
+        )  # (seq_len, batch, d_model)
+        transformed = self.transformer(embedded)
+        action = torch.tanh(self.action_head(transformed[-1]))  # [-1, 1]
+        return action * self.max_action  # Scale to [-max_action, max_action]c
+
+
 class TD3Critic(nn.Module):
     def __init__(
         self,

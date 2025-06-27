@@ -37,7 +37,7 @@ class TrainerFactory:
     selectable_models = SELECTABLE_MODELS
 
     def __new__(cls, env_name: str, config_dict: dict, save_dir: str):
-        model_name = config_dict["model"]
+        model_name = config_dict["model"]["model"]
         if model_name == PPOTrainer.name:
             return PPOTrainerFactory(env_name, config_dict, save_dir)
         elif model_name == SACTrainer.name:

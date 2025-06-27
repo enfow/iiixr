@@ -41,20 +41,20 @@ class RainbowDQNTrainer(BaseTrainer):
         self.policy_net = CategoricalDuelingNetwork(
             self.state_dim,
             self.action_dim,
-            self.config.hidden_dim,
+            self.config.model.hidden_dim,
             self.config.n_atoms,
             self.config.v_min,
             self.config.v_max,
-            n_layers=self.config.n_layers,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.target_net = CategoricalDuelingNetwork(
             self.state_dim,
             self.action_dim,
-            self.config.hidden_dim,
+            self.config.model.hidden_dim,
             self.config.n_atoms,
             self.config.v_min,
             self.config.v_max,
-            n_layers=self.config.n_layers,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
@@ -198,34 +198,38 @@ class RainbowDQNTrainer(BaseTrainer):
 
         for step in range(self.config.max_steps):
             self.total_steps += 1
+
+            # Select action
             action_info = self.select_action(state)
             action = action_info["action"]
 
+            # Take action
             next_state, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
 
+            # Store transition in replay buffer
             self.replay_buffer.push(state, action, reward, next_state, done)
-
-            loss_info = self.update()
-            if loss_info:
-                episode_losses.append(loss_info.loss)
-
-            self._update_target_net()
 
             state = next_state
             episode_rewards.append(reward)
+            episode_steps += 1
+
+            # Update networks if enough samples
+            if len(self.replay_buffer) >= self.config.batch_size:
+                update_result = self.update()
+                if update_result is not None:
+                    episode_losses.append(update_result)
+
+            # Update target network
+            self._update_target_net()
 
             if done:
-                episode_steps = step + 1
                 break
-
-        # Calculate average loss, handling the case of no updates
-        avg_loss = np.mean(episode_losses) if episode_losses else 0.0
 
         return SingleEpisodeResult(
             episode_total_reward=np.sum(episode_rewards),
             episode_steps=episode_steps,
-            episode_losses=[RainbowDQNUpdateLoss(loss=avg_loss)],
+            episode_losses=episode_losses,
         )
 
     def save_model(self):
@@ -239,7 +243,9 @@ class RainbowDQNTrainer(BaseTrainer):
     def eval_mode_on(self):
         """Sets the policy network to evaluation mode."""
         self.policy_net.eval()
+        self.target_net.eval()
 
     def eval_mode_off(self):
         """Sets the policy network to training mode."""
         self.policy_net.train()
+        self.target_net.train()

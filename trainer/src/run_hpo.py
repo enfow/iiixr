@@ -236,15 +236,15 @@ def main():
     if args.device is not None:
         hpo_config["device"] = args.device
     if args.model is not None:
-        hpo_config["model"] = args.model
+        hpo_config["model"]["model"] = args.model
     if args.episodes is not None:
         hpo_config["episodes"] = args.episodes
     if args.max_steps is not None:
         hpo_config["max_steps"] = args.max_steps
     if args.hpo_n_trials is not None:
-        hpo_config["hpo_n_trials"] = args.hpo_n_trials
+        hpo_config["n_trials"] = args.hpo_n_trials
     if args.hpo_study_name is not None:
-        hpo_config["hpo_study_name"] = args.hpo_study_name
+        hpo_config["study_name"] = args.hpo_study_name
 
     # Get default search spaces from config file
     config_searchable = hpo_config.get("searchable_hyperparameters", {})
@@ -348,27 +348,25 @@ def main():
     print("Searchable Parameters:")
     print(searchable_params)
     print("Number of possible combinations:", n_possible_combinations)
-    hpo_config["hpo_n_trials"] = min(
-        hpo_config["hpo_n_trials"], n_possible_combinations
-    )
-    print("Number of trials:", hpo_config["hpo_n_trials"])
+    hpo_config["n_trials"] = min(hpo_config["n_trials"], n_possible_combinations)
+    print("Number of trials:", hpo_config["n_trials"])
 
-    print("Study name:", hpo_config["hpo_study_name"])
+    print("Study name:", hpo_config["study_name"])
     print("=" * 50)
     proceed = input("Proceed? (y/n): ")
     if proceed != "y":
         print("Exiting...")
         exit()
 
-    save_dir = f"results/hpo/{hpo_config['env']}/{hpo_config['model']}/{hpo_config['hpo_study_name']}_{time.strftime('%Y%m%d_%H%M%S')}"
+    save_dir = f"results/hpo/{hpo_config['env']}/{hpo_config['model']['model']}/{hpo_config['study_name']}_{time.strftime('%Y%m%d_%H%M%S')}"
 
     # Run optimization
     study = run_optuna_optimization(
         hpo_config=hpo_config,
         searchable_params=searchable_params,
-        n_trials=hpo_config["hpo_n_trials"],
+        n_trials=hpo_config["n_trials"],
         timeout=args.timeout,
-        study_name=hpo_config["hpo_study_name"],
+        study_name=hpo_config["study_name"],
         save_dir=save_dir,
     )
 

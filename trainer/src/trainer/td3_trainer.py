@@ -31,16 +31,16 @@ class TD3Trainer(BaseTrainer):
         self.actor = TD3Actor(
             self.state_dim,
             self.action_dim,
-            self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
             max_action=self.max_action,
         ).to(self.config.device)
 
         self.critic = TD3Critic(
             self.state_dim,
             self.action_dim,
-            self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
         # Target networks
@@ -200,7 +200,11 @@ class TD3Trainer(BaseTrainer):
     def eval_mode_on(self):
         self.actor.eval()
         self.critic.eval()
+        self.actor_target.eval()
+        self.critic_target.eval()
 
     def eval_mode_off(self):
         self.actor.train()
         self.critic.train()
+        self.actor_target.train()
+        self.critic_target.train()

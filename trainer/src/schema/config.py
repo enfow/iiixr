@@ -1,19 +1,30 @@
 import json
-import time
+from enum import Enum
 
 import torch
 from pydantic import BaseModel
 
 
-class BaseConfig(BaseModel):
+class ModelEmbeddingType(str, Enum):
+    FC = "fc"
+    TRANSFORMER = "transformer"
+
+
+class ModelConfig(BaseModel):
+    # TODO: change it to model_name
     model: str = None
+    hidden_dim: int = 256
+    n_layers: int = 3
+    embedding_type: ModelEmbeddingType = ModelEmbeddingType.FC
+
+
+class BaseConfig(BaseModel):
+    model: ModelConfig = ModelConfig()
     seed: int = 42
     episodes: int = 1000
     max_steps: int = 1000
     lr: float = 3e-4
     gamma: float = 0.99
-    hidden_dim: int = 256
-    n_layers: int = 3
     buffer_size: int = 1000000
     batch_size: int = 256
     # env
@@ -30,6 +41,21 @@ class BaseConfig(BaseModel):
 
     @classmethod
     def from_dict(cls, config: dict):
+        # Handle nested model config
+        if "model" in config and isinstance(config["model"], dict):
+            # If model is a dict, it contains model-specific config
+            model_config = config["model"]
+            # Extract model name if present
+            model_name = model_config.get("model")
+            if model_name:
+                config["model"] = model_name
+            # Create ModelConfig instance
+            config["model"] = ModelConfig(**model_config)
+        elif "model" in config and isinstance(config["model"], str):
+            # If model is a string, create ModelConfig with just the model name
+            model_name = config["model"]
+            config["model"] = ModelConfig(model=model_name)
+
         cls._check_device(config)
         return cls(**config)
 

@@ -20,13 +20,13 @@ class DiscretePPOTrainer(PPOTrainer):
         self.actor = DiscreteActor(
             self.state_dim,
             self.action_dim,
-            self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.critic = DiscreteCritic(
             self.state_dim,
-            self.config.hidden_dim,
-            n_layers=self.config.n_layers,
+            self.config.model.hidden_dim,
+            n_layers=self.config.model.n_layers,
         ).to(self.config.device)
         self.memory = PPOMemory()
         self.actor_optimizer = optim.Adam(
