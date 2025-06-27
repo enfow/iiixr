@@ -139,7 +139,12 @@ def main():
     config["model"] = model_params
 
     # Create save directory path
-    save_dir = f"{config['save_dir']}/{config['env']}/{config['model']['model']}/{config['model']['embedding_type']}/{time.strftime('%Y%m%d_%H%M%S')}"
+    save_dir = os.path.join(
+        config["save_dir"],
+        config["env"],
+        config["model"]["model"],
+        time.strftime("%Y%m%d_%H%M%S"),
+    )
 
     print(f"Training configuration:")
     print(f"  Environment: {config['env']}")
