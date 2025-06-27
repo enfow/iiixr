@@ -1,4 +1,4 @@
-import { defineDocumentType, makeSource } from 'contentlayer/source-files'
+import { defineDocumentType, makeSource } from 'contentlayer2/source-files'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
@@ -30,11 +30,16 @@ export const Post = defineDocumentType(() => ({
       description: 'Tags for the post',
       required: false,
     },
+    type: {
+      type: 'string',
+      description: 'Type of the post',
+      required: true,
+    },
   },
   computedFields: {
     url: {
       type: 'string',
-      resolve: (post) => `/posts/${post._raw.flattenedPath}`,
+      resolve: (post: any) => `/posts/${post._raw.flattenedPath}`,
     },
   },
 }))
@@ -44,6 +49,9 @@ export default makeSource({
   documentTypes: [Post],
   mdx: {
     remarkPlugins: [remarkGfm, remarkMath],
-    rehypePlugins: [rehypeKatex, rehypeHighlight],
+    rehypePlugins: [
+      rehypeKatex, 
+      [rehypeHighlight, { ignoreMissing: true }]
+    ],
   },
 }) 

@@ -9,7 +9,7 @@ import { getMDXFiles, getMDXFile, MDXPost } from '@/lib/mdx-loader'
 
 export default function Home() {
   const [currentFile, setCurrentFile] = useState('example-post')
-  const [contentFiles, setContentFiles] = useState<Array<{id: string, title: string, description?: string}>>([])
+  const [contentFiles, setContentFiles] = useState<Array<{id: string, title: string, description?: string, type: string}>>([])
   const [currentPost, setCurrentPost] = useState<MDXPost | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -21,7 +21,8 @@ export default function Home() {
         const fileList = files.map(file => ({
           id: file.id,
           title: file.title,
-          description: file.description
+          description: file.description,
+          type: file.type
         }))
         setContentFiles(fileList)
         
@@ -81,7 +82,7 @@ export default function Home() {
               This is your new dashboard application with MDX content support.
             </p>
           </div>
-          <TrainingControl />
+          {/* <TrainingControl /> */}
           {contentFiles.length > 0 && (
             <ContentNavigation 
               files={contentFiles}

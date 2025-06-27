@@ -52,9 +52,19 @@ const components = {
   ),
   
   // Custom code blocks
-  pre: ({ children }: { children: React.ReactNode }) => (
-    <pre className="bg-gray-100 rounded-lg p-4 overflow-x-auto mb-4 text-sm">{children}</pre>
-  ),
+  pre: ({ children, className }: { children: React.ReactNode; className?: string }) => {
+    // Extract language from className (format: language-python)
+    const language = className?.replace('language-', '') || 'text'
+    
+    return (
+      <pre 
+        className="bg-gray-100 rounded-lg p-4 overflow-x-auto mb-4 text-sm"
+        data-language={language}
+      >
+        {children}
+      </pre>
+    )
+  },
   
   // Inline code
   code: ({ children }: { children: React.ReactNode }) => (
@@ -83,7 +93,10 @@ export default function MDXContent({ post }: MDXContentProps) {
           outputFormat: 'function-body',
           development: false,
           remarkPlugins: [remarkMath, remarkGfm],
-          rehypePlugins: [rehypeKatex, rehypeHighlight],
+          rehypePlugins: [
+            rehypeKatex, 
+            [rehypeHighlight, { ignoreMissing: true }]
+          ],
         })
 
         // Run the compiled content

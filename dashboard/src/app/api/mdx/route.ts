@@ -9,6 +9,7 @@ export interface MDXPost {
   date: string
   description?: string
   tags?: string[]
+  type: string
   content: string
   body: {
     html: string
@@ -41,6 +42,7 @@ function getMDXFiles(): MDXPost[] {
       date: data.date || new Date().toISOString(),
       description: data.description,
       tags: data.tags || [],
+      type: data.type || 'Unknown',
       content,
       body: {
         html: content // For now, we'll use the raw content

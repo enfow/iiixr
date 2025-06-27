@@ -4,6 +4,7 @@ export interface MDXPost {
   date: string
   description?: string
   tags?: string[]
+  type: string
   content: string
   body: {
     html: string

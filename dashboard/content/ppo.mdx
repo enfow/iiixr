@@ -1,115 +1,41 @@
 ---
-title: "Reinforcement Learning with PPO Algorithm"
+title: "PPO Algorithm"
 date: 2024-01-15
-description: "An introduction to Proximal Policy Optimization (PPO) algorithm with mathematical foundations and implementation details."
-tags: ["reinforcement-learning", "ppo", "deep-learning"]
+# description: "An introduction to Proximal Policy Optimization (PPO) algorithm with mathematical foundations and implementation details."
+# tags: ["reinforcement-learning", "ppo", "deep-learning"]
+type: "model"
 ---
 
-# Reinforcement Learning with PPO Algorithm
-
-Proximal Policy Optimization (PPO) is one of the most popular reinforcement learning algorithms due to its simplicity and effectiveness. In this post, we'll explore the mathematical foundations and implementation details.
-
-## Mathematical Foundation
-
-The PPO algorithm is based on the policy gradient theorem. The objective function for PPO is:
+PPO(Proximal Policy Optimization) 알고리즘은 Trust Region Policy Optimization(TRPO)의 복잡한 제약 조건을 단순화하면서도 안정적인 학습 성능을 유지하는 것을 목표로 한다. TRPO는 policy 업데이트 시 KL divergence 제약을 통해 policy gradient의 불안정성 문제를 해결했지만, conjugate gradient 등의 복잡한 연산으로 인한 높은 계산 비용이 단점이었다. PPO는 이를 극복하기 위해 KL divergence 제약을 importance sampling ratio에 대한 간단한 clipping 연산으로 대체하는 것이 핵심 아이디어다.
 
 $$
-L^{CLIP}(\theta) = \mathbb{E}_t \left[ \min \left( r_t(\theta) A_t, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon) A_t \right) \right]
+L^{CLIP}(\theta) = \hat{\mathbb{E}}_t\left[\min\left(r_t(\theta) \hat{A}_t, \text{clip}\left(r_t(\theta), 1-\epsilon, 1+\epsilon\right) \hat{A}_t\right)\right]
 $$
 
-Where:
-- $r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{old}}(a_t|s_t)}$ is the probability ratio
-- $A_t$ is the advantage function
-- $\epsilon$ is the clipping parameter (typically 0.2)
-
-The advantage function is computed as:
+여기서 $r_t(\theta)$ 가 importance sampling ratio 이다.
 
 $$
-A_t = \delta_t + (\gamma \lambda) \delta_{t+1} + \cdots + (\gamma \lambda)^{T-t+1} \delta_{T-1}
+r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}
 $$
 
-Where $\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)$ is the TD error.
+loss function 은 다음과 같다.
 
-## Implementation Example
+$$
+L_t^{CLIP+VF+S}(\theta) = \hat{\mathbb{E}}_t\left[L_t^{CLIP}(\theta) - c_1 L_t^{VF}(\theta) + c_2 S[\pi_\theta](s_t)\right]
+$$
 
-Here's a simple implementation of the PPO algorithm in Python:
+여기서   $V_t^{VF}$ 은 value function 에 대한 loss 를, $S[\pi_\theta](s_t)$ 는 entropy 의 크기를 의미한다.
 
-```python
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
+$$
+S[\pi_\theta](s_t) = -\sum_a \pi_\theta(a|s_t) \log \pi_\theta(a|s_t)
+$$
 
-class PPONetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=256):
-        super().__init__()
-        self.actor = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, action_dim),
-            nn.Softmax(dim=-1)
-        )
-        
-        self.critic = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
-        )
-    
-    def forward(self, state):
-        return self.actor(state), self.critic(state)
+현재 Policy 를 통해 수집된 Transaction으로만 학습을 진행하는 것을 의미하는 On-Policy 의 정의에 PPO와 TRPO가 완벽하게 맞아 떨어지지는 않는다. 왜냐하면 두 알고리즘 모두 여러 번의 Epoch 에 걸쳐 Policy 를 업데이트하기 때문이다. Importance sampling 을 통해 분포를 조정하는 이유가 여기에 있다. 하지만 이를 통해 on policy 의 낮은 샘플 효율성을 개선할 수 있다.
 
-def compute_ppo_loss(states, actions, old_log_probs, advantages, returns, 
-                    clip_epsilon=0.2, value_coef=0.5, entropy_coef=0.01):
-    """
-    Compute PPO loss with clipping
-    """
-    actor_probs, values = ppo_network(states)
-    dist = torch.distributions.Categorical(actor_probs)
-    log_probs = dist.log_prob(actions)
-    
-    # Compute ratio
-    ratio = torch.exp(log_probs - old_log_probs)
-    
-    # Compute clipped surrogate loss
-    surr1 = ratio * advantages
-    surr2 = torch.clamp(ratio, 1 - clip_epsilon, 1 + clip_epsilon) * advantages
-    actor_loss = -torch.min(surr1, surr2).mean()
-    
-    # Value loss
-    value_loss = nn.MSELoss()(values.squeeze(), returns)
-    
-    # Entropy bonus
-    entropy = dist.entropy().mean()
-    
-    total_loss = actor_loss + value_coef * value_loss - entropy_coef * entropy
-    return total_loss, actor_loss, value_loss, entropy
-```
+### PPO Hyperparameter
 
-## Training Results
+PPO의 주요 hyperparameter 로는 ppo_epochs, clip_eps, entropy_coef 등이 있다.
 
-Here's an example of training progress on the CartPole environment:
-
-![PPO Training Progress](./ppo-training.gif)
-
-The training shows the agent learning to balance the pole over time, with the reward increasing from around 20 to 200+ steps.
-
-## Key Advantages of PPO
-
-1. **Stability**: The clipping mechanism prevents large policy updates
-2. **Simplicity**: Easy to implement and tune
-3. **Sample Efficiency**: Good performance with relatively few samples
-4. **Robustness**: Works well across different environments
-
-## Conclusion
-
-PPO is an excellent choice for many reinforcement learning problems due to its balance of simplicity and effectiveness. The mathematical foundations ensure stable learning, while the implementation is straightforward enough for practical applications.
-
-For more advanced topics, consider exploring:
-- Multi-agent PPO
-- PPO with continuous action spaces
-- PPO with attention mechanisms 
+- **ppo_epochs**: 수집된 batch 데이터를 사용하여 policy를 업데이트하는 횟수이다. 일반적으로 3-10 사이의 값을 사용하며, 너무 크면 old policy에서 벗어나 importance sampling의 가정이 위배되고, 너무 작으면 sample efficiency가 떨어진다. 보통 4-5가 많이 사용된다.
+- **clip_eps**: importance sampling ratio를 제한하는 clipping parameter로, [1−ϵ,1+ϵ] 범위를 정의한다. 일반적으로 0.1-0.3 사이의 값을 사용하며, 0.2가 기본값으로 널리 사용된다. 값이 클수록 policy 변화를 더 허용하지만 불안정해질 수 있고, 작을수록 안정적이지만 학습 속도가 느려진다.
+- **entropy_coef**: policy의 entropy에 대한 가중치로, exploration을 촉진하는 역할을 한다. 일반적으로 0.01-0.1 사이의 값을 사용하며, 값이 클수록 더 많은 exploration을 하게 된다. 학습 초기에는 높은 값으로 exploration을 촉진하고, 학습이 진행되면서 점차 줄여나가는 방식(entropy decay)도 많이 사용된다.

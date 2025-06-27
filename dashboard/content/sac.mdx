@@ -1,147 +1,20 @@
 ---
-title: "Soft Actor-Critic (SAC) Algorithm"
+title: "SAC Algorithm"
 date: 2024-01-16
-description: "An introduction to Soft Actor-Critic algorithm with entropy maximization and implementation details."
-tags: ["reinforcement-learning", "sac", "deep-learning", "continuous-control"]
+type: "model"
 ---
 
-# Soft Actor-Critic (SAC) Algorithm
-
-Soft Actor-Critic (SAC) is a state-of-the-art reinforcement learning algorithm that combines the benefits of actor-critic methods with entropy maximization for improved exploration and stability.
-
-## Mathematical Foundation
-
-SAC maximizes the expected reward while also maximizing the policy entropy:
+ SAC(Soft Actor-Critic)는 off-policy actor-critic 계열의 알고리즘으로, reward를 최대화하는 동시에 policy의 entropy 또한 함께 최대화하는 방향으로 학습을 진행한다. Policy의 entropy를 높인다는 것은 특정 action을 극단적으로 선택할 가능성을 낮추어 학습 과정에서 exploration을 높이는 효과를 보인다.
 
 $$
-J(\pi) = \sum_{t=0}^{T} \mathbb{E}_{(s_t, a_t) \sim \rho_\pi} \left[ r(s_t, a_t) + \alpha \mathcal{H}(\pi(\cdot|s_t)) \right]
+J(\pi) = \mathbb{E}_{\tau \sim \pi}\left[\sum_{t=0}^{T} \gamma^t \left(r(s_t, a_t) + \alpha \mathcal{H}(\pi(\cdot|s_t))\right)\right]
 $$
 
-Where:
-- $\alpha$ is the temperature parameter that controls the trade-off between exploration and exploitation
-- $\mathcal{H}(\pi(\cdot|s_t))$ is the entropy of the policy at state $s_t$
+ SAC는 value network, Q network, policy network를 갖는다. 여기서 value network는 Q network의 target value 계산에 사용되고, Q network는 critic의 역할을 한다. Policy는 Q 값을 높이면서 동시에 적절한 entropy를 유지하는 방향으로 업데이트된다. 이때 Q-value의 over estimation 문제가 학습 안정성에 큰 영향을 미치므로, Double Q learning 을 적용하고 있다. 여기서 $\alpha$ 는 temperature parameter 로, exploration 과 exploitation 간의 비율을 조절하는 계수이다. 
 
-The Q-function is updated using the soft Bellman equation:
+SAC를 구현하는 방법은 다양하다. 원래 버전은 별도의 value network를 사용하지만, 후속 연구에서는 value function 없이 double target Q network만 사용하는 방법도 제안되었다. 또한 원래 continuous action을 위해 설계되었지만, discrete 환경에 맞게 구현하는 방법도 있다.
 
-$$
-Q(s_t, a_t) = r(s_t, a_t) + \gamma \mathbb{E}_{s_{t+1} \sim p} \left[ V(s_{t+1}) \right]
-$$
+### SAC Hyperparameter
 
-Where the soft value function is:
-
-$$
-V(s_t) = \mathbb{E}_{a_t \sim \pi} \left[ Q(s_t, a_t) - \alpha \log \pi(a_t|s_t) \right]
-$$
-
-## Implementation Example
-
-Here's a PyTorch implementation of the SAC algorithm:
-
-```python
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-from torch.distributions import Normal
-
-class SACNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=256):
-        super().__init__()
-        self.actor = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 2 * action_dim)  # mean and log_std
-        )
-        
-        self.critic1 = nn.Sequential(
-            nn.Linear(state_dim + action_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
-        )
-        
-        self.critic2 = nn.Sequential(
-            nn.Linear(state_dim + action_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
-        )
-    
-    def forward(self, state):
-        actor_output = self.actor(state)
-        mean, log_std = actor_output.chunk(2, dim=-1)
-        log_std = torch.clamp(log_std, -20, 2)
-        return mean, log_std
-    
-    def sample_action(self, state):
-        mean, log_std = self.forward(state)
-        std = log_std.exp()
-        normal = Normal(mean, std)
-        action = normal.rsample()  # reparameterization trick
-        log_prob = normal.log_prob(action)
-        return action, log_prob
-
-def compute_sac_loss(states, actions, rewards, next_states, dones, 
-                    alpha=0.2, gamma=0.99):
-    """
-    Compute SAC loss with entropy regularization
-    """
-    # Actor loss
-    new_actions, log_probs = sac_network.sample_action(states)
-    q1_new = sac_network.critic1(torch.cat([states, new_actions], dim=-1))
-    q2_new = sac_network.critic2(torch.cat([states, new_actions], dim=-1))
-    q_new = torch.min(q1_new, q2_new)
-    actor_loss = (alpha * log_probs - q_new).mean()
-    
-    # Critic loss
-    q1 = sac_network.critic1(torch.cat([states, actions], dim=-1))
-    q2 = sac_network.critic2(torch.cat([states, actions], dim=-1))
-    
-    with torch.no_grad():
-        next_actions, next_log_probs = sac_network.sample_action(next_states)
-        q1_next = sac_network.critic1(torch.cat([next_states, next_actions], dim=-1))
-        q2_next = sac_network.critic2(torch.cat([next_states, next_actions], dim=-1))
-        q_next = torch.min(q1_next, q2_next)
-        target_q = rewards + gamma * (1 - dones) * (q_next - alpha * next_log_probs)
-    
-    critic1_loss = F.mse_loss(q1, target_q)
-    critic2_loss = F.mse_loss(q2, target_q)
-    
-    return actor_loss, critic1_loss, critic2_loss
-```
-
-## Key Advantages of SAC
-
-1. **Sample Efficiency**: SAC is one of the most sample-efficient RL algorithms
-2. **Stability**: The entropy regularization helps prevent premature convergence
-3. **Continuous Control**: Excellent performance on continuous control tasks
-4. **Automatic Temperature Tuning**: Can automatically adjust the temperature parameter
-
-## Training Results
-
-SAC typically achieves superior performance on continuous control benchmarks:
-
-![SAC Training Progress](./sac-training.gif)
-
-The algorithm shows consistent improvement in reward over training episodes, with better final performance compared to other algorithms.
-
-## Comparison with Other Algorithms
-
-| Algorithm | Sample Efficiency | Stability | Continuous Control |
-|-----------|------------------|-----------|-------------------|
-| SAC       | ⭐⭐⭐⭐⭐        | ⭐⭐⭐⭐⭐  | ⭐⭐⭐⭐⭐          |
-| PPO       | ⭐⭐⭐⭐          | ⭐⭐⭐⭐    | ⭐⭐⭐⭐            |
-| DDPG      | ⭐⭐⭐            | ⭐⭐      | ⭐⭐⭐             |
-
-## Conclusion
-
-SAC represents a significant advancement in reinforcement learning, particularly for continuous control problems. Its combination of actor-critic methods with entropy maximization makes it both stable and efficient.
-
-For further exploration, consider:
-- Multi-agent SAC
-- SAC with hierarchical policies
-- SAC for robotics applications 
+- **tau**: Target network의 soft update를 위한 계수이다.  tau 값이 작을수록 target network가 천천히 업데이트되어 학습이 안정적이지만 느려지고, 클수록 빠르게 업데이트되지만 불안정해질 수 있다.
+- **entropy_coef**: Temperature parameter α의 초기값 또는 고정값으로, exploration의 강도를 결정한다.
