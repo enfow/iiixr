@@ -243,12 +243,11 @@ def run_gif_generator(
     max_steps: int = 1000,
     fps: int = 30,
     episodes: int = 1,
-    multiple: bool = False,
-    num_gifs: int = 3,
+    num_gifs: int = 1,
     render_mode: str = "rgb_array",
 ):
     generator = GIFGenerator(results_dir)
-    if multiple:
+    if num_gifs > 1:
         gif_paths = generator.generate_multiple_gifs(
             max_steps=max_steps,
             fps=fps,
@@ -256,11 +255,16 @@ def run_gif_generator(
             num_gifs=num_gifs,
             render_mode=render_mode,
         )
+        print(f"Generated {len(gif_paths)} GIFs:")
+        for path in gif_paths:
+            print(f"  - {path}")
+        return gif_paths
     else:
         gif_path = generator.generate_gif(
             max_steps=max_steps, fps=fps, episodes=episodes, render_mode=render_mode
         )
-    return gif_path
+        print(f"Generated GIF: {gif_path}")
+        return gif_path
 
 
 def main():
@@ -276,10 +280,10 @@ def main():
         "--episodes", type=int, default=1, help="Number of episodes to record"
     )
     parser.add_argument(
-        "--multiple", action="store_true", help="Generate multiple GIFs"
-    )
-    parser.add_argument(
-        "--num_gifs", type=int, default=3, help="Number of GIFs to generate"
+        "--num_gifs",
+        type=int,
+        default=1,
+        help="Number of GIFs to generate (use >1 for multiple GIFs)",
     )
     parser.add_argument(
         "--render_mode", default="rgb_array", help="Gymnasium render mode"
@@ -293,7 +297,6 @@ def main():
             args.max_steps,
             args.fps,
             args.episodes,
-            args.multiple,
             args.num_gifs,
             args.render_mode,
         )
