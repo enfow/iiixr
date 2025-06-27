@@ -41,7 +41,7 @@ class TD3Critic(nn.Module):
             q1_layers.append(nn.Linear(hidden_dim, hidden_dim))
             q1_layers.append(nn.ReLU())
         self.q1_layers = nn.Sequential(*q1_layers)
-        self.q1_out = nn.Linear(hidden_dim, 1)
+        # self.q1_out = nn.Linear(hidden_dim, 1)
 
         # Q2 network
         q2_layers = [nn.Linear(state_dim + action_dim, hidden_dim), nn.ReLU()]
@@ -49,20 +49,21 @@ class TD3Critic(nn.Module):
             q2_layers.append(nn.Linear(hidden_dim, hidden_dim))
             q2_layers.append(nn.ReLU())
         self.q2_layers = nn.Sequential(*q2_layers)
-        self.q2_out = nn.Linear(hidden_dim, 1)
+        # self.q2_out = nn.Linear(hidden_dim, 1)
 
     def forward(self, state, action):
         sa = torch.cat([state, action], dim=1)
 
         q1 = self.q1_layers(sa)
-        q1 = self.q1_out(q1)
+        # q1 = self.q1_out(q1)
 
         q2 = self.q2_layers(sa)
-        q2 = self.q2_out(q2)
+        # q2 = self.q2_out(q2)
 
         return q1, q2
 
     def Q1(self, state, action):
         sa = torch.cat([state, action], dim=1)
         q1 = self.q1_layers(sa)
-        return self.q1_out(q1)
+        # return self.q1_out(q1)
+        return q1

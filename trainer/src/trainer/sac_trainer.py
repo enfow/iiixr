@@ -7,6 +7,7 @@ Note
 - introduces a temperature parameter alpha(SACv2) to control policy entropy, unlike the original paper
 """
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim

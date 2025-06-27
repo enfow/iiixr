@@ -99,7 +99,7 @@ class TD3Trainer(BaseTrainer):
             # Compute the target Q value
             target_Q1, target_Q2 = self.critic_target(next_state, next_action)
             target_Q = torch.min(target_Q1, target_Q2)
-            target_Q = reward + (~done) * self.config.gamma * target_Q
+            target_Q = reward + (1 - done) * self.config.gamma * target_Q
 
         # Get current Q estimates
         current_Q1, current_Q2 = self.critic(state, action)

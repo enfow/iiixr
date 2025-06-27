@@ -17,6 +17,7 @@ class BaseTrainer:
         config = self.config_class.from_dict(config_dict)
         set_seed(config.seed)
 
+        self.env_name = env_name
         self.env = GymEnvFactory(env_name)
         self.config = config
         self.save_dir = save_dir
@@ -62,7 +63,7 @@ class BaseTrainer:
 
     def _print_trainer_summary(self):
         # print env and model info
-        print(f"Env: {self.env_name} Model: {self.model_name}")
+        print(f"Env: {self.env_name} Model: {self.config.model}")
 
     def train(self):
         if hasattr(self.config, "start_steps") and self.config.start_steps > 0:

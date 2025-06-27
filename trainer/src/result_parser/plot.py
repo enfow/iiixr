@@ -122,7 +122,7 @@ class ResultParser:
             # Create SingleEpisodeResult
             episode_result = SingleEpisodeResult(
                 episode_number=data["ep"],
-                episode_rewards=[data["total_rewards"]],  # Convert to list format
+                episode_total_reward=data["total_rewards"],  # Convert to list format
                 episode_steps=data["episode_steps"],
                 episode_losses=loss_details,
                 episode_elapsed_time=data["episode_elapsed_time"],
@@ -148,7 +148,7 @@ class ResultParser:
             return
 
         episodes = [result.episode_number for result in self.train_results]
-        total_rewards = [sum(result.episode_rewards) for result in self.train_results]
+        total_rewards = [result.episode_total_reward for result in self.train_results]
 
         plt.figure(figsize=(12, 8))
         plt.plot(episodes, total_rewards, "b-", linewidth=2, label="Total Rewards")
@@ -203,7 +203,9 @@ class ResultParser:
         plt.tight_layout()
 
         if save_path is not None:
+            print(f"Saving training plot to {save_path}")
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
+            print("Done")
 
         if show_plot:
             plt.show()
@@ -506,7 +508,7 @@ class ResultParser:
         if self.train_results:
             episodes = [result.episode_number for result in self.train_results]
             total_rewards = [
-                sum(result.episode_rewards) for result in self.train_results
+                result.episode_total_reward for result in self.train_results
             ]
 
             ax1.plot(episodes, total_rewards, "b-", linewidth=2, label="Total Rewards")
@@ -591,7 +593,7 @@ class ResultParser:
 
         if self.train_results:
             total_rewards = [
-                sum(result.episode_rewards) for result in self.train_results
+                result.episode_total_reward for result in self.train_results
             ]
             summary.update(
                 {
@@ -656,6 +658,7 @@ class ResultParser:
         print("=" * 60)
 
     def plot_results(self):
+        print("Plotting results...")
         self.plot_training_results()
         self.plot_evaluation_results()
         self.plot_loss_results()
@@ -679,8 +682,6 @@ def main():
         result_parser = ResultParser(args.results_dir)
 
         # Print summary
-        result_parser.print_summary()
-
         result_parser.plot_results()
 
     except Exception as e:
