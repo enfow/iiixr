@@ -5,6 +5,7 @@ model:
   model: "ppo"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
   hidden_dim: 64
   n_layers: 2
+  embedding_type: "fc"  # Options: fc, transformer
 
 # Training parameters
 seed: 42

@@ -17,6 +17,8 @@ class BaseTrainer:
         config = self.config_class.from_dict(config_dict)
         set_seed(config.seed)
 
+        print(config.model.embedding_type)
+
         self.env_name = env_name
         self.env = GymEnvFactory(env_name)
         self.config = config

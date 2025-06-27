@@ -26,6 +26,7 @@ BUFFER_SIZE ?=
 SEED ?=
 HIDDEN_DIM ?=
 N_LAYERS ?=
+EMBEDDING_TYPE ?=
 
 # rainbow_dqn
 ALPHA ?=
@@ -148,6 +149,7 @@ docker-run:
 		$(if $(POLICY_NOISE),-e POLICY_NOISE=$(POLICY_NOISE),) \
 		$(if $(NOISE_CLIP),-e NOISE_CLIP=$(NOISE_CLIP),) \
 		$(if $(EXPLORATION_NOISE),-e EXPLORATION_NOISE=$(EXPLORATION_NOISE),) \
+		$(if $(EMBEDDING_TYPE),-e EMBEDDING_TYPE=$(EMBEDDING_TYPE),) \
 		$(DOCKER_IMAGE_NAME)
 
 docker-run-eval:
@@ -239,7 +241,8 @@ train:
 		$(if $(POLICY_DELAY),--policy_delay $(POLICY_DELAY),) \
 		$(if $(POLICY_NOISE),--policy_noise $(POLICY_NOISE),) \
 		$(if $(NOISE_CLIP),--noise_clip $(NOISE_CLIP),) \
-		$(if $(EXPLORATION_NOISE),--exploration_noise $(EXPLORATION_NOISE),)
+		$(if $(EXPLORATION_NOISE),--exploration_noise $(EXPLORATION_NOISE),) \
+		$(if $(EMBEDDING_TYPE),--embedding_type $(EMBEDDING_TYPE),) \
 
 
 # Train all algorithms sequentially

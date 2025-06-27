@@ -4,6 +4,7 @@ import random
 import time
 
 from result_parser.plot import ResultParser
+from schema.config import ModelEmbeddingType
 from trainer.trainer_factory import TrainerFactory
 from util.config import load_config_from_yaml, merge_configs
 
@@ -28,6 +29,12 @@ def main():
         type=str,
         choices=TrainerFactory.selectable_models,
         help="Model to train",
+    )
+    parser.add_argument(
+        "--embedding_type",
+        type=str,
+        choices=ModelEmbeddingType,
+        help="Embedding type",
     )
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--episodes", type=int, help="Number of episodes to train")
@@ -125,6 +132,8 @@ def main():
         model_params["hidden_dim"] = config["hidden_dim"]
     if config.get("n_layers") is not None:
         model_params["n_layers"] = config["n_layers"]
+    if config.get("embedding_type") is not None:
+        model_params["embedding_type"] = config["embedding_type"]
 
     config["model"] = model_params
 
