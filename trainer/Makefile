@@ -97,7 +97,16 @@ HPO_CONFIG ?= config/hpo_config.yaml
 # Plot target parameters
 PLOT_RESULT_DIR ?=
 
-.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-sac hpo-rainbow-dqn hpo-custom docker-run-eval docker-run-hpo train-yaml train-yaml-ppo train-yaml-sac train-yaml-rainbow-dqn train-yaml-discrete-sac train-yaml-td3 train-yaml-custom plot
+# GIF generator parameters
+GIF_RESULT_DIR ?=
+GIF_MAX_STEPS ?= 1000
+GIF_FPS ?= 30
+GIF_EPISODES ?= 1
+GIF_MULTIPLE ?= false
+GIF_NUM_GIFS ?= 3
+GIF_RENDER_MODE ?= rgb_array
+
+.PHONY: train docker-build docker-run docker-stop docker-remove train-all eval clean help install hpo hpo-basic hpo-ppo hpo-sac hpo-rainbow-dqn hpo-custom docker-run-eval docker-run-hpo train-yaml train-yaml-ppo train-yaml-sac train-yaml-rainbow-dqn train-yaml-discrete-sac train-yaml-td3 train-yaml-custom plot gif gif-multiple
 
 format:
 	ruff format src
@@ -293,4 +302,23 @@ hpo:
 
 # Plot target
 plot:
-	PYTHONPATH=./src $(PYTHON) $(SRC_DIR)/result_parser/plot.py $(PLOT_RESULT_DIR)
+	PYTHONPATH=./src $(PYTHON) $(SRC_DIR)/result_handler/plot.py $(PLOT_RESULT_DIR)
+
+# GIF generator targets
+gif:
+	PYTHONPATH=./src $(PYTHON) $(SRC_DIR)/result_handler/gif_generator.py \
+		$(GIF_RESULT_DIR) \
+		$(if $(GIF_MAX_STEPS),--max_steps $(GIF_MAX_STEPS),) \
+		$(if $(GIF_FPS),--fps $(GIF_FPS),) \
+		$(if $(GIF_EPISODES),--episodes $(GIF_EPISODES),) \
+		$(if $(GIF_RENDER_MODE),--render_mode $(GIF_RENDER_MODE),)
+
+gif-multiple:
+	PYTHONPATH=./src $(PYTHON) $(SRC_DIR)/result_handler/gif_generator.py \
+		$(GIF_RESULT_DIR) \
+		$(if $(GIF_MAX_STEPS),--max_steps $(GIF_MAX_STEPS),) \
+		$(if $(GIF_FPS),--fps $(GIF_FPS),) \
+		$(if $(GIF_EPISODES),--episodes $(GIF_EPISODES),) \
+		$(if $(GIF_NUM_GIFS),--num_gifs $(GIF_NUM_GIFS),) \
+		$(if $(GIF_RENDER_MODE),--render_mode $(GIF_RENDER_MODE),) \
+		--multiple

@@ -3,8 +3,9 @@ import os
 import random
 import time
 
-from result_handler.plot import ResultParser
+from result_handler.gif_generator import run_gif_generator
 from schema.config import ModelEmbeddingType
+from trainer.src.result_handler.plot_generator import ResultParser
 from trainer.trainer_factory import TrainerFactory
 from util.config import load_config_from_yaml, merge_configs
 
@@ -159,6 +160,17 @@ def main():
     print("Plotting results...")
     result_parser = ResultParser(save_dir)
     result_parser.plot_results()
+
+    print("Generating GIF...")
+    run_gif_generator(
+        save_dir,
+        max_steps=config["max_steps"],
+        fps=30,
+        episodes=1,
+        multiple=True,
+        num_gifs=3,
+        render_mode="rgb_array",
+    )
 
 
 if __name__ == "__main__":

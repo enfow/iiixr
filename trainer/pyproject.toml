@@ -13,4 +13,5 @@ dependencies = [
     "torch>=2.7.1",
     "PyYAML>=6.0",
     "pandas>=2.3.0",
+    "imageio>=2.37.0",
 ]
