@@ -125,20 +125,20 @@ def main():
 
     # Restructure config to handle nested model config
     # Move model-specific parameters to nested structure
-    model_params = {}
-    if config.get("model") is not None:
-        model_params["model"] = config["model"]
-    if config.get("hidden_dim") is not None:
-        model_params["hidden_dim"] = config["hidden_dim"]
-    if config.get("n_layers") is not None:
-        model_params["n_layers"] = config["n_layers"]
-    if config.get("embedding_type") is not None:
-        model_params["embedding_type"] = config["embedding_type"]
+    model_params = config.get("model", {})
+    # if config.get("model") is not None:V
+    #     model_params["model"] = config["model"]["model"]
+    # if config.get("hidden_dim") is not None:
+    #     model_params["hidden_dim"] = config["hidden_dim"]
+    # if config.get("n_layers") is not None:
+    #     model_params["n_layers"] = config["n_layers"]
+    # if config.get("embedding_type") is not None:
+    #     model_params["embedding_type"] = config["embedding_type"]
 
     config["model"] = model_params
 
     # Create save directory path
-    save_dir = f"{config['save_dir']}/{config['env']}/{config['model']['model']}/{time.strftime('%Y%m%d_%H%M%S')}"
+    save_dir = f"{config['save_dir']}/{config['env']}/{config['model']['model']}/{config['model']['embedding_type']}/{time.strftime('%Y%m%d_%H%M%S')}"
 
     print(f"Training configuration:")
     print(f"  Environment: {config['env']}")

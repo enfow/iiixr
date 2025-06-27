@@ -141,8 +141,14 @@ class DiscreteSACTrainer(BaseTrainer):
         q2_all = self.critic2(state)
         min_q = torch.min(q1_all, q2_all)
 
+        # actor_loss = (
+        #     (probs * (self.alpha.detach() * log_probs - min_q.detach())).sum(dim=1).mean()
+        # )
+
         actor_loss = (
-            (probs * (self.alpha.detach() * log_probs - min_q)).sum(dim=1).mean()
+            (probs * (self.alpha.detach() * log_probs - min_q.detach()))
+            .sum(dim=1)
+            .mean()
         )
 
         self.actor_optimizer.zero_grad()
@@ -160,18 +166,21 @@ class DiscreteSACTrainer(BaseTrainer):
         self.alpha = self.log_alpha.exp()
 
         # Soft updates
-        for param, target_param in zip(
-            self.critic1.parameters(), self.target_critic1.parameters()
-        ):
-            target_param.data.copy_(
-                self.config.tau * param.data + (1 - self.config.tau) * target_param.data
-            )
-        for param, target_param in zip(
-            self.critic2.parameters(), self.target_critic2.parameters()
-        ):
-            target_param.data.copy_(
-                self.config.tau * param.data + (1 - self.config.tau) * target_param.data
-            )
+        if self.step_count % self.config.target_update_interval == 0:
+            for param, target_param in zip(
+                self.critic1.parameters(), self.target_critic1.parameters()
+            ):
+                target_param.data.copy_(
+                    self.config.tau * param.data
+                    + (1 - self.config.tau) * target_param.data
+                )
+            for param, target_param in zip(
+                self.critic2.parameters(), self.target_critic2.parameters()
+            ):
+                target_param.data.copy_(
+                    self.config.tau * param.data
+                    + (1 - self.config.tau) * target_param.data
+                )
 
         return DiscreteSACUpdateLoss(
             actor_loss=actor_loss.item(),
@@ -200,6 +209,8 @@ class DiscreteSACTrainer(BaseTrainer):
             if done:
                 episode_steps = step + 1
                 break
+
+        self.step_count += 1
 
         return SingleEpisodeResult(
             episode_total_reward=np.sum(episode_rewards),

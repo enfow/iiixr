@@ -24,13 +24,14 @@ class ResultParser:
 
         # Load configuration
         self.config = self._load_config()
+        self.model_config = self.config.get("model", {})
 
         # Parse results
         self.train_results: List[SingleEpisodeResult] = []
         self.eval_results: List[EvalResult] = []
         self.total_train_result: Optional[TotalTrainResult] = None
 
-        self.model_name = self.config.get("model", "unknown")
+        self.model_name = self.model_config.get("model", "unknown")
         self.env_name = self.config.get("env", "unknown")
 
         self.training_plot_path = (
@@ -73,7 +74,7 @@ class ResultParser:
             return TD3UpdateLoss(**loss_data)
         else:
             # Fallback to generic loss
-            return PPOUpdateLoss(**loss_data)
+            raise ValueError(f"Unknown model name: {model_name}")
 
     def parse(self) -> Tuple[List[SingleEpisodeResult], List[EvalResult]]:
         """Parse the metrics.jsonl file and extract training and evaluation results"""
@@ -81,7 +82,7 @@ class ResultParser:
         if not self.metrics_file_path.exists():
             raise FileNotFoundError(f"Metrics file not found: {self.metrics_file_path}")
 
-        model_name = self.config.get("model", "ppo")
+        model_name = self.model_name
         total_train_result = TotalTrainResult.initialize()
 
         with open(self.metrics_file_path, "r") as f:
@@ -172,7 +173,7 @@ class ResultParser:
         plt.ylabel("Total Rewards", fontsize=12)
 
         # Add model and environment info to title
-        model_name = self.config.get("model", "Unknown")
+        model_name = self.model_name
         env_name = self.config.get("env", "Unknown")
         plt.title(
             f"Training Progress: {model_name.upper()} on {env_name}",
@@ -215,7 +216,7 @@ class ResultParser:
     def plot_evaluation_results(
         self, save_path: Optional[str] = None, show_plot: bool = False
     ):
-        """Plot evaluation results: train episode vs avg_score"""
+        """Plot evaluation results: train episode vs scores (max, min, avg)"""
 
         if save_path is None:
             save_path = self.eval_plot_path
@@ -225,28 +226,54 @@ class ResultParser:
 
         train_episodes = [result.train_episode_number for result in self.eval_results]
         avg_scores = [result.avg_score for result in self.eval_results]
-        std_scores = [result.std_score for result in self.eval_results]
+        min_scores = [result.min_score for result in self.eval_results]
+        max_scores = [result.max_score for result in self.eval_results]
 
         plt.figure(figsize=(12, 8))
 
-        # Plot with error bars
-        plt.errorbar(
+        # Fill area between max and min with light blue
+        plt.fill_between(
+            train_episodes,
+            min_scores,
+            max_scores,
+            alpha=0.2,
+            color="lightblue",
+            label="Score Range",
+        )
+
+        # Plot three separate lines: max, min, and avg (all in blue)
+        plt.plot(
+            train_episodes,
+            max_scores,
+            linewidth=2,
+            label="Max Score",
+            alpha=0.3,
+            color="blue",
+        )
+
+        plt.plot(
+            train_episodes,
+            min_scores,
+            linewidth=2,
+            label="Min Score",
+            alpha=0.3,
+            color="blue",
+        )
+
+        plt.plot(
             train_episodes,
             avg_scores,
-            yerr=std_scores,
-            fmt="o-",
-            capsize=5,
-            capthick=2,
-            linewidth=2,
-            markersize=8,
-            label="Average Score ± Std",
+            linewidth=4,
+            label="Average Score",
+            alpha=0.7,
+            color="blue",
         )
 
         plt.xlabel("Training Episode", fontsize=12)
-        plt.ylabel("Average Score", fontsize=12)
+        plt.ylabel("Score", fontsize=12)
 
         # Add model and environment info to title
-        model_name = self.config.get("model", "Unknown")
+        model_name = self.model_name
         env_name = self.config.get("env", "Unknown")
         plt.title(
             f"Evaluation Results: {model_name.upper()} on {env_name}",
@@ -258,11 +285,19 @@ class ResultParser:
         plt.legend()
 
         # Add statistics
-        best_score = np.max(avg_scores)
-        worst_score = np.min(avg_scores)
-        final_score = avg_scores[-1] if avg_scores else 0
+        best_avg_score = np.max(avg_scores)
+        worst_avg_score = np.min(avg_scores)
+        final_avg_score = avg_scores[-1] if avg_scores else 0
+        best_max_score = np.max(max_scores)
+        worst_min_score = np.min(min_scores)
 
-        stats_text = f"Best: {best_score:.2f}\nWorst: {worst_score:.2f}\nFinal: {final_score:.2f}"
+        stats_text = (
+            f"Best Avg: {best_avg_score:.2f}\n"
+            f"Worst Avg: {worst_avg_score:.2f}\n"
+            f"Final Avg: {final_avg_score:.2f}\n"
+            f"Best Max: {best_max_score:.2f}\n"
+            f"Worst Min: {worst_min_score:.2f}"
+        )
         plt.text(
             0.02,
             0.98,
@@ -339,7 +374,7 @@ class ResultParser:
         plt.ylabel("Loss", fontsize=12)
 
         # Add model and environment info to title
-        model_name = self.config.get("model", "Unknown")
+        model_name = self.model_name
         env_name = self.config.get("env", "Unknown")
         plt.title(
             f"Training Loss Components: {model_name.upper()} on {env_name}",
@@ -455,7 +490,7 @@ class ResultParser:
         plt.ylabel("Total Loss", fontsize=12)
 
         # Add model and environment info to title
-        model_name = self.config.get("model", "Unknown")
+        model_name = self.model_name
         env_name = self.config.get("env", "Unknown")
         plt.title(
             f"Training Loss: {model_name.upper()} on {env_name}",
@@ -562,7 +597,7 @@ class ResultParser:
         ax2.legend()
 
         # Add overall title with model and environment info
-        model_name = self.config.get("model", "Unknown")
+        model_name = self.model_name
         env_name = self.config.get("env", "Unknown")
         fig.suptitle(
             f"{model_name.upper()} Training Results on {env_name}",
@@ -584,7 +619,7 @@ class ResultParser:
         """Get summary statistics for the parsed results"""
 
         summary = {
-            "model": self.config.get("model", "Unknown"),
+            "model": self.model_name,
             "environment": self.config.get("env", "Unknown"),
             "total_training_episodes": len(self.train_results),
             "total_evaluation_runs": len(self.eval_results),

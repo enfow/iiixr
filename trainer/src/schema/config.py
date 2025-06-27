@@ -89,6 +89,7 @@ class SACConfig(BaseConfig):
     tau: float = 0.005
     entropy_coef: float = 1.0
     start_steps: int = 1000
+    target_update_interval: int = 8000
 
 
 class RainbowDQNConfig(BaseConfig):

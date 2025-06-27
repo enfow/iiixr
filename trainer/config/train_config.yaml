@@ -28,6 +28,9 @@ eval_episodes: 10
 # Save settings
 save_dir: "results"
 
+# target update interval
+target_update_interval: 8000
+
 # PPO specific parameters
 ppo_epochs: 5
 clip_eps: 0.2
@@ -42,7 +45,6 @@ entropy_coef: 0.2
 alpha: 0.6
 beta_start: 0.4
 beta_frames: 100000
-target_update_interval: 10000
 n_steps: 3
 n_atoms: 51
 v_min: -10.0

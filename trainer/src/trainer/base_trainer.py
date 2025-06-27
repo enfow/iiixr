@@ -36,6 +36,7 @@ class BaseTrainer:
         self.best_score = -np.inf
         self.best_results: EvalResult = None
         self.train_episode_number = 0
+        self.step_count = 0
         self.log_file = os.path.join(self.save_dir, "metrics.jsonl")
         self.model_file = os.path.join(self.save_dir, "best_model.pth")
         self.config_file = os.path.join(self.save_dir, "config.json")
