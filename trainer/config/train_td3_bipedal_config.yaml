@@ -13,6 +13,7 @@ hidden_dim: 128
 n_layers: 3
 buffer_size: 1000000
 batch_size: 128
+start_steps: 100000
 
 # Device settings
 device: "cpu"  # Options: cpu, cuda
@@ -34,7 +35,6 @@ normalize_advantages: false
 # SAC specific parameters
 tau: 0.005
 entropy_coef: 1.0
-start_steps: 1000
 
 # Rainbow DQN specific parameters
 alpha: 0.6

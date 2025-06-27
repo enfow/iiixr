@@ -1,7 +1,7 @@
 # Training Configuration File
 # Environment settings
-env: "LunarLander-v3"
-model: "ppo"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
+env: "BipedalWalkerHardcore-v3"
+model: "td3"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
 
 # Training parameters
 seed: 42
@@ -13,7 +13,7 @@ hidden_dim: 256
 n_layers: 3
 buffer_size: 1000000
 batch_size: 256
-start_steps: 10000
+start_steps: 100000
 
 # Device settings
 device: "cpu"  # Options: cpu, cuda
