@@ -16,11 +16,16 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-from model.buffer import PrioritizedReplayBuffer
 from model.rainbow_dqn import CategoricalDuelingNetwork
 from schema.config import RainbowDQNConfig
 from schema.result import RainbowDQNUpdateLoss, SingleEpisodeResult
 from trainer.base_trainer import BaseTrainer
+
+V_MIN_MAX = {
+    "BipedalWalker-v3": (-200.0, 300.0),
+    "BipedalWalkerHardcore-v3": (-200.0, 300.0),
+    "LunarLander-v3": (-400.0, 400.0),
+}
 
 
 class RainbowDQNTrainer(BaseTrainer):
@@ -33,7 +38,14 @@ class RainbowDQNTrainer(BaseTrainer):
         config: RainbowDQNConfig,
         save_dir: str = "results/rainbow_dqn",
     ):
+        if env_name in V_MIN_MAX:
+            config["v_min"], config["v_max"] = V_MIN_MAX[env_name]
+            print(
+                f"V_MIN, V_MAX Automatically set: {config['v_min']}, {config['v_max']}"
+            )
+
         super().__init__(env_name, config, save_dir)
+
         self.total_steps = 0
 
     def _init_models(self):
@@ -100,34 +112,58 @@ class RainbowDQNTrainer(BaseTrainer):
             self._sample_transactions()
         )
 
-        # Calculate the target distribution for the N-step return
         with torch.no_grad():
-            # Double DQN: select action with policy_net, evaluate with target_net
-            # 1. Calculate expected Q-values for next_states from the policy network
+            # policy net output: batch of probability distribution over atoms
+            # shape: (batch_size, action_dim, n_atoms)
+            # probability of each atom for each action
+
+            # support tensor: shape: (n_atoms,) from v_min to v_max
+            # value of each atom
+
+            # probability of each atom * value of each atom => expected value of each atom
+            # sum of expected value of each atom => expected value of each action => q_values
             next_q_values_policy = (
                 self.policy_net(next_states) * self.policy_net.support
             ).sum(2)
-            # 2. Select the best actions using argmax on these Q-values
+            # select best q value action
             next_actions = next_q_values_policy.argmax(1)
 
-            # 3. Get the probability distribution for these actions from the target network
             next_dist_target = self.target_net(next_states)
             next_dist = next_dist_target[range(self.config.batch_size), next_actions]
 
-            # Compute the projection of the target distribution onto the support
+            # distributional multi-step return
+
+            # rewards: accumulated reward from n-step return (PER already applied gamma^n_steps when it pushed)
+            # (1 - dones) * gamma^n_steps * support: if is done, all atoms are 0
+            # if not done, all atoms are gamma^n_steps * support
+            # t_z is the target distribution
             t_z = (
-                rewards
-                + (1 - dones)
-                * (self.config.gamma**self.config.n_steps)
-                * self.target_net.support
-            )
+                rewards  # shape: (batch_size, 1)
+                + (1 - dones)  # shape: (batch_size, 1)
+                * (self.config.gamma**self.config.n_steps)  # shape: (batch_size, 1)
+                * self.target_net.support  # shape: (n_atoms,)
+            )  # shape: (batch_size, n_atoms)
+
+            # clamp to valid range
             t_z = t_z.clamp(min=self.config.v_min, max=self.config.v_max)
+
+            # b: the index of the atom that the target distribution is closest to
+            # delta_z is the width of each atom
             b = (t_z - self.config.v_min) / self.target_net.delta_z
+
+            # l: the lower bound of the atom that the target distribution is closest to
+            # u: the upper bound of the atom that the target distribution is closest to
             l = b.floor().long()
             u = b.ceil().long()
 
-            # Distribute probability
+            # clamp to valid range
+            l = torch.clamp(l, 0, self.config.n_atoms - 1)
+            u = torch.clamp(u, 0, self.config.n_atoms - 1)
+
+            # proj_dist: the projected distribution
             proj_dist = torch.zeros_like(next_dist)
+
+            # offset: the offset of the atom that the target distribution is closest to
             offset = (
                 torch.linspace(
                     0,
@@ -140,6 +176,7 @@ class RainbowDQNTrainer(BaseTrainer):
                 .to(self.config.device)
             )
 
+            # index_add: add the value of the next_dist to the proj_dist at the index of l + offset and u + offset
             proj_dist.view(-1).index_add_(
                 0, (l + offset).view(-1), (next_dist * (u.float() - b)).view(-1)
             )
@@ -147,27 +184,25 @@ class RainbowDQNTrainer(BaseTrainer):
                 0, (u + offset).view(-1), (next_dist * (b - l.float())).view(-1)
             )
 
-        # Calculate the cross-entropy loss
+        # dist: the predicted distribution
         dist = self.policy_net(states)
+
+        # log_p: log of the predicted distribution
         log_p = torch.log(dist[range(self.config.batch_size), actions])
 
-        # The loss is the negative dot product of the projected target distribution
-        # and the log of the predicted distribution
+        # loss: cross-entropy loss
         loss = -(proj_dist * log_p).sum(1)
 
-        # Update priorities in the replay buffer
+        # td_errors for PER
         td_errors = loss.detach().cpu().numpy()
         self.memory.update_priorities(indices, td_errors)
 
-        # Apply importance-sampling weights to the loss
         loss = (weights * loss).mean()
 
-        # Perform gradient descent
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        # Reset noise in the noisy linear layers for exploration
         self.policy_net.reset_noise()
         self.target_net.reset_noise()
 

@@ -35,6 +35,7 @@ class BaseTrainer:
         )
         print(f"State dim: {self.state_dim}, Action dim: {self.action_dim}")
         if self.config.buffer.buffer_type == BufferType.PER:
+            print("Using PrioritizedReplayBuffer")
             self.memory = PrioritizedReplayBuffer(
                 capacity=self.config.buffer.buffer_size,
                 alpha=self.config.buffer.alpha,
@@ -42,6 +43,7 @@ class BaseTrainer:
                 beta_frames=self.config.buffer.beta_frames,
             )
         else:
+            print("Using ReplayBuffer")
             self.memory = ReplayBuffer(
                 capacity=self.config.buffer.buffer_size,
                 seq_len=self.config.buffer.seq_len,

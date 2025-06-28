@@ -87,7 +87,7 @@ class CategoricalDuelingNetwork(nn.Module):
         self.v_max = v_max
         self.register_buffer(
             "support", torch.linspace(self.v_min, self.v_max, self.n_atoms)
-        )
+        )  # support tensor, shape: (n_atoms,) from v_min to v_max
         self.delta_z = (v_max - v_min) / (n_atoms - 1)
 
         layers = [NoisyLinear(state_dim, hidden_dim), nn.ReLU()]

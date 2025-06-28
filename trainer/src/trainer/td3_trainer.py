@@ -48,7 +48,6 @@ class TD3Trainer(BaseTrainer):
         self.critic_target = copy.deepcopy(self.critic)
 
         # Replay buffer
-        # self.memory = ReplayBuffer(self.config.buffer.buffer_size)
 
         # Optimizers
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)

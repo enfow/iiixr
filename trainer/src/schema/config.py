@@ -144,7 +144,7 @@ class PPOConfig(BaseConfig):
 class SACConfig(BaseConfig):
     tau: float = 0.005
     entropy_coef: float = 1.0
-    start_steps: int = 1000
+    start_steps: int = 10000
     target_update_interval: int = 8000
 
 
@@ -154,8 +154,9 @@ class RainbowDQNConfig(BaseConfig):
     n_steps: int = 3
     # Distributional RL (Categorical DQN)
     n_atoms: int = 51
-    v_min: float = -10.0
-    v_max: float = 10.0
+    v_min: float = -10.0  # should be set up to env (min return)
+    v_max: float = 10.0  # should be set up to env (max return)
+    start_steps: int = 10000
 
 
 class TD3Config(BaseConfig):
@@ -164,7 +165,7 @@ class TD3Config(BaseConfig):
     policy_noise: float = 0.2
     noise_clip: float = 0.5
     exploration_noise: float = 0.1
-    start_steps: int = 25000
+    start_steps: int = 10000
 
 
 class EvalConfig:

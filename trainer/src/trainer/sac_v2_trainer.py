@@ -76,7 +76,6 @@ class SACV2Trainer(SACTrainer):
         self.target_entropy = -self.action_dim
 
         # Replay buffer
-        # self.memory = ReplayBuffer(self.config.buffer.buffer_size)
 
         # Optimizers
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
