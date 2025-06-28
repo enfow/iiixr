@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-from model.rainbow_dqn import DQNNetwork
+from model.dqn import DQNNetwork
 from schema.config import DoubleDQNConfig
 from schema.result import DDQNUpdateLoss, SingleEpisodeResult
 from trainer.base_trainer import BaseTrainer
