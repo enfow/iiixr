@@ -110,10 +110,10 @@ class BaseTrainer:
                 if self.best_results is None or eval_result > self.best_results:
                     self.best_results = eval_result
                     print("New best results:")
+                    self.save_model()
                 self._print_trainer_summary()
                 print(eval_result)
                 log_result(eval_result, self.log_file)
-                self.save_model()
 
     def evaluate(self, episodes=10):
         self.eval_mode_on()
@@ -127,7 +127,7 @@ class BaseTrainer:
             step = 0
 
             while not done:
-                action = self.select_action(state)["action"]
+                action = self.select_action(state, eval_mode=True)["action"]
                 next_state, reward, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
                 state = next_state
@@ -174,21 +174,6 @@ class BaseTrainer:
         gif_name: Optional[str] = None,
         gif_dir: Optional[str] = None,
     ) -> str:
-        """
-        Evaluate the model and generate a GIF using the same evaluation logic.
-
-        Args:
-            max_steps: Maximum steps per episode
-            fps: Frames per second for the GIF
-            episodes: Number of episodes to record
-            render_mode: Gymnasium render mode
-            gif_name: Custom name for the GIF file (optional)
-            gif_dir: Directory to save GIF (optional, defaults to save_dir)
-
-        Returns:
-            Path to the generated GIF file
-        """
-        # Set up output path
         if gif_dir is None:
             gif_dir = self.save_dir
         else:
@@ -227,7 +212,7 @@ class BaseTrainer:
                     episode_frames.append(frame)
 
                 # Use trainer's select_action method (same as evaluation)
-                action_info = self.select_action(state)
+                action_info = self.select_action(state, eval_mode=True)
                 action = action_info["action"]
 
                 # Take step in environment

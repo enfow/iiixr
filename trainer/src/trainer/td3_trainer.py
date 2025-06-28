@@ -53,11 +53,12 @@ class TD3Trainer(BaseTrainer):
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.config.lr)
 
-    def select_action(self, state, add_noise=True):
+    def select_action(self, state, eval_mode: bool = False):
         state = torch.FloatTensor(state.reshape(1, -1)).to(self.config.device)
         action = self.actor(state).cpu().data.numpy().flatten()
 
-        if add_noise:
+        # Exploration
+        if not eval_mode:
             action = action + np.random.normal(
                 0, self.max_action * self.config.exploration_noise, size=self.action_dim
             )

@@ -38,13 +38,21 @@ class DiscretePPOTrainer(PPOTrainer):
             lr=self.config.lr,
         )
 
-    def select_action(self, state):
+    def select_action(self, state, eval_mode: bool = False):
         state = torch.FloatTensor(state).to(self.config.device)
 
         probs = self.actor(state)
         dist = torch.distributions.Categorical(probs)
-        action = dist.sample()
-        logprob = dist.log_prob(action)
+
+        if eval_mode:
+            # During evaluation, use greedy action (argmax)
+            action = probs.argmax(dim=-1)
+            logprob = dist.log_prob(action)
+        else:
+            # During training, sample from the policy
+            action = dist.sample()
+            logprob = dist.log_prob(action)
+
         return {
             "action": action.item(),
             "logprob": logprob.item(),

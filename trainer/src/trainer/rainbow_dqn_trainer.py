@@ -74,15 +74,24 @@ class RainbowDQNTrainer(BaseTrainer):
         # Optimizer
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.config.lr)
 
-    def select_action(self, state: np.ndarray) -> dict:
+    def select_action(self, state: np.ndarray, eval_mode: bool = False) -> dict:
         """Selects an action using the policy network."""
+        # Set network mode for evaluation/training
+        if eval_mode:
+            self.policy_net.eval()
+        else:
+            self.policy_net.train()
+
         state = torch.FloatTensor(state).unsqueeze(0).to(self.config.device)
         with torch.no_grad():
             dist = self.policy_net(state)
             q_values = (dist * self.policy_net.support).sum(2)
             action = q_values.argmax().item()
 
-        self.policy_net.reset_noise()
+        # Exploration
+        if not eval_mode:
+            self.policy_net.reset_noise()
+
         return {
             "action": action,
             "q_values": q_values.cpu().numpy(),

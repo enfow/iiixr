@@ -92,14 +92,15 @@ class TD3SequentialTrainer(BaseTrainer):
         )
         return state_sequence
 
-    def select_action(self, state, add_noise=True):
+    def select_action(self, state, eval_mode: bool = False):
         # Create sequence for transformer
         state_sequence = self._create_state_sequence(state)
 
         # Get action from transformer actor
         action = self.actor(state_sequence).cpu().data.numpy().flatten()
 
-        if add_noise:
+        # Exploration
+        if not eval_mode:
             action = action + np.random.normal(
                 0, self.max_action * self.config.exploration_noise, size=self.action_dim
             )

@@ -86,12 +86,12 @@ class SACTrainer(BaseTrainer):
         )
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.config.lr)
 
-    def select_action(self, state, evaluation=False):
+    def select_action(self, state, eval_mode: bool = False):
         """Select action using the policy network with reparameterization trick"""
         state = torch.FloatTensor(state).unsqueeze(0).to(self.config.device)
 
         with torch.no_grad():
-            if evaluation:
+            if eval_mode:
                 # During evaluation, use mean action
                 mean, _ = self.actor(state)
                 action = torch.tanh(mean)

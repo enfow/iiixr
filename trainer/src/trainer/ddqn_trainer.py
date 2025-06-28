@@ -45,14 +45,14 @@ class DDQNTrainer(BaseTrainer):
         # Optimizer
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.config.lr)
 
-    def select_action(self, state: np.ndarray) -> dict:
+    def select_action(self, state: np.ndarray, eval_mode: bool = False) -> dict:
         """Selects an action using epsilon-greedy policy."""
         # Epsilon decay
         self.epsilon = self.config.eps_end + (
             self.config.eps_start - self.config.eps_end
         ) * math.exp(-1.0 * self.total_steps / self.config.eps_decay)
 
-        if np.random.rand() < self.epsilon:
+        if not eval_mode and np.random.rand() < self.epsilon:
             action = self.env.action_space.sample()
             return {"action": action, "epsilon": self.epsilon}
 
