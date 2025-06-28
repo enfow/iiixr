@@ -1,9 +1,7 @@
 import argparse
 import os
-import random
 import time
 
-from result_handler.gif_generator import run_gif_generator
 from result_handler.plot_generator import ResultParser
 from schema.config import ModelEmbeddingType
 from trainer.trainer_factory import TrainerFactory
@@ -162,8 +160,7 @@ def main():
     result_parser.plot_results()
 
     print("Generating GIF...")
-    run_gif_generator(
-        save_dir,
+    trainer.generate_gif(
         max_steps=config["max_steps"],
         fps=30,
         episodes=1,

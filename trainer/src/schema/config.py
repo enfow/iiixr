@@ -36,6 +36,7 @@ class BufferConfig(BaseModel):
     beta_frames: int = 100000
     # sequence length (if use transformer or RNN)
     seq_len: int = 1
+    per_n_steps: int = 3
 
     @classmethod
     def from_dict(cls, config: dict):
@@ -174,7 +175,7 @@ class C51Config(BaseConfig):
     n_atoms: int = 51
     v_min: float = -10.0  # should be set up to env (min return)
     v_max: float = 10.0  # should be set up to env (max return)
-    n_steps: int = 1  # simple 1-step return
+    n_steps: int = 3  # simple 1-step return
     # Epsilon-greedy
     eps_start: float = 1.0
     eps_end: float = 0.01

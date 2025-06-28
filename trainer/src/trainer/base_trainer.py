@@ -45,6 +45,8 @@ class BaseTrainer:
                 alpha=self.config.buffer.alpha,
                 beta_start=self.config.buffer.beta_start,
                 beta_frames=self.config.buffer.beta_frames,
+                n_steps=self.config.buffer.per_n_steps,
+                gamma=self.config.gamma,
             )
         else:
             print("Using ReplayBuffer")
@@ -144,27 +146,6 @@ class BaseTrainer:
 
         return EvalResult.from_eval_results(scores, steps, self.train_episode_number)
 
-    def select_action(self, state) -> dict:
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def update(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def save_model(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def load_model(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def eval_mode_on(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def eval_mode_off(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-    def _log_config(self):
-        save_json(self.config.to_dict(), self.config_file)
-
     def generate_gif(
         self,
         max_steps: int = 1000,
@@ -248,3 +229,24 @@ class BaseTrainer:
             print("No frames captured. Check if the environment supports rendering.")
 
         return str(output_path)
+
+    def select_action(self, state, eval_mode: bool = False) -> dict:
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def update(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def save_model(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def load_model(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def eval_mode_on(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def eval_mode_off(self):
+        raise NotImplementedError("Subclasses must implement this method")
+
+    def _log_config(self):
+        save_json(self.config.to_dict(), self.config_file)

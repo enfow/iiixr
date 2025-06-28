@@ -17,7 +17,7 @@ buffer:
 
 # Training parameters
 seed: 42
-episodes: 5000
+episodes: 1000
 max_steps: 1000
 lr: 3e-4
 gamma: 0.99
@@ -35,27 +35,10 @@ eval_episodes: 10
 # Save settings
 save_dir: "results"
 
-# target update interval
+# DDQN specific parameters
 target_update_interval: 8000
 
-# PPO specific parameters
-ppo_epochs: 5
-clip_eps: 0.2
-n_transactions: 5000
-normalize_advantages: false
-
-# SAC specific parameters
-tau: 0.005
-entropy_coef: 0.2
-
-# Rainbow DQN specific parameters
-n_steps: 3
-n_atoms: 51
-v_min: -10.0
-v_max: 10.0
-
-# TD3 specific parameters
-policy_delay: 2
-policy_noise: 0.2
-noise_clip: 0.5
-exploration_noise: 0.1 
+# Epsilon-greedy
+eps_start: 1.0
+eps_end: 0.01
+eps_decay: 50000
