@@ -37,7 +37,6 @@ class TD3SequentialTrainer(BaseTrainer):
     def _init_models(self):
         self.max_action = float(self.env.action_space.high[0])
 
-        # Sequential transformer actor
         self.actor = TransformerTD3Actor(
             self.state_dim,
             self.action_dim,
@@ -47,7 +46,6 @@ class TD3SequentialTrainer(BaseTrainer):
             n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
-        # Regular TD3 critic (works with current state-action pairs)
         self.critic = TD3Critic(
             self.state_dim,
             self.action_dim,
@@ -55,17 +53,9 @@ class TD3SequentialTrainer(BaseTrainer):
             n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
-        # Target networks
         self.actor_target = copy.deepcopy(self.actor)
         self.critic_target = copy.deepcopy(self.critic)
 
-        # Replay buffer with transformer support
-        # self.memory = ReplayBuffer(
-        #     self.config.buffer.buffer_size,
-        #     seq_len=self.config.buffer.seq_len,
-        # )
-
-        # Optimizers
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.config.lr)
 
