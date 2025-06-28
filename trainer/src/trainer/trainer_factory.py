@@ -1,6 +1,7 @@
 import gymnasium as gym
 
 from env.gym import GymEnvFactory
+from trainer.ddqn_trainer import DDQNTrainer
 from trainer.discrete_ppo_trainer import DiscretePPOTrainer
 from trainer.discrete_sac_trainer import DiscreteSACTrainer
 from trainer.ppo_trainer import PPOTrainer
@@ -19,6 +20,7 @@ SELECTABLE_MODELS = [
     SACV2Trainer.name,
     DiscreteSACTrainer.name,
     TD3SequentialTrainer.name,
+    DDQNTrainer.name,
 ]
 
 
@@ -54,5 +56,7 @@ class TrainerFactory:
             return TD3Trainer(env_name, config_dict, save_dir)
         elif model_name == TD3SequentialTrainer.name:
             return TD3SequentialTrainer(env_name, config_dict, save_dir)
+        elif model_name == DDQNTrainer.name:
+            return DDQNTrainer(env_name, config_dict, save_dir)
         else:
             raise ValueError(f"Unknown model: {model_name}")

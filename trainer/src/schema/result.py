@@ -52,6 +52,14 @@ class RainbowDQNUpdateLoss(UpdateLoss):
         return self.loss
 
 
+class DDQNUpdateLoss(UpdateLoss):
+    loss: float
+
+    @property
+    def total_loss(self):
+        return self.loss
+
+
 class TD3UpdateLoss(UpdateLoss):
     actor_loss: float
     critic_loss: float

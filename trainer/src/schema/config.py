@@ -159,6 +159,15 @@ class RainbowDQNConfig(BaseConfig):
     start_steps: int = 10000
 
 
+class DoubleDQNConfig(BaseConfig):
+    target_update_interval: int = 10000
+    start_steps: int = 10000
+    # Epsilon-greedy
+    eps_start: float = 1.0
+    eps_end: float = 0.01
+    eps_decay: int = 50000
+
+
 class TD3Config(BaseConfig):
     tau: float = 0.005
     policy_delay: int = 2
