@@ -1,7 +1,11 @@
 import os
 import time
 from collections import deque
+from pathlib import Path
+from typing import Optional
 
+import gymnasium as gym
+import imageio
 import numpy as np
 
 from env.gym import GymEnvFactory
@@ -106,10 +110,10 @@ class BaseTrainer:
                 if self.best_results is None or eval_result > self.best_results:
                     self.best_results = eval_result
                     print("New best results:")
+                    self.save_model()
                 self._print_trainer_summary()
                 print(eval_result)
                 log_result(eval_result, self.log_file)
-                self.save_model()
 
     def evaluate(self, episodes=10):
         self.eval_mode_on()
@@ -123,7 +127,7 @@ class BaseTrainer:
             step = 0
 
             while not done:
-                action = self.select_action(state)["action"]
+                action = self.select_action(state, eval_mode=True)["action"]
                 next_state, reward, terminated, truncated, _ = self.env.step(action)
                 done = terminated or truncated
                 state = next_state
@@ -160,3 +164,87 @@ class BaseTrainer:
 
     def _log_config(self):
         save_json(self.config.to_dict(), self.config_file)
+
+    def generate_gif(
+        self,
+        max_steps: int = 1000,
+        fps: int = 30,
+        episodes: int = 1,
+        render_mode: str = "rgb_array",
+        gif_name: Optional[str] = None,
+        gif_dir: Optional[str] = None,
+    ) -> str:
+        if gif_dir is None:
+            gif_dir = self.save_dir
+        else:
+            gif_dir = Path(gif_dir)
+            gif_dir.mkdir(exist_ok=True)
+
+        if gif_name is None:
+            gif_name = f"{self.config.model.model}_{self.env_name}_demo.gif"
+
+        output_path = Path(gif_dir) / gif_name
+
+        # Create environment with rendering
+        env = gym.make(self.env_name, render_mode=render_mode)
+
+        all_frames = []
+        total_reward = 0
+
+        # Use trainer's evaluation mode
+        self.eval_mode_on()
+
+        for episode in range(episodes):
+            state, _ = env.reset()
+
+            # Reset episode for sequential trainers
+            if hasattr(self, "reset_episode"):
+                self.reset_episode()
+
+            episode_frames = []
+            episode_reward = 0
+            step = 0
+
+            while step < max_steps:
+                # Render current frame
+                frame = env.render()
+                if frame is not None:
+                    episode_frames.append(frame)
+
+                # Use trainer's select_action method (same as evaluation)
+                action_info = self.select_action(state, eval_mode=True)
+                action = action_info["action"]
+
+                # Take step in environment
+                next_state, reward, terminated, truncated, _ = env.step(action)
+                done = terminated or truncated
+
+                episode_reward += reward
+                state = next_state
+                step += 1
+
+                if done:
+                    # Render final frame
+                    frame = env.render()
+                    if frame is not None:
+                        episode_frames.append(frame)
+                    break
+
+            all_frames.extend(episode_frames)
+            total_reward += episode_reward
+            print(f"Episode {episode + 1}: Reward = {episode_reward:.2f}")
+
+        # Restore training mode
+        self.eval_mode_off()
+        env.close()
+
+        # Save as GIF
+        if all_frames:
+            imageio.mimsave(output_path, all_frames, fps=fps)
+            print(f"GIF saved to: {output_path}")
+            print(f"Total frames: {len(all_frames)}")
+            print(f"Average reward per episode: {total_reward / episodes:.2f}")
+        else:
+            print("No frames captured. Check if the environment supports rendering.")
+
+        return str(output_path)

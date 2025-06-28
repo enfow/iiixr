@@ -75,12 +75,19 @@ class DiscreteSACTrainer(BaseTrainer):
         self.alpha = self.log_alpha.exp()
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.config.lr)
 
-    def select_action(self, state):
+    def select_action(self, state, eval_mode: bool = False):
         state = torch.FloatTensor(state).unsqueeze(0).to(self.config.device)
         with torch.no_grad():
             logits = self.actor(state)
             probs = F.softmax(logits, dim=-1)
-            action = torch.distributions.Categorical(probs).sample()
+
+            if eval_mode:
+                # During evaluation, use greedy action (argmax)
+                action = probs.argmax(dim=-1)
+            else:
+                # During training, sample from the policy
+                action = torch.distributions.Categorical(probs).sample()
+
             return {
                 "action": action.item(),
             }

@@ -62,18 +62,17 @@ class C51Trainer(BaseTrainer):
 
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.config.lr)
 
-    def select_action(self, state: np.ndarray) -> dict:
+    def select_action(self, state: np.ndarray, eval_mode: bool = False) -> dict:
         # Epsilon decay
         self.epsilon = self.config.eps_end + (
             self.config.eps_start - self.config.eps_end
         ) * math.exp(-1.0 * self.total_steps / self.config.eps_decay)
 
-        # With probability epsilon, take a random action
-        if np.random.rand() < self.epsilon:
+        if not eval_mode and np.random.rand() < self.epsilon:
+            # Exploration
             action = self.env.action_space.sample()
             return {"action": action, "epsilon": self.epsilon}
 
-        # Otherwise, take the greedy action
         state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.config.device)
         with torch.no_grad():
             q_values = self.policy_net.get_q_values(state_tensor)
