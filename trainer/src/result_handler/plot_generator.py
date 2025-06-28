@@ -8,7 +8,8 @@ import numpy as np
 import pandas as pd
 
 # Import schema classes
-from schema.result import (DiscreteSACUpdateLoss, EvalResult, PPOUpdateLoss,
+from schema.result import (C51UpdateLoss, DDQNUpdateLoss,
+                           DiscreteSACUpdateLoss, EvalResult, PPOUpdateLoss,
                            RainbowDQNUpdateLoss, SACUpdateLoss,
                            SingleEpisodeResult, TD3UpdateLoss,
                            TotalTrainResult)
@@ -64,14 +65,24 @@ class ResultParser:
         """Create appropriate loss object based on model type"""
         if model_name == "ppo":
             return PPOUpdateLoss(**loss_data)
+        elif model_name == "discrete_ppo":
+            return PPOUpdateLoss(**loss_data)  # Uses same loss as PPO
         elif model_name == "sac":
             return SACUpdateLoss(**loss_data)
+        elif model_name == "sac_v2":
+            return SACUpdateLoss(**loss_data)  # Uses same loss as SAC
         elif model_name == "discrete_sac":
             return DiscreteSACUpdateLoss(**loss_data)
         elif model_name == "rainbow_dqn":
             return RainbowDQNUpdateLoss(**loss_data)
         elif model_name == "td3":
             return TD3UpdateLoss(**loss_data)
+        elif model_name == "td3_seq":
+            return TD3UpdateLoss(**loss_data)  # Uses same loss as TD3
+        elif model_name == "c51":
+            return C51UpdateLoss(**loss_data)
+        elif model_name == "ddqn":
+            return DDQNUpdateLoss(**loss_data)
         else:
             # Fallback to generic loss
             raise ValueError(f"Unknown model name: {model_name}")
