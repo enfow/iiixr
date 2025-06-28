@@ -168,6 +168,19 @@ class DoubleDQNConfig(BaseConfig):
     eps_decay: int = 50000
 
 
+class C51Config(BaseConfig):
+    target_update_interval: int = 10000
+    start_steps: int = 10000
+    n_atoms: int = 51
+    v_min: float = -10.0  # should be set up to env (min return)
+    v_max: float = 10.0  # should be set up to env (max return)
+    n_steps: int = 1  # simple 1-step return
+    # Epsilon-greedy
+    eps_start: float = 1.0
+    eps_end: float = 0.01
+    eps_decay: int = 50000
+
+
 class TD3Config(BaseConfig):
     tau: float = 0.005
     policy_delay: int = 2

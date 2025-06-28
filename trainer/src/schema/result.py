@@ -44,7 +44,7 @@ class DiscreteSACUpdateLoss(UpdateLoss):
         return self.actor_loss + self.critic1_loss + self.critic2_loss + self.alpha_loss
 
 
-class RainbowDQNUpdateLoss(UpdateLoss):
+class DQNUpdateLoss(UpdateLoss):
     loss: float
 
     @property
@@ -52,12 +52,16 @@ class RainbowDQNUpdateLoss(UpdateLoss):
         return self.loss
 
 
-class DDQNUpdateLoss(UpdateLoss):
-    loss: float
+class C51UpdateLoss(DQNUpdateLoss):
+    pass
 
-    @property
-    def total_loss(self):
-        return self.loss
+
+class RainbowDQNUpdateLoss(DQNUpdateLoss):
+    pass
+
+
+class DDQNUpdateLoss(DQNUpdateLoss):
+    pass
 
 
 class TD3UpdateLoss(UpdateLoss):
