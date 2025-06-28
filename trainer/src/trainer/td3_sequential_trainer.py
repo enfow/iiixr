@@ -83,20 +83,22 @@ class TD3SequentialTrainer(BaseTrainer):
         return state_sequence
 
     def select_action(self, state, eval_mode: bool = False):
-        # Create sequence for transformer
-        state_sequence = self._create_state_sequence(state)
+        # select_action is not used in training, so we can disable gradients
+        with torch.no_grad():
+            state_sequence = self._create_state_sequence(state)
 
-        # Get action from transformer actor
-        action = self.actor(state_sequence).cpu().data.numpy().flatten()
+            action = self.actor(state_sequence).cpu().data.numpy().flatten()
 
-        # Exploration
-        if not eval_mode:
-            action = action + np.random.normal(
-                0, self.max_action * self.config.exploration_noise, size=self.action_dim
-            )
+            # Exploration
+            if not eval_mode:
+                action = action + np.random.normal(
+                    0,
+                    self.max_action * self.config.exploration_noise,
+                    size=self.action_dim,
+                )
 
-        action = np.clip(action, -self.max_action, self.max_action)
-        return {"action": action}
+            action = np.clip(action, -self.max_action, self.max_action)
+            return {"action": action}
 
     def update(self) -> TD3UpdateLoss:
         if len(self.memory) < self.config.batch_size:

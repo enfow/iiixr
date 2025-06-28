@@ -45,25 +45,24 @@ class PPOTrainer(BaseTrainer):
         )
 
     def select_action(self, state, eval_mode: bool = False):
-        state = torch.FloatTensor(state).to(self.config.device)
+        # select_action is not used in training, so we can disable gradients
+        with torch.no_grad():
+            state = torch.FloatTensor(state).to(self.config.device)
+            mean, log_std = self.actor(state)
+            std = torch.exp(log_std)
+            dist = torch.distributions.Normal(mean, std)
 
-        mean, log_std = self.actor(state)
-        std = torch.exp(log_std)
-        dist = torch.distributions.Normal(mean, std)
+            if eval_mode:
+                action = mean
+                logprob = dist.log_prob(action).sum(dim=-1)
+            else:
+                action = dist.sample()
+                logprob = dist.log_prob(action).sum(dim=-1)
 
-        if eval_mode:
-            # During evaluation, use mean action
-            action = mean
-            logprob = dist.log_prob(action).sum(dim=-1)
-        else:
-            # During training, sample from the policy
-            action = dist.sample()
-            logprob = dist.log_prob(action).sum(dim=-1)
-
-        return {
-            "action": action.cpu().numpy(),
-            "logprob": logprob.item(),
-        }
+            return {
+                "action": action.cpu().numpy(),
+                "logprob": logprob.item(),
+            }
 
     def compute_returns(self, rewards, dones, gamma=0.99):
         returns = []

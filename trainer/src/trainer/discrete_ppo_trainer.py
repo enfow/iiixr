@@ -39,24 +39,23 @@ class DiscretePPOTrainer(PPOTrainer):
         )
 
     def select_action(self, state, eval_mode: bool = False):
-        state = torch.FloatTensor(state).to(self.config.device)
+        # select_action is not used in training, so we can disable gradients
+        with torch.no_grad():
+            state = torch.FloatTensor(state).to(self.config.device)
+            probs = self.actor(state)
+            dist = torch.distributions.Categorical(probs)
 
-        probs = self.actor(state)
-        dist = torch.distributions.Categorical(probs)
+            if eval_mode:
+                action = probs.argmax(dim=-1)
+                logprob = dist.log_prob(action)
+            else:
+                action = dist.sample()
+                logprob = dist.log_prob(action)
 
-        if eval_mode:
-            # During evaluation, use greedy action (argmax)
-            action = probs.argmax(dim=-1)
-            logprob = dist.log_prob(action)
-        else:
-            # During training, sample from the policy
-            action = dist.sample()
-            logprob = dist.log_prob(action)
-
-        return {
-            "action": action.item(),
-            "logprob": logprob.item(),
-        }
+            return {
+                "action": action.cpu().numpy(),
+                "logprob": logprob.item(),
+            }
 
     def _get_current_logprobs(self, states, actions):
         probs = self.actor(states)

@@ -35,44 +35,24 @@ class TransformerTD3Actor(nn.Module):
         self.embedding = nn.Linear(state_dim, hidden_dim)
         self.transformer = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
-                hidden_dim, 
-                nhead, 
-                batch_first=True  # Enable batch_first
-            ), 
+                hidden_dim,
+                nhead,
+                batch_first=True,  # Enable batch_first
+            ),
             n_layers,
-            enable_nested_tensor=True  # This will now work properly
+            enable_nested_tensor=True,  # This will now work properly
         )
         self.action_head = nn.Linear(hidden_dim, action_dim)
-    
+
     def forward(self, state_sequence):
         # state_sequence: (batch, seq_len, state_dim)
         embedded = self.embedding(state_sequence)  # (batch, seq_len, hidden_dim)
         # No need to transpose anymore!
         transformed = self.transformer(embedded)  # (batch, seq_len, hidden_dim)
-        action = torch.tanh(self.action_head(transformed[:, -1]))  # Use last timestep: (batch, hidden_dim)
+        action = torch.tanh(
+            self.action_head(transformed[:, -1])
+        )  # Use last timestep: (batch, hidden_dim)
         return action * self.max_action  # Scale to [-max_action, max_action]
-
-
-# class TransformerTD3Actor(nn.Module):
-#     def __init__(
-#         self, state_dim, action_dim, max_action, hidden_dim=256, nhead=8, n_layers=6
-#     ):
-#         super().__init__()
-#         self.max_action = max_action
-#         self.embedding = nn.Linear(state_dim, hidden_dim)
-#         self.transformer = nn.TransformerEncoder(
-#             nn.TransformerEncoderLayer(hidden_dim, nhead), n_layers
-#         )
-#         self.action_head = nn.Linear(hidden_dim, action_dim)
-
-#     def forward(self, state_sequence):
-#         # state_sequence: (batch, seq_len, state_dim)
-#         embedded = self.embedding(state_sequence).transpose(
-#             0, 1
-#         )  # (seq_len, batch, hidden_dim)
-#         transformed = self.transformer(embedded)
-#         action = torch.tanh(self.action_head(transformed[-1]))  # [-1, 1]
-#         return action * self.max_action  # Scale to [-max_action, max_action]c
 
 
 class TD3Critic(nn.Module):

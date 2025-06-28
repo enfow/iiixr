@@ -54,17 +54,21 @@ class TD3Trainer(BaseTrainer):
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.config.lr)
 
     def select_action(self, state, eval_mode: bool = False):
-        state = torch.FloatTensor(state.reshape(1, -1)).to(self.config.device)
-        action = self.actor(state).cpu().data.numpy().flatten()
+        # select_action is not used in training, so we can disable gradients
+        with torch.no_grad():
+            state = torch.FloatTensor(state.reshape(1, -1)).to(self.config.device)
+            action = self.actor(state).cpu().data.numpy().flatten()
 
-        # Exploration
-        if not eval_mode:
-            action = action + np.random.normal(
-                0, self.max_action * self.config.exploration_noise, size=self.action_dim
-            )
+            # Exploration
+            if not eval_mode:
+                action = action + np.random.normal(
+                    0,
+                    self.max_action * self.config.exploration_noise,
+                    size=self.action_dim,
+                )
 
-        action = np.clip(action, -self.max_action, self.max_action)
-        return {"action": action}
+            action = np.clip(action, -self.max_action, self.max_action)
+            return {"action": action}
 
     def update(self) -> TD3UpdateLoss:
         if len(self.memory) < self.config.batch_size:

@@ -76,20 +76,19 @@ class DiscreteSACTrainer(BaseTrainer):
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.config.lr)
 
     def select_action(self, state, eval_mode: bool = False):
+        # select_action is not used in training, so we can disable gradients
         state = torch.FloatTensor(state).unsqueeze(0).to(self.config.device)
         with torch.no_grad():
             logits = self.actor(state)
             probs = F.softmax(logits, dim=-1)
 
             if eval_mode:
-                # During evaluation, use greedy action (argmax)
                 action = probs.argmax(dim=-1)
             else:
-                # During training, sample from the policy
                 action = torch.distributions.Categorical(probs).sample()
 
             return {
-                "action": action.item(),
+                "action": action.cpu().numpy(),
             }
 
     def _sample_transactions(self):
@@ -145,10 +144,6 @@ class DiscreteSACTrainer(BaseTrainer):
         q1_all = self.critic1(state)
         q2_all = self.critic2(state)
         min_q = torch.min(q1_all, q2_all)
-
-        # actor_loss = (
-        #     (probs * (self.alpha.detach() * log_probs - min_q.detach())).sum(dim=1).mean()
-        # )
 
         actor_loss = (
             (probs * (self.alpha.detach() * log_probs - min_q.detach()))
