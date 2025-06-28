@@ -221,6 +221,7 @@ class RainbowDQNTrainer(BaseTrainer):
         """Copies weights from the policy network to the target network."""
         if self.total_steps % self.config.target_update_interval == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
+            self.target_net.reset_noise()
 
     def train_episode(self) -> SingleEpisodeResult:
         """Trains the agent for a single episode."""
