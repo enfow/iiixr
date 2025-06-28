@@ -1,21 +1,21 @@
+"""
+GIF Generator for Reinforcement Learning Models
+
+This module provides a simple interface to generate GIFs from trained models
+by leveraging the trainer's built-in evaluation and GIF generation methods.
+This ensures perfect consistency with training results.
+"""
+
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-import gymnasium as gym
-import imageio
-import numpy as np
-import torch
-
-from env.gym import GymEnvFactory
 from trainer.trainer_factory import TrainerFactory
-from util.gym_env import is_discrete_action_space
-from util.settings import set_seed
 
 
 class GIFGenerator:
-    """Generate GIFs from trained models in results directories"""
+    """Simple GIF generator that uses trainer's built-in methods"""
 
     def __init__(self, results_dir: str):
         self.results_dir = Path(results_dir)
@@ -23,54 +23,12 @@ class GIFGenerator:
         # Load configuration
         self.config = self._load_config()
 
-        config_model_field = self.config.get("model")
-        if isinstance(config_model_field, str):
-            self.config["model"] = {
-                "model": config_model_field,
-                "hidden_dim": self.config.get("hidden_dim"),
-                "n_layers": self.config.get("n_layers"),
-                "embedding_type": self.config.get("embedding_type", "fc"),
-            }
-
-        # Handle buffer config compatibility
-        if "buffer" not in self.config:
-            # Create buffer config from legacy fields
-            self.config["buffer"] = {
-                "buffer_size": self.config.get("buffer_size", 1000000),
-                "buffer_type": self.config.get("buffer_type", "default"),
-                "alpha": self.config.get("alpha", 0.6),
-                "beta_start": self.config.get("beta_start", 0.4),
-                "beta_frames": self.config.get("beta_frames", 100000),
-                "seq_len": self.config.get("seq_len", 1),
-            }
-        elif isinstance(self.config.get("buffer"), str):
-            # Convert string buffer type to buffer config
-            buffer_type = self.config["buffer"]
-            self.config["buffer"] = {
-                "buffer_type": buffer_type,
-                "buffer_size": self.config.get("buffer_size", 1000000),
-                "alpha": self.config.get("alpha", 0.6),
-                "beta_start": self.config.get("beta_start", 0.4),
-                "beta_frames": self.config.get("beta_frames", 100000),
-                "seq_len": self.config.get("seq_len", 1),
-            }
-
-        self.model_config = self.config.get("model", {})
-
-        # Set up environment and model
-        self.env_name = self.config.get("env", "unknown")
-        self.model_name = self.model_config.get("model", "unknown")
-        self.device = self.config.get("device", "cpu")
-
-        # Compute environment dimensions before initializing trainer
-        self._compute_env_dimensions()
+        # Handle config compatibility
+        self._fix_config_compatibility()
 
         # Initialize trainer
         self.trainer = self._init_trainer()
         self.trainer.load_model()
-
-        # Set seed for reproducibility
-        set_seed(self.config.get("seed", 42))
 
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config.json"""
@@ -83,32 +41,76 @@ class GIFGenerator:
 
         return config
 
-    def _compute_env_dimensions(self):
-        """Compute state_dim, action_dim, and is_discrete from environment"""
-        # Create environment to get dimensions
-        env = GymEnvFactory(self.env_name)
-        self.is_discrete = is_discrete_action_space(env)
+    def _fix_config_compatibility(self):
+        """Fix config compatibility issues"""
+        config_model_field = self.config.get("model")
+        if isinstance(config_model_field, str):
+            self.config["model"] = {
+                "model": config_model_field,
+                "hidden_dim": self.config.get("hidden_dim"),
+                "n_layers": self.config.get("n_layers"),
+                "embedding_type": self.config.get("embedding_type", "fc"),
+            }
 
-        self.state_dim = env.observation_space.shape[0]
-        self.action_dim = (
-            env.action_space.n if self.is_discrete else env.action_space.shape[0]
-        )
-
-        # Update config with computed values
-        self.config["state_dim"] = self.state_dim
-        self.config["action_dim"] = self.action_dim
-        self.config["is_discrete"] = self.is_discrete
-
-        env.close()
+        # Handle buffer config compatibility
+        if "buffer" not in self.config:
+            self.config["buffer"] = {
+                "buffer_size": self.config.get("buffer_size", 1000000),
+                "buffer_type": self.config.get("buffer_type", "default"),
+                "alpha": self.config.get("alpha", 0.6),
+                "beta_start": self.config.get("beta_start", 0.4),
+                "beta_frames": self.config.get("beta_frames", 100000),
+                "seq_len": self.config.get("seq_len", 1),
+            }
+        elif isinstance(self.config.get("buffer"), str):
+            buffer_type = self.config["buffer"]
+            self.config["buffer"] = {
+                "buffer_type": buffer_type,
+                "buffer_size": self.config.get("buffer_size", 1000000),
+                "alpha": self.config.get("alpha", 0.6),
+                "beta_start": self.config.get("beta_start", 0.4),
+                "beta_frames": self.config.get("beta_frames", 100000),
+                "seq_len": self.config.get("seq_len", 1),
+            }
 
     def _init_trainer(self):
         """Initialize the appropriate trainer based on the model type"""
-        return TrainerFactory(self.env_name, self.config, str(self.results_dir))
+        env_name = self.config.get("env", "unknown")
+        return TrainerFactory(env_name, self.config, str(self.results_dir))
 
-    def select_action(self, state: np.ndarray) -> np.ndarray:
-        """Select action using the trained model"""
-        action_info = self.trainer.select_action(state)
-        return action_info["action"]
+    def run_evaluation(self, episodes: int = 10) -> Dict[str, Any]:
+        """Run evaluation using the trainer's evaluation code"""
+        print(f"Running evaluation with {episodes} episodes...")
+
+        try:
+            eval_result = self.trainer.evaluate(episodes=episodes)
+
+            print(f"Evaluation Results:")
+            print(f"  Average Score: {eval_result.avg_score:.2f}")
+            print(f"  Std Score: {eval_result.std_score:.2f}")
+            print(f"  Min Score: {eval_result.min_score:.2f}")
+            print(f"  Max Score: {eval_result.max_score:.2f}")
+            print(f"  All Scores: {eval_result.all_scores}")
+
+            return {
+                "avg_score": eval_result.avg_score,
+                "std_score": eval_result.std_score,
+                "min_score": eval_result.min_score,
+                "max_score": eval_result.max_score,
+                "all_scores": eval_result.all_scores,
+                "steps": eval_result.steps,
+            }
+        except Exception as e:
+            print(f"Error during evaluation: {e}")
+            return {
+                "avg_score": 0.0,
+                "std_score": 0.0,
+                "min_score": 0.0,
+                "max_score": 0.0,
+                "all_scores": [],
+                "steps": [],
+                "error": str(e),
+            }
 
     def generate_gif(
         self,
@@ -116,142 +118,18 @@ class GIFGenerator:
         fps: int = 30,
         episodes: int = 1,
         render_mode: str = "rgb_array",
+        gif_name: str = None,
+        gif_dir: str = None,
     ) -> str:
-        """Generate a GIF by running the model in the environment"""
-
-        # Set output path to the results directory
-        output_path = self.results_dir / f"{self.model_name}_{self.env_name}_demo.gif"
-
-        # Create environment with rendering
-        env = gym.make(self.env_name, render_mode=render_mode)
-
-        all_frames = []
-        total_reward = 0
-
-        for episode in range(episodes):
-            state, _ = env.reset()
-            episode_frames = []
-            episode_reward = 0
-
-            for step in range(max_steps):
-                # Render current frame
-                frame = env.render()
-                if frame is not None:
-                    episode_frames.append(frame)
-
-                # Select action
-                action = self.select_action(state)
-
-                # Take step in environment
-                next_state, reward, terminated, truncated, _ = env.step(action)
-                done = terminated or truncated
-
-                episode_reward += reward
-                state = next_state
-
-                if done:
-                    # Render final frame
-                    frame = env.render()
-                    if frame is not None:
-                        episode_frames.append(frame)
-                    break
-
-            all_frames.extend(episode_frames)
-            total_reward += episode_reward
-            print(f"Episode {episode + 1}: Reward = {episode_reward:.2f}")
-
-        env.close()
-
-        # Save as GIF
-        if all_frames:
-            imageio.mimsave(output_path, all_frames, fps=fps)
-            print(f"GIF saved to: {output_path}")
-            print(f"Total frames: {len(all_frames)}")
-            print(f"Average reward per episode: {total_reward / episodes:.2f}")
-        else:
-            print("No frames captured. Check if the environment supports rendering.")
-
-        return str(output_path)
-
-    def generate_multiple_gifs(
-        self,
-        max_steps: int = 1000,
-        fps: int = 30,
-        episodes_per_gif: int = 1,
-        num_gifs: int = 3,
-        render_mode: str = "rgb_array",
-    ) -> List[str]:
-        """Generate multiple GIFs with different random seeds"""
-
-        # Create gifs subdirectory in results directory
-        output_dir = self.results_dir / "gifs"
-        output_dir.mkdir(exist_ok=True)
-
-        gif_paths = []
-
-        for i in range(num_gifs):
-            # Set different seed for each GIF
-            set_seed(self.config.get("seed", 42) + i)
-
-            output_path = (
-                output_dir / f"{self.model_name}_{self.env_name}_demo_{i + 1}.gif"
-            )
-
-            # Create environment with rendering
-            env = gym.make(self.env_name, render_mode=render_mode)
-
-            all_frames = []
-            total_reward = 0
-
-            for episode in range(episodes_per_gif):
-                state, _ = env.reset()
-                episode_frames = []
-                episode_reward = 0
-
-                for step in range(max_steps):
-                    # Render current frame
-                    frame = env.render()
-                    if frame is not None:
-                        episode_frames.append(frame)
-
-                    # Select action
-                    action = self.select_action(state)
-
-                    # Take step in environment
-                    next_state, reward, terminated, truncated, _ = env.step(action)
-                    done = terminated or truncated
-
-                    episode_reward += reward
-                    state = next_state
-
-                    if done:
-                        # Render final frame
-                        frame = env.render()
-                        if frame is not None:
-                            episode_frames.append(frame)
-                        break
-
-                all_frames.extend(episode_frames)
-                total_reward += episode_reward
-                print(
-                    f"GIF {i + 1}, Episode {episode + 1}: Reward = {episode_reward:.2f}"
-                )
-
-            env.close()
-
-            # Save as GIF
-            if all_frames:
-                imageio.mimsave(output_path, all_frames, fps=fps)
-                print(f"GIF {i + 1} saved to: {output_path}")
-                print(f"Total frames: {len(all_frames)}")
-                print(
-                    f"Average reward per episode: {total_reward / episodes_per_gif:.2f}"
-                )
-                gif_paths.append(str(output_path))
-            else:
-                print(f"No frames captured for GIF {i + 1}.")
-
-        return gif_paths
+        """Generate a GIF using the trainer's built-in method"""
+        return self.trainer.generate_gif(
+            max_steps=max_steps,
+            fps=fps,
+            episodes=episodes,
+            render_mode=render_mode,
+            gif_name=gif_name,
+            gif_dir=gif_dir,
+        )
 
 
 def run_gif_generator(
@@ -259,28 +137,24 @@ def run_gif_generator(
     max_steps: int = 1000,
     fps: int = 30,
     episodes: int = 1,
-    num_gifs: int = 1,
     render_mode: str = "rgb_array",
+    run_eval: bool = False,
+    eval_episodes: int = 10,
 ):
+    """Main function to run GIF generation"""
     generator = GIFGenerator(results_dir)
-    if num_gifs > 1:
-        gif_paths = generator.generate_multiple_gifs(
-            max_steps=max_steps,
-            fps=fps,
-            episodes_per_gif=episodes,
-            num_gifs=num_gifs,
-            render_mode=render_mode,
-        )
-        print(f"Generated {len(gif_paths)} GIFs:")
-        for path in gif_paths:
-            print(f"  - {path}")
-        return gif_paths
-    else:
-        gif_path = generator.generate_gif(
-            max_steps=max_steps, fps=fps, episodes=episodes, render_mode=render_mode
-        )
-        print(f"Generated GIF: {gif_path}")
-        return gif_path
+
+    # Run evaluation first if requested
+    if run_eval:
+        eval_results = generator.run_evaluation(episodes=eval_episodes)
+        print(f"Evaluation completed. Average score: {eval_results['avg_score']:.2f}")
+        print("-" * 50)
+
+    gif_path = generator.generate_gif(
+        max_steps=max_steps, fps=fps, episodes=episodes, render_mode=render_mode
+    )
+    print(f"Generated GIF: {gif_path}")
+    return gif_path
 
 
 def main():
@@ -296,29 +170,37 @@ def main():
         "--episodes", type=int, default=1, help="Number of episodes to record"
     )
     parser.add_argument(
-        "--num_gifs",
-        type=int,
-        default=1,
-        help="Number of GIFs to generate (use >1 for multiple GIFs)",
+        "--render_mode", default="rgb_array", help="Gymnasium render mode"
     )
     parser.add_argument(
-        "--render_mode", default="rgb_array", help="Gymnasium render mode"
+        "--run_eval",
+        action="store_true",
+        default=False,
+        help="Run evaluation before generating GIFs",
+    )
+    parser.add_argument(
+        "--eval_episodes",
+        type=int,
+        default=10,
+        help="Number of episodes for evaluation",
     )
 
     args = parser.parse_args()
 
-    # try:
-    run_gif_generator(
-        args.results_dir,
-        args.max_steps,
-        args.fps,
-        args.episodes,
-        args.num_gifs,
-        args.render_mode,
-    )
-    # except Exception as e:
-    #     print(f"Error generating GIF: {e}")
-    #     return 1
+    try:
+        print(f"Generating GIF for {args.results_dir}")
+        run_gif_generator(
+            args.results_dir,
+            args.max_steps,
+            args.fps,
+            args.episodes,
+            args.render_mode,
+            args.run_eval,
+            args.eval_episodes,
+        )
+    except Exception as e:
+        print(f"Error generating GIF: {e}")
+        return 1
 
     return 0
 
