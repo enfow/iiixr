@@ -9,11 +9,7 @@ import numpy as np
 import torch
 
 from env.gym import GymEnvFactory
-from trainer.discrete_sac_trainer import DiscreteSACTrainer
-from trainer.ppo_trainer import PPOTrainer
-from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
-from trainer.sac_trainer import SACTrainer
-from trainer.td3_trainer import TD3Trainer
+from trainer.trainer_factory import TrainerFactory
 from util.gym_env import is_discrete_action_space
 from util.settings import set_seed
 
@@ -107,20 +103,7 @@ class GIFGenerator:
 
     def _init_trainer(self):
         """Initialize the appropriate trainer based on the model type"""
-        model_name = self.model_name.lower()
-
-        if model_name == "ppo":
-            return PPOTrainer(self.env_name, self.config, str(self.results_dir))
-        elif model_name == "sac":
-            return SACTrainer(self.env_name, self.config, str(self.results_dir))
-        elif model_name == "td3":
-            return TD3Trainer(self.env_name, self.config, str(self.results_dir))
-        elif model_name == "discrete_sac":
-            return DiscreteSACTrainer(self.env_name, self.config, str(self.results_dir))
-        elif model_name == "rainbow_dqn":
-            return RainbowDQNTrainer(self.env_name, self.config, str(self.results_dir))
-        else:
-            raise ValueError(f"Unsupported model type: {model_name}")
+        return TrainerFactory(self.env_name, self.config, str(self.results_dir))
 
     def select_action(self, state: np.ndarray) -> np.ndarray:
         """Select action using the trained model"""
