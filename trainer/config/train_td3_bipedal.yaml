@@ -1,6 +1,6 @@
 # Training Configuration File for TD3 on BipedalWalker
 # Environment settings
-env: "BipedalWalker-v3"
+env: "BipedalWalkerHardcore-v3"
 model:
   model: "td3"
   hidden_dim: 256
@@ -9,8 +9,8 @@ model:
 
 # Training parameters
 seed: 42
-episodes: 1000
-max_steps: 1000
+episodes: 5000
+max_steps: 2000
 lr: 3e-4
 gamma: 0.99
 buffer_size: 1000000
