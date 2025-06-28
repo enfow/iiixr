@@ -107,11 +107,16 @@ class BaseTrainer:
             log_result(single_episode_result, self.log_file)
 
             # evaluate
-            if self.config.eval and ep % self.config.eval_period == 0:
+            if (
+                self.config.eval
+                and self.train_episode_number % self.config.eval_period == 0
+            ):
                 eval_result = self.evaluate(self.config.eval_episodes)
                 if self.best_results is None or eval_result > self.best_results:
                     self.best_results = eval_result
-                    print("New best results:")
+                    print(
+                        f"New best results(params saved for ep={self.train_episode_number})"
+                    )
                     self.save_model()
                 self._print_trainer_summary()
                 print(eval_result)
