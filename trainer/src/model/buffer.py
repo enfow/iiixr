@@ -307,27 +307,40 @@ class PrioritizedReplayBuffer:
         self.tree.add(max_priority, data)
 
     def sample(self, batch_size: int) -> tuple:
-        """
-        Samples a batch of experiences from the buffer.
-
-        Returns:
-            A tuple containing states, actions, rewards, next_states, dones,
-            tree indices, and importance-sampling weights.
-        """
         batch = []
         idxs = []
         priorities = []
-        segment = self.tree.total() / batch_size
 
+        if self.tree.size < batch_size:
+            return None
+
+        segment = self.tree.total() / batch_size
         self.beta = min(1.0, self.beta + self.beta_increment_per_sampling)
 
         for i in range(batch_size):
             s = random.uniform(i * segment, (i + 1) * segment)
             idx, priority, data = self.tree.get(s)
 
-            if priority == 0:
+            # Robustly handle cases where a sampled priority is 0
+            retry_count = 0
+            while priority == 0:
+                if retry_count > 10:
+                    # Fallback to sampling from the entire tree range
+                    s = random.uniform(0, self.tree.total())
+                    idx, priority, data = self.tree.get(s)
+                    if priority != 0:
+                        break
+                    else:
+                        # This should be almost impossible if tree.total() > 0
+                        print(
+                            "Warning: Failed to sample a non-zero priority item after fallback."
+                        )
+                        break  # Exit the while loop
+
+                # Retry sampling from the same segment
                 s = random.uniform(i * segment, (i + 1) * segment)
                 idx, priority, data = self.tree.get(s)
+                retry_count += 1
 
             priorities.append(priority)
             batch.append(data)
@@ -348,6 +361,49 @@ class PrioritizedReplayBuffer:
             idxs,
             np.array(weights, dtype=np.float32),
         )
+
+    # def sample(self, batch_size: int) -> tuple:
+    #     """
+    #     Samples a batch of experiences from the buffer.
+
+    #     Returns:
+    #         A tuple containing states, actions, rewards, next_states, dones,
+    #         tree indices, and importance-sampling weights.
+    #     """
+    #     batch = []
+    #     idxs = []
+    #     priorities = []
+    #     segment = self.tree.total() / batch_size
+
+    #     self.beta = min(1.0, self.beta + self.beta_increment_per_sampling)
+
+    #     for i in range(batch_size):
+    #         s = random.uniform(i * segment, (i + 1) * segment)
+    #         idx, priority, data = self.tree.get(s)
+
+    #         if priority == 0:
+    #             s = random.uniform(i * segment, (i + 1) * segment)
+    #             idx, priority, data = self.tree.get(s)
+
+    #         priorities.append(priority)
+    #         batch.append(data)
+    #         idxs.append(idx)
+
+    #     sampling_probabilities = np.array(priorities) / self.tree.total()
+
+    #     weights = (self.tree.size * sampling_probabilities) ** -self.beta
+    #     weights /= weights.max()
+
+    #     states, actions, rewards, next_states, dones = map(np.stack, zip(*batch))
+    #     return (
+    #         states,
+    #         actions,
+    #         rewards,
+    #         next_states,
+    #         dones,
+    #         idxs,
+    #         np.array(weights, dtype=np.float32),
+    #     )
 
     def update_priorities(self, idxs: list[int], errors: list[float]):
         """
