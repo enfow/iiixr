@@ -124,7 +124,7 @@ class BaseConfig(BaseModel):
         elif config["device"] == "cuda" and not torch.cuda.is_available():
             raise ValueError("CUDA is not available")
         elif config["device"] == "cpu" and torch.cuda.is_available():
-            raise ValueError("CUDA is available but device is set to CPU")
+            print("CUDA is available but device is set to CPU")
 
     def to_dict(self):
         return self.model_dump()
