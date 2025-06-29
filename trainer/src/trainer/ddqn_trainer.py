@@ -1,3 +1,12 @@
+"""
+Double DQN Trainer
+
+Reference
+---------
+- [Deep Reinforcement Learning with Double Q-learning](<https://arxiv.org/pdf/1509.06461>)
+- [Prioritized Experience Replay](<https://arxiv.org/pdf/1511.05952>)
+"""
+
 import math
 
 import numpy as np
@@ -46,7 +55,11 @@ class DDQNTrainer(BaseTrainer):
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.config.lr)
 
     def select_action(self, state: np.ndarray, eval_mode: bool = False) -> dict:
-        """Selects an action using epsilon-greedy policy."""
+        """
+        Note
+        ----
+        - Epsilon-Greedy Exploration
+        """
         # Epsilon decay
         self.epsilon = self.config.eps_end + (
             self.config.eps_start - self.config.eps_end
@@ -68,7 +81,6 @@ class DDQNTrainer(BaseTrainer):
         }
 
     def update(self) -> dict:
-        """Updates the network weights using a batch from the replay buffer."""
         if len(self.memory) < self.config.batch_size:
             return None
 
