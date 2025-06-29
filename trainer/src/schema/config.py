@@ -9,6 +9,7 @@ from pydantic import BaseModel
 class ModelEmbeddingType(str, Enum):
     FC = "fc"
     TRANSFORMER = "transformer"
+    LSTM = "lstm"
 
 
 class BufferType(str, Enum):

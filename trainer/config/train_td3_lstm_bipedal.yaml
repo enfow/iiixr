@@ -3,9 +3,9 @@
 env: "BipedalWalkerHardcore-v3"
 model:
   model: "td3_seq"
-  hidden_dim: 512
-  n_layers: 4
-  embedding_type: "transformer"  # Options: fc, lstm, transformer
+  hidden_dim: 256
+  n_layers: 2
+  embedding_type: "lstm"  # Options: fc, lstm, transformer
 
 buffer:
   buffer_size: 1000000

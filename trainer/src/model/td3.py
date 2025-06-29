@@ -1,3 +1,11 @@
+"""
+TD3 Actor
+
+Reference
+---------
+- [TD3: Twin Delayed DDPG](<https://arxiv.org/pdf/1802.09477>)
+"""
+
 import torch
 import torch.nn as nn
 
@@ -37,22 +45,46 @@ class TransformerTD3Actor(nn.Module):
             nn.TransformerEncoderLayer(
                 hidden_dim,
                 nhead,
-                batch_first=True,  # Enable batch_first
+                batch_first=True,
             ),
             n_layers,
-            enable_nested_tensor=True,  # This will now work properly
+            enable_nested_tensor=True,
         )
         self.action_head = nn.Linear(hidden_dim, action_dim)
 
     def forward(self, state_sequence):
-        # state_sequence: (batch, seq_len, state_dim)
-        embedded = self.embedding(state_sequence)  # (batch, seq_len, hidden_dim)
-        # No need to transpose anymore!
-        transformed = self.transformer(embedded)  # (batch, seq_len, hidden_dim)
-        action = torch.tanh(
-            self.action_head(transformed[:, -1])
-        )  # Use last timestep: (batch, hidden_dim)
-        return action * self.max_action  # Scale to [-max_action, max_action]
+        embedded = self.embedding(state_sequence)
+        transformed = self.transformer(embedded)
+        action = torch.tanh(self.action_head(transformed[:, -1]))
+        return action * self.max_action
+
+
+class LSTMTD3Actor(nn.Module):
+    def __init__(
+        self,
+        state_dim: int,
+        action_dim: int,
+        hidden_dim: int,
+        n_layers: int = 2,
+        max_action: float = 1.0,
+    ):
+        super().__init__()
+        self.max_action = max_action
+        self.embedding = nn.Linear(state_dim, hidden_dim)
+        self.lstm = nn.LSTM(
+            input_size=hidden_dim,
+            hidden_size=hidden_dim,
+            num_layers=n_layers,
+            batch_first=True,
+        )
+        self.out_layer = nn.Linear(hidden_dim, action_dim)
+
+    def forward(self, state_sequence: torch.Tensor) -> torch.Tensor:
+        embedded = self.embedding(state_sequence)
+        lstm_output, _ = self.lstm(embedded)
+        last_output = lstm_output[:, -1, :]
+        action = torch.tanh(self.out_layer(last_output))
+        return action * self.max_action
 
 
 class TD3Critic(nn.Module):
@@ -70,7 +102,7 @@ class TD3Critic(nn.Module):
             q1_layers.append(nn.Linear(hidden_dim, hidden_dim))
             q1_layers.append(nn.ReLU())
         self.q1_layers = nn.Sequential(*q1_layers)
-        self.q1_out = nn.Linear(hidden_dim, 1)  # FIXED: Added output layer
+        self.q1_out = nn.Linear(hidden_dim, 1)
 
         # Q2 network
         q2_layers = [nn.Linear(state_dim + action_dim, hidden_dim), nn.ReLU()]
@@ -78,17 +110,17 @@ class TD3Critic(nn.Module):
             q2_layers.append(nn.Linear(hidden_dim, hidden_dim))
             q2_layers.append(nn.ReLU())
         self.q2_layers = nn.Sequential(*q2_layers)
-        self.q2_out = nn.Linear(hidden_dim, 1)  # FIXED: Added output layer
+        self.q2_out = nn.Linear(hidden_dim, 1)
 
     def forward(self, state, action):
         sa = torch.cat([state, action], dim=1)
         q1 = self.q1_layers(sa)
-        q1 = self.q1_out(q1)  # FIXED: Use output layer
+        q1 = self.q1_out(q1)
         q2 = self.q2_layers(sa)
-        q2 = self.q2_out(q2)  # FIXED: Use output layer
+        q2 = self.q2_out(q2)
         return q1, q2
 
-    def Q1(self, state, action):
+    def get_q1_value(self, state, action):
         sa = torch.cat([state, action], dim=1)
         q1 = self.q1_layers(sa)
-        return self.q1_out(q1)  # FIXED: Use output layer
+        return self.q1_out(q1)

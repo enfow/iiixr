@@ -1,17 +1,18 @@
 """
-TD3
-https://arxiv.org/pdf/1802.09477
+TD3 Trainer
+
+Reference
+---------
+- [TD3: Twin Delayed DDPG](<https://arxiv.org/pdf/1802.09477>)
 """
 
 import copy
 
-import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-from model.buffer import ReplayBuffer
 from model.td3 import TD3Actor, TD3Critic
 from schema.config import TD3Config
 from schema.result import SingleEpisodeResult, TD3UpdateLoss
@@ -43,18 +44,13 @@ class TD3Trainer(BaseTrainer):
             n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
-        # Target networks
         self.actor_target = copy.deepcopy(self.actor)
         self.critic_target = copy.deepcopy(self.critic)
 
-        # Replay buffer
-
-        # Optimizers
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.config.lr)
 
     def select_action(self, state, eval_mode: bool = False):
-        # select_action is not used in training, so we can disable gradients
         with torch.no_grad():
             state = torch.FloatTensor(state.reshape(1, -1)).to(self.config.device)
             action = self.actor(state).cpu().data.numpy().flatten()
@@ -76,23 +72,17 @@ class TD3Trainer(BaseTrainer):
 
         self.total_it += 1
 
-        # Sample replay buffer
         state, action, reward, next_state, done = self.memory.sample(
             self.config.batch_size
         )
 
         state = torch.FloatTensor(state).to(self.config.device)
         action = torch.FloatTensor(action).to(self.config.device)
-        reward = (
-            torch.FloatTensor(reward).unsqueeze(1).to(self.config.device)
-        )  # Add dimension
+        reward = torch.FloatTensor(reward).unsqueeze(1).to(self.config.device)
         next_state = torch.FloatTensor(next_state).to(self.config.device)
-        done = (
-            torch.BoolTensor(done).unsqueeze(1).to(self.config.device)
-        )  # Add dimension
+        done = torch.BoolTensor(done).unsqueeze(1).to(self.config.device)
 
         with torch.no_grad():
-            # Select action according to policy and add clipped noise
             noise = (torch.randn_like(action) * self.config.policy_noise).clamp(
                 -self.config.noise_clip, self.config.noise_clip
             )
@@ -100,36 +90,28 @@ class TD3Trainer(BaseTrainer):
                 -self.max_action, self.max_action
             )
 
-            # Compute the target Q value
-            target_Q1, target_Q2 = self.critic_target(next_state, next_action)
-            target_Q = torch.min(target_Q1, target_Q2)
-            target_Q = reward + (~done) * self.config.gamma * target_Q
+            target_q1, target_q2 = self.critic_target(next_state, next_action)
+            target_q = torch.min(target_q1, target_q2)
+            target_q = reward + (~done) * self.config.gamma * target_q
 
-        # Get current Q estimates
-        current_Q1, current_Q2 = self.critic(state, action)
+        current_q1, current_q2 = self.critic(state, action)
 
-        # Compute critic loss
-        critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(
-            current_Q2, target_Q
+        critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(
+            current_q2, target_q
         )
 
-        # Optimize the critic
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
 
         actor_loss = None
-        # Delayed policy updates
         if self.total_it % self.config.policy_delay == 0:
-            # Compute actor loss
-            actor_loss = -self.critic.Q1(state, self.actor(state)).mean()
+            actor_loss = -self.critic.get_q1_value(state, self.actor(state)).mean()
 
-            # Optimize the actor
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
             self.actor_optimizer.step()
 
-            # Update the frozen target models
             for param, target_param in zip(
                 self.critic.parameters(), self.critic_target.parameters()
             ):
@@ -164,7 +146,6 @@ class TD3Trainer(BaseTrainer):
             next_state, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
 
-            # Store transition in replay buffer
             self.memory.push(state, action, reward, next_state, done)
 
             state = next_state

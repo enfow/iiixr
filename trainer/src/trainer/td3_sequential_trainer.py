@@ -1,24 +1,22 @@
 """
 TD3 Sequential Trainer with Transformer Actor
-Handles sequential state inputs for transformer-based policies
+
+Reference
+---------
+- [TD3: Twin Delayed DDPG](<https://arxiv.org/pdf/1802.09477>)
 """
 
 import copy
-from collections import deque
 
-import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-from model.buffer import ReplayBuffer
-from model.td3 import TD3Critic, TransformerTD3Actor
-from schema.config import TD3Config
+from model.td3 import LSTMTD3Actor, TD3Critic, TransformerTD3Actor
+from schema.config import ModelEmbeddingType, TD3Config
 from schema.result import SingleEpisodeResult, TD3UpdateLoss
 from trainer.base_trainer import BaseTrainer
-
-SEQ_LEN = 10
 
 
 class TD3SequentialTrainer(BaseTrainer):
@@ -37,14 +35,25 @@ class TD3SequentialTrainer(BaseTrainer):
     def _init_models(self):
         self.max_action = float(self.env.action_space.high[0])
 
-        self.actor = TransformerTD3Actor(
-            self.state_dim,
-            self.action_dim,
-            self.max_action,
-            hidden_dim=self.config.model.hidden_dim,
-            nhead=8,
-            n_layers=self.config.model.n_layers,
-        ).to(self.config.device)
+        if self.config.model.embedding_type == ModelEmbeddingType.TRANSFORMER:
+            self.actor = TransformerTD3Actor(
+                self.state_dim,
+                self.action_dim,
+                self.max_action,
+                hidden_dim=self.config.model.hidden_dim,
+                nhead=8,
+                n_layers=self.config.model.n_layers,
+            ).to(self.config.device)
+        elif self.config.model.embedding_type == ModelEmbeddingType.LSTM:
+            self.actor = LSTMTD3Actor(
+                state_dim=self.state_dim,
+                action_dim=self.action_dim,
+                max_action=self.max_action,
+                hidden_dim=self.config.model.hidden_dim,
+                n_layers=self.config.model.n_layers,
+            ).to(self.config.device)
+        else:
+            raise ValueError(f"Invalid actor type: {self.config.model.actor_type}")
 
         self.critic = TD3Critic(
             self.state_dim,
@@ -67,15 +76,12 @@ class TD3SequentialTrainer(BaseTrainer):
         """Create a sequence from current state and history"""
         self.state_history.append(state)
 
-        # Create sequence with padding if necessary
         if len(self.state_history) < self.config.buffer.seq_len:
-            # Pad with the current state (repeat current state)
             padding_needed = self.config.buffer.seq_len - len(self.state_history)
             padded_states = [state] * padding_needed + list(self.state_history)
         else:
             padded_states = list(self.state_history)
 
-        # Convert to tensor: (1, seq_len, state_dim)
         padded_states = np.array(padded_states)
         state_sequence = (
             torch.FloatTensor(padded_states).unsqueeze(0).to(self.config.device)
@@ -83,7 +89,6 @@ class TD3SequentialTrainer(BaseTrainer):
         return state_sequence
 
     def select_action(self, state, eval_mode: bool = False):
-        # select_action is not used in training, so we can disable gradients
         with torch.no_grad():
             state_sequence = self._create_state_sequence(state)
 
@@ -113,7 +118,6 @@ class TD3SequentialTrainer(BaseTrainer):
 
         state_seqs, action_seqs, reward_seqs, next_state_seqs, done_seqs = sequences
 
-        # Convert to tensors
         state_seqs = torch.FloatTensor(state_seqs).to(
             self.config.device
         )  # (batch, seq_len, state_dim)
@@ -124,7 +128,6 @@ class TD3SequentialTrainer(BaseTrainer):
             self.config.device
         )  # (batch, seq_len, action_dim)
 
-        # Use last timestep for rewards and dones
         reward = (
             torch.FloatTensor(reward_seqs[:, -1]).unsqueeze(1).to(self.config.device)
         )  # (batch, 1)
@@ -133,10 +136,8 @@ class TD3SequentialTrainer(BaseTrainer):
         )  # (batch, 1)
 
         with torch.no_grad():
-            # Get target action from transformer actor (using sequences)
             target_action = self.actor_target(next_state_seqs)  # (batch, action_dim)
 
-            # Add clipped noise
             noise = (torch.randn_like(target_action) * self.config.policy_noise).clamp(
                 -self.config.noise_clip, self.config.noise_clip
             )
@@ -144,40 +145,32 @@ class TD3SequentialTrainer(BaseTrainer):
                 -self.max_action, self.max_action
             )
 
-            # Compute target Q value using current state (last timestep) for critics
             current_next_state = next_state_seqs[:, -1]  # (batch, state_dim)
-            target_Q1, target_Q2 = self.critic_target(current_next_state, next_action)
-            target_Q = torch.min(target_Q1, target_Q2)
-            target_Q = reward + (~done) * self.config.gamma * target_Q
+            target_q1, target_q2 = self.critic_target(current_next_state, next_action)
+            target_q = torch.min(target_q1, target_q2)
+            target_q = reward + (~done) * self.config.gamma * target_q
 
-        # Get current Q estimates using current state and action
         current_state = state_seqs[:, -1]  # (batch, state_dim) - last timestep
         current_action = action_seqs[:, -1]  # (batch, action_dim) - last timestep
-        current_Q1, current_Q2 = self.critic(current_state, current_action)
+        current_q1, current_q2 = self.critic(current_state, current_action)
 
-        # Compute critic loss
-        critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(
-            current_Q2, target_Q
+        critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(
+            current_q2, target_q
         )
 
-        # Optimize the critic
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
 
         actor_loss = None
-        # Delayed policy updates
         if self.total_it % self.config.policy_delay == 0:
-            # Compute actor loss using sequences for actor, current state for critic
             actor_action = self.actor(state_seqs)  # (batch, action_dim)
-            actor_loss = -self.critic.Q1(current_state, actor_action).mean()
+            actor_loss = -self.critic.get_q1_value(current_state, actor_action).mean()
 
-            # Optimize the actor
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
             self.actor_optimizer.step()
 
-            # Update the frozen target models
             for param, target_param in zip(
                 self.critic.parameters(), self.critic_target.parameters()
             ):
@@ -201,7 +194,7 @@ class TD3SequentialTrainer(BaseTrainer):
 
     def train_episode(self) -> SingleEpisodeResult:
         state, _ = self.env.reset()
-        self.reset_episode()  # Clear state history for new episode
+        self.reset_episode()
 
         done = False
         episode_rewards, episode_losses, episode_steps = [], [], []
@@ -214,10 +207,8 @@ class TD3SequentialTrainer(BaseTrainer):
             next_state, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
 
-            # Store transition in replay buffer
             self.memory.push(state, action, reward, next_state, done)
 
-            # Mark episode boundary for sequence sampling
             if done:
                 self.memory.episode_starts.append(len(self.memory) - 1)
 
