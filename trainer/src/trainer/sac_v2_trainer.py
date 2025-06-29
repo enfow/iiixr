@@ -1,9 +1,12 @@
 """
-SACv2
-Soft Actor-Critic Algorithms and Applications(Haarnoja, et al. 2018)
-https://arxiv.org/pdf/1812.05905
+SACv2 Trainer
 
-Differences from SAC:
+Reference
+---------
+- [Soft Actor-Critic Algorithms and Applications](<https://arxiv.org/pdf/1812.05905>)
+
+Differences from SAC
+-------------------
 - No explicit V-function
 - introduce double target networks for Q-function
 """

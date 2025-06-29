@@ -1,8 +1,12 @@
 """
-Discrete SAC implementation
-- Ref: https://arxiv.org/pdf/1910.07207
+Discrete SAC Trainer
 
-Deferences with SAC:
+Reference
+---------
+- [Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor](<https://arxiv.org/pdf/1801.01290>)
+
+Differences with SAC
+-------------------
 - Q function moves from (s, a) -> R  =>  (s) -> R^A
 - Directly output action distribution instead of mean and cov
   - Policy: phi: S -> R^2|A|  =>  phi: S -> [0, 1]^|A|
@@ -11,15 +15,12 @@ Deferences with SAC:
 - Do not need to use reparametrization trick for policy update
 """
 
-import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
-from model.buffer import ReplayBuffer
 from model.discrete_sac import DiscreteSACPolicy, DiscreteSACQNetwork
-from model.sac import SACPolicy
 from schema.config import SACConfig
 from schema.result import DiscreteSACUpdateLoss, SingleEpisodeResult
 from trainer.base_trainer import BaseTrainer
@@ -76,7 +77,6 @@ class DiscreteSACTrainer(BaseTrainer):
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.config.lr)
 
     def select_action(self, state, eval_mode: bool = False):
-        # select_action is not used in training, so we can disable gradients
         state = torch.FloatTensor(state).unsqueeze(0).to(self.config.device)
         with torch.no_grad():
             logits = self.actor(state)
@@ -88,7 +88,7 @@ class DiscreteSACTrainer(BaseTrainer):
                 action = torch.distributions.Categorical(probs).sample()
 
             return {
-                "action": action.cpu().numpy(),
+                "action": action.item(),
             }
 
     def _sample_transactions(self):

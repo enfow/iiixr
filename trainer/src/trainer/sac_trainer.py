@@ -61,19 +61,14 @@ class SACTrainer(BaseTrainer):
             n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
-        # Initialize target value network
         self.target_value_net.load_state_dict(self.value_net.state_dict())
 
-        # Temperature parameter: alpha (learnable)
         self.log_alpha = torch.zeros(1, requires_grad=True, device=self.config.device)
         self.alpha = self.log_alpha.exp()
 
         # Target entropy: -dim(action_space) for continuous actions
         self.target_entropy = -self.action_dim
 
-        # Replay buffer
-
-        # Optimizers
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
         self.critic1_optimizer = optim.Adam(
             self.critic1.parameters(), lr=self.config.lr
