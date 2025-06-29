@@ -3,8 +3,8 @@
 env: "BipedalWalkerHardcore-v3"
 model:
   model: "sac_v2"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
-  hidden_dim: 512
-  n_layers: 4
+  hidden_dim: 256
+  n_layers: 2
   embedding_type: "fc"  # Options: fc, transformer
 
 buffer:
