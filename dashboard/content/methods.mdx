@@ -1,0 +1,43 @@
+---
+title: "RL Algorithm Classification"
+date: 2024-01-16
+type: "model"
+---
+
+# Value Based vs Policy Based
+
+## Value Based Method
+
+agent 가 Action 이나 State Action pair 의 가치(value) 를 추정하여, 가장 높은 가치를 갖는 Action을 선택하도록 학습하는 방법이다.  대표적인 방법으로 **Q-learning** 이 있으며, **DQN** 은 Q-Learning 에 딥러닝을 접목한 알고리즘이다.
+
+## Policy Based Method
+
+반면 Policy based method 는 agent 가 State 를 입력으로 받아 Action 을 결정하는 Policy 를 직접 가지도록 학습한다. Value Based Method 의 가장 큰 단점 중 하나는 선택 가능한 모든 State, Action Pair의 가치를 추정해야하기 때문에, 선택 가능한 Action 의 개수가 유한한 discrete action space 에서만 적용 가능하다는 점이다. 반면 Action 을 직접 반환하는  Policy Based Method 는 연속적인 Action 을 가지는 환경에 적용하는 데에 어려움이 없다.
+
+Policy Gradeint 식을 기초로 업데이트가 이뤄지며, REINFORCE 알고리즘이 가장 기본이 된다. **REINFORCE** 알고리즘의 업데이트 식은 아래와 같다.
+
+$$
+\theta \leftarrow \theta + \alpha \sum_{t=0}^{T} \nabla_\theta \log \pi_\theta(a_t | s_t) R_t
+$$
+
+REINFORCE 알고리즘은 Step Size $\alpha$ 가 충분히 작고, 학습 과정에서 점차 줄어들면 이론적으로 수렴이 보장된다. 하지만 전체 Episode 에 걸쳐 수집된 Reward 의 누적합인 Return $R_t$ 은 Variance 가 크며, 이로 인해 실제로는 안정적인 이뤄지기 어렵다.
+
+이러한 문제를 해결하기 위해 다양한 시도들이 있어왔으며, 대표적으로 **REINFORCE with Baseline**, **Actor-Critic**, **Trust Region** 방법들이 있다. REINFORCE with Baseline 에서는 Return 값에 Baseline 을 빼어주어 분산을 줄이게 된다. Actor-Critic은 return 대신 critic이 추정한 value function을 이용해 advantage를 계산하여 variance를 줄인다. 마지막으로 Trust Region 은 policy 업데이트 시 이전 policy와의 KLD(KL Divergence)를 제한하여 급격한 policy 변화를 방지하고 안정적인 학습을 유도한다.
+
+# On-policy vs Off-policy
+
+## On-Policy Algorithm
+
+현재 학습 중인 Policy에 따라 수집된 Transition 만을 Policy 업데이트에 사용하는 학습 방법을 말한다. 정책과 데이터 간의 분포 일치가 보장되어 이론적으로 안정적인 학습이 가능하며, 학습 과정에서 편향이 적게 발생한다는 장점이 있다.
+
+하지만 한 번 업데이트하여 Policy 가 변하면 기존 Policy 로 수집한 Tansition 들은 모두 사용할 수 없다는 점 때문에 샘플 효율성이 낮고, 이로 인해 더 많은 상호작용이 요구되는 경향이 있다.
+
+대표적인 알고리즘으로 **REINFORCE**, **PPO**, **TRPO** 등이 있다.
+
+## Off-Policy Algorithm
+
+Off-Policy 는 On-Policy 와 반대로 학습 대상이 되는 Policy와 다른 Policy 에 따라 수집된 Transition 에 대해서도 학습하는 방법을 말한다. 따라서 샘플 효율성이 높다는 장점이 있다.
+
+반면 서로 다른 Policy 로 수집된 데이터를 사용하므로 분포의 불일치가 발생한다. 이는 학습의 불안정성을 높이는 요인이 되기도 한다.
+
+대표적인 알고리즘으로 **DQN** 계열의 알고리즘과 **SAC**, **TD3** 등이 있다.

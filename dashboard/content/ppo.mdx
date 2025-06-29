@@ -1,0 +1,51 @@
+---
+title: "PPO"
+date: 2024-01-15
+# description: "An introduction to Proximal Policy Optimization (PPO) algorithm with mathematical foundations and implementation details."
+# tags: ["reinforcement-learning", "ppo", "deep-learning"]
+type: "model"
+---
+
+# Proximal Policy Optimization
+
+**PPO(Proximal Policy Optimization)** 알고리즘은 **Trust Region Policy Optimization(TRPO)** 의 복잡한 제약 조건을 단순화하면서도 안정적인 학습 성능을 유지하는 것을 목표로 한다. TRPO는 policy 업데이트 시 KL divergence 제약을 통해 policy gradient의 불안정성 문제를 해결했지만, conjugate gradient 계산 등의 복잡한 연산으로 인한 높은 계산 비용이 단점이었다. PPO는 이를 극복하기 위해 KL divergence 제약을 importance sampling ratio에 대한 **간단한 clipping 연산**으로 대체하는 것이 핵심 아이디어다.
+
+$$
+L^{CLIP}(\theta) = \hat{\mathbb{E}}_t\left[\min\left(r_t(\theta) \hat{A}_t, \text{clip}\left(r_t(\theta), 1-\epsilon, 1+\epsilon\right) \hat{A}_t\right)\right]
+$$
+
+여기서 $r_t(\theta)$ 가 importance sampling ratio 이다.
+
+$$
+r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}
+$$
+
+loss function 은 다음과 같다.
+
+$$
+L_t^{CLIP+VF+S}(\theta) = \hat{\mathbb{E}}_t\left[L_t^{CLIP}(\theta) - c_1 L_t^{VF}(\theta) + c_2 S[\pi_\theta](s_t)\right]
+$$
+
+여기서   $V_t^{VF}$ 은 value function 에 대한 loss 를, $S[\pi_\theta](s_t)$ 는 entropy 의 크기를 의미한다.
+
+$$
+S[\pi_\theta](s_t) = -\sum_a \pi_\theta(a|s_t) \log \pi_\theta(a|s_t)
+$$
+
+PPO와 TRPO는 엄밀한 의미에서 완전한 On-Policy 알고리즘이라고 할 수 없다. 전통적인 On-Policy의 정의는 현재 정책으로 수집된 데이터만을 사용하여 학습하는 것을 의미하는데, 두 알고리즘 모두 여러 Epoch에 걸쳐 동일한 데이터를 재사용하면서 정책을 반복적으로 업데이트한다.
+
+이 과정에서 정책이 변화하면서 초기에 수집된 데이터와 현재 정책 간의 분포 차이가 발생하게 된다. 이러한 문제를 해결하기 위해 두 알고리즘은 서로 다른 접근 방식을 사용한다. TRPO는 연속된 정책 간의 KL divergence에 제약을 가하여 정책 변화량을 직접 제한하는 방식을 채택한다. 반면 PPO는 Importance Sampling ratio를 계산하고 이를 클리핑하여 과도한 정책 업데이트를 방지하는 것으로 대체한다.
+
+이러한 안전장치들을 통해 데이터를 여러 번 재사용하면서도 학습의 안정성을 보장할 수 있으며, 결과적으로 순수한 On-Policy 방법의 고질적인 문제인 낮은 샘플 효율성을 크게 개선할 수 있다. 특히 PPO는 TRPO가 요구하는 비싼 연산을 clipping 으로 대체하였다는 점에서 보다 효율적이다.
+
+### PPO Hyperparameter
+
+PPO의 주요 hyperparameter 로는 ppo_epochs, clip_eps, entropy_coef 등이 있다.
+
+- **ppo_epochs**: 수집된 batch 데이터를 사용하여 policy를 업데이트하는 횟수이다. 일반적으로 3-10 사이의 값을 사용하며, 너무 크면 old policy에서 벗어나 importance sampling의 가정이 위배되고, 너무 작으면 sample efficiency가 떨어진다. 보통 4-5가 많이 사용된다.
+- **clip_eps**: importance sampling ratio를 제한하는 clipping parameter로, [1−ϵ,1+ϵ] 범위를 정의한다. 일반적으로 0.1-0.3 사이의 값을 사용하며, 0.2가 기본값으로 널리 사용된다. 값이 클수록 policy 변화를 더 허용하지만 불안정해질 수 있고, 작을수록 안정적이지만 학습 속도가 느려진다.
+- **entropy_coef**: policy의 entropy에 대한 가중치로, exploration을 촉진하는 역할을 한다. 일반적으로 0.01-0.1 사이의 값을 사용하며, 값이 클수록 더 많은 exploration을 하게 된다. 학습 초기에는 높은 값으로 exploration을 촉진하고, 학습이 진행되면서 점차 줄여나가는 방식(entropy decay)도 많이 사용된다.
+
+### Reference
+
+1. [Schulman, J., Wolski, F., Dhariwal, P., Radford, A. and Openai, O. (2017). Proximal Policy Optimization Algorithms.](<https://arxiv.org/pdf/1707.06347>)

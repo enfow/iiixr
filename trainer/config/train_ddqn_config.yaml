@@ -1,0 +1,44 @@
+# Training Configuration File
+# Environment settings
+env: "LunarLander-v3"
+model:
+  model: "ddqn"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
+  hidden_dim: 256
+  n_layers: 3
+  embedding_type: "fc"  # Options: fc, transformer
+
+buffer:
+  buffer_size: 1000000
+  buffer_type: "per"
+  seq_len: 1
+  alpha: 0.6
+  beta_start: 0.4
+  beta_frames: 100000
+
+# Training parameters
+seed: 42
+episodes: 1000
+max_steps: 1000
+lr: 3e-4
+gamma: 0.99
+batch_size: 256
+start_steps: 10000
+
+# Device settings
+device: "cpu"  # Options: cpu, cuda
+
+# Evaluation settings
+eval: true
+eval_period: 10
+eval_episodes: 10
+
+# Save settings
+save_dir: "results"
+
+# DDQN specific parameters
+target_update_interval: 8000
+
+# Epsilon-greedy
+eps_start: 1.0
+eps_end: 0.01
+eps_decay: 50000

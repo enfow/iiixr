@@ -1,0 +1,32 @@
+---
+title: "Rainbow DQN"
+date: 2024-01-16
+type: "model"
+---
+
+# Rainbow DQN
+
+Rainbow DQN은 DQN의 성능을 개선하기 위해 제안된 다양한 기법들을 한 번에 적용하는 알고리즘이다. 여기에 적용된 주요 기법들로는 다음 6가지가 있다.
+
+- **Double DQN**: Q value의 과대추정(Over Estimation) 문제를 해결하기 위한 기법으로, 기존 DQN 변형 알고리즘에서도 널리 사용되어 왔다.
+- **Prioritized Experience Replay(PER)**: Temporal Difference가 높은 중요한 경험을 우선적으로 학습에 활용함으로써 학습 효율성을 향상시킨다.
+- **Dueling DQN**: state value와 advantage value를 각각 별도의 네트워크로 학습하여 Q value 추정의 정확도를 높이는 구조적 개선을 제공한다.
+- **Multi-Step Bootstrap**: 기존의 1-step return 대신 n-step return을 사용하여 장기적인 보상을 더 효과적으로 고려할 수 있게 한다.
+- **Distributional RL(C51)**: 단순한 Q value 추정을 넘어서 Q value의 전체 분포를 학습함으로써 보다 정확하고 풍부한 가치 함수 근사를 가능하게 한다.
+- **Noisy Network**: 파라미터 공간에 구조화된 노이즈를 추가하여 체계적인 탐험(structured exploration)을 지원한다.
+
+Rainbow DQN은 다른 DQN 계열의 알고리즘과 마찬가지로 **Discrete Action Space** 를 가진 환경에 대해서만 적용할 수 있다는 단점이 있지만, 다양한 기법들이 서로 결합하여 시너지를 내며 높은 안정성과 성능을 보여주는 알고리즘이다.
+
+### Rainbow DQN hyperparameter
+
+- **target_update_interval**:  Target network를 업데이트하는 step 수를 의미한다. interval 마다 target network 를 main network의 파라미터로 만들어준다.
+- **alpha**:  Prioritized experience replay에서 priority의 강도를 조절하는 parameter 이다. 1 은 priority 에 따른 샘플링(greedy)을, 0은 uniform sampling 을 의미한다. priority 순서대로 샘플링하게 되면 overfitting 의 가능성이 높아져, 보통 0.6 정도의 값을 사용한다.
+- **beta_start**: priority에 따라 샘플링을 하면 bias 가 생기게 되는데, beta 는 이를 보정하는 역할을 하며, beta_start 는 그 시작 값을 의미한다. 학습이 진행됨에 따라 그 크기가 지속적으로 커진다.
+- **beta_frames**: beta 가 beta_start 에서 1.0 에 도달하는 데에 소요되는 frame 수(step)이다.
+- **n_steps**: Multi step bootstrap 에서 step 수를 의미한다. 크면  클수록 더욱 긴 reward 를 반영할 수 있지만 variance 와 연산량이 커진다.
+- **n_atoms**: Distributional RL 에서 category 의 개수를 뜻하며, 51을 주로 사용한다(c51).
+- **v_min**, **v_max**: value distribution 의 최대 최소 범위를 설정하는 값으로, 환경에서 가능한 최대 최소의 return 범위로 설정한다. 따라서 환경에 맞게 적절히 설정해야 한다.
+
+### Reference
+
+1. [Hessel, M., Modayil, J., Hasselt, van, Schaul, T., Ostrovski, G., Dabney, W., Horgan, D., Piot, B., Azar, M. and Silver, D. (2017). Rainbow: Combining Improvements in Deep Reinforcement Learning.](<https://arxiv.org/abs/1710.02298>)

@@ -1,0 +1,87 @@
+---
+title: "LunarLander-v3"
+date: 2024-01-15
+type: "Environment"
+---
+
+# LunarLander-v3
+
+## Action Space
+
+LunarLander는 Discrete Action Space 를 가지며, Action 의 종류는 다음 네 가지이다.
+
+```python
+self.action_space = spaces.Discrete(4)
+```
+
+각 행동의 의미는 다음과 같다:
+- **1**: 아무것도 하지 않음 (자유낙하)
+- **1**: 왼쪽 엔진 점화 → 좌회전
+- **2**: 메인 엔진 점화 → 상승
+- **3**: 오른쪽 엔진 점화 → 우회전
+
+## State Space
+
+환경은 8차원의 연속적인 상태 벡터를 제공한다:
+
+```python
+state = [
+    (pos.x - VIEWPORT_W / SCALE / 2) / (VIEWPORT_W / SCALE / 2),          
+    (pos.y - (self.helipad_y + LEG_DOWN / SCALE)) / (VIEWPORT_H / SCALE / 2),
+    vel.x * (VIEWPORT_W / SCALE / 2) / FPS,
+    vel.y * (VIEWPORT_H / SCALE / 2) / FPS,
+    self.lander.angle,
+    20.0 * self.lander.angularVelocity / FPS,
+    1.0 if self.legs[0].ground_contact else 0.0,
+    1.0 if self.legs[1].ground_contact else 0.0,
+]
+```
+
+상태 벡터는 착륙선의 **위치, 속도, 자세, 그리고 지면 접촉 상태**를 모두 포함하여 에이전트가 현재 상황을 완전히 파악할 수 있도록 합니다.
+
+## Reward Function
+
+LunarLander의 보상 함수는 **다중 목표 최적화**를 통해 안전한 착륙을 유도합니다:
+
+### Position and Shape Reward
+
+```python
+shaping = (
+    -100 * np.sqrt(state[0] * state[0] + state[1] * state[1])  # 착륙 지점과의 거리
+    - 100 * np.sqrt(state[2] * state[2] + state[3] * state[3])  # 속도 크기
+    - 100 * abs(state[4])                                       # 기울기 각도
+    + 10 * state[6]                                            # 왼쪽 다리 접촉
+    + 10 * state[7]                                            # 오른쪽 다리 접촉
+)
+```
+
+이 보상은 다음과 같은 행동을 장려합니다:
+- 착륙 지점에 가까워질수록 **높은 보상**
+- 속도가 느릴수록 **높은 보상**
+- 수직 자세를 유지할수록 **높은 보상**
+- 다리가 지면에 접촉할 때 **추가 보상**
+
+### Fuel Efficiency Reward
+
+```python
+reward -= m_power * 0.30
+reward -= s_power * 0.03
+```
+
+연료 사용량에 따른 **음의 보상**으로 효율적인 착륙을 유도합니다.
+
+### Termination Reward
+
+```python
+if self.game_over or abs(state[0]) >= 1.0:
+    terminated = True
+    reward = -100
+
+if not self.lander.awake:
+    terminated = True
+    reward = +100
+```
+
+## Reference
+
+1. [gymnasium.farama.org. Gymnasium Documentation.](<https://gymnasium.farama.org/>)

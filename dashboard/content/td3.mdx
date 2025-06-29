@@ -1,0 +1,25 @@
+---
+title: "TD3"
+date: 2024-01-17
+type: "model"
+---
+
+# Twin Delayed DDPG
+
+**TD3**는 **DDPG(Deep Deterministic Policy Gradient)** 가 가지고 있는 문제점을 줄이기 위해 제안된 알고리즘이다. 구체적으로 DDPG는 Q-value의 overestimation 문제와 높은 variance로 학습이 불안정한 문제를 가지고 있는데, TD3는 **Twin Critics, Delayed Policy Update, Target Policy Smoothing** 이라는 세 가지 기법을 적용하여 이를 해결한다.
+
+- **Twin Critics**: 두 개의 독립적인 Q-value function을 도입하고, target value 계산 시 두 함수의 값 중 낮은 것을 선택하여 Over Estimation 문제를 해소하는 방법이다.
+- **Delayed Policy Update**: 매번 actor와 critic을 함께 업데이트하지 않고, critic을 actor보다 더욱 자주 업데이트하는 방법을 말하며, 보다 정확한 Q-value를 기반으로 policy가 업데이트될 수 있도록 돕는다.
+- **Target Policy Smoothing**: target action에 noise를 더하는 것으로, deterministic policy의 단점인 overfitting을 방지하는 효과를 기대할 수 있다.
+
+### TD3 Hyperparameters
+
+- **policy_delay**: Policy 업데이트 빈도를 조절하는 parameter로, critic을 몇 번 업데이트할 때마다 policy를 1번 업데이트할지를 의미한다.
+- **policy_noise**: Target policy smoothing에 사용되는 noise의 표준편차를 의미한다. 값이 클수록 더 smooth한 Q-function을 얻을 수 있지만 너무 크면 target의 정확성이 떨어질 수 있다.
+- **noise_clip**: Target noise의 clipping 범위로, target action 의 값의 범위를 조절한다.
+- exploration_noise: Exploration 을 위해 action 에 사용되는 noise의 표준편차를 의미한다.
+- **tau**: Target network의 soft update 계수이다.
+
+### Reference
+
+1. [Fujimoto, S., Van Hoof, H. and Meger, D. (n.d.). Addressing Function Approximation Error in Actor-Critic Methods.](<https://arxiv.org/pdf/1802.09477>)

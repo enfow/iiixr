@@ -1,0 +1,40 @@
+# Training Configuration File
+# Environment settings
+env: "LunarLander-v3"
+model:
+  model: "discrete_sac"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
+  hidden_dim: 256
+  n_layers: 3
+  embedding_type: "fc"  # Options: fc, transformer
+
+buffer:
+  buffer_size: 1000000
+  buffer_type: "default"
+  seq_len: 1
+
+# Training parameters
+seed: 42
+episodes: 5000
+max_steps: 1000
+lr: 3e-4
+gamma: 0.99
+batch_size: 256
+start_steps: 20000
+
+# Device settings
+device: "cpu"  # Options: cpu, cuda
+
+# Evaluation settings
+eval: true
+eval_period: 10
+eval_episodes: 10
+
+# Save settings
+save_dir: "results"
+
+# target update interval
+target_update_interval: 8000
+
+# SAC specific parameters
+tau: 0.005
+entropy_coef: 0.98
