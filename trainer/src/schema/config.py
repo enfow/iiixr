@@ -1,5 +1,6 @@
 import json
 from enum import Enum
+from typing import Optional
 
 import torch
 from pydantic import BaseModel
@@ -54,9 +55,9 @@ class BaseConfig(BaseModel):
     batch_size: int = 256
     # env
     env: str = None
-    state_dim: int = None
-    action_dim: int = None
-    is_discrete: bool = None
+    state_dim: Optional[int] = None
+    action_dim: Optional[int] = None
+    is_discrete: Optional[bool] = None
     # device
     device: str = "cpu"
     # evaluation

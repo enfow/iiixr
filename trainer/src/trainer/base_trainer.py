@@ -38,6 +38,7 @@ class BaseTrainer:
             else self.env.action_space.shape[0]
         )
         print(f"State dim: {self.state_dim}, Action dim: {self.action_dim}")
+
         if self.config.buffer.buffer_type == BufferType.PER:
             print("Using PrioritizedReplayBuffer")
             self.memory = PrioritizedReplayBuffer(
