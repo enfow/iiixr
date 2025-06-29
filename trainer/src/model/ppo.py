@@ -1,6 +1,13 @@
+"""
+PPO Models
+
+Reference
+---------
+- [Proximal Policy Optimization Algorithms](<https://arxiv.org/pdf/1707.06347>)
+"""
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class DiscreteActor(nn.Module):
@@ -59,7 +66,6 @@ class ContinuousActor(nn.Module):
             layers.append(nn.ReLU())
         self.shared_layers = nn.Sequential(*layers)
 
-        # Mean and log std for continuous actions
         self.mean_head = nn.Linear(hidden_dim, action_dim)
         self.log_std_head = nn.Linear(hidden_dim, action_dim)
 
@@ -67,7 +73,6 @@ class ContinuousActor(nn.Module):
         x = self.shared_layers(state)
         mean = self.mean_head(x)
         log_std = self.log_std_head(x)
-        # Clamp log_std to prevent numerical instability
         log_std = torch.clamp(log_std, -20, 2)
         return mean, log_std
 

@@ -1,4 +1,11 @@
-import gymnasium as gym
+"""
+Discrete PPO Trainer
+
+Reference
+---------
+- [Proximal Policy Optimization Algorithms](<https://arxiv.org/pdf/1707.06347>)
+"""
+
 import numpy as np
 import torch
 import torch.optim as optim
@@ -39,7 +46,6 @@ class DiscretePPOTrainer(PPOTrainer):
         )
 
     def select_action(self, state, eval_mode: bool = False):
-        # select_action is not used in training, so we can disable gradients
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.config.device)
             probs = self.actor(state)

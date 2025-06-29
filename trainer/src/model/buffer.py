@@ -1,3 +1,11 @@
+"""
+Replay Buffers
+
+Reference
+---------
+- [Prioritized Experience Replay](<https://arxiv.org/pdf/1511.05952>)
+"""
+
 import random
 from collections import deque
 

@@ -1,7 +1,9 @@
 """
-PPO
-Proximal Policy Optimization Algorithms(Schulman, et al. 2017)
-https://arxiv.org/pdf/1707.06347
+PPO Trainer
+
+Reference
+---------
+- [Proximal Policy Optimization Algorithms](<https://arxiv.org/pdf/1707.06347>)
 """
 
 import numpy as np
@@ -45,7 +47,6 @@ class PPOTrainer(BaseTrainer):
         )
 
     def select_action(self, state, eval_mode: bool = False):
-        # select_action is not used in training, so we can disable gradients
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.config.device)
             mean, log_std = self.actor(state)
