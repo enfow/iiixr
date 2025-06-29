@@ -120,7 +120,15 @@ class CategoricalDuelingNetwork(nn.Module):
 
     def reset_noise(self):
         """Reset noise for all noisy linear layers."""
+        for module in self.hidden_layers:
+            if isinstance(module, NoisyLinear):
+                module.reset_noise()
         self.advantage_hidden.reset_noise()
         self.advantage_layer.reset_noise()
         self.value_hidden.reset_noise()
         self.value_layer.reset_noise()
+
+    def get_q_values(self, x: torch.Tensor) -> torch.Tensor:
+        dist = self.forward(x)
+        q_values = (dist * self.support).sum(2)
+        return q_values

@@ -1,3 +1,11 @@
+"""
+C51 Trainer
+
+Reference
+---------
+- [A Distributional Perspective on Reinforcement Learning](<https://arxiv.org/pdf/1707.06887>)
+"""
+
 import math
 
 import numpy as np
@@ -26,7 +34,7 @@ class C51Trainer(BaseTrainer):
         config_dict: dict,
         save_dir: str = "results/c51",
     ):
-        # Automatically set v_min and v_max for known environments
+        # automatically set v_min and v_max for known environments
         if env_name in V_MIN_MAX:
             if "v_min" not in config_dict or "v_max" not in config_dict:
                 config_dict["v_min"], config_dict["v_max"] = V_MIN_MAX[env_name]
@@ -36,7 +44,8 @@ class C51Trainer(BaseTrainer):
 
         super().__init__(env_name, config_dict, save_dir)
         self.total_steps = 0
-        self.epsilon = self.config.eps_start
+        if self.name == "c51":
+            self.epsilon = self.config.eps_start
 
     def _init_models(self):
         self.policy_net = CategoricalDQNNetwork(
@@ -63,13 +72,13 @@ class C51Trainer(BaseTrainer):
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.config.lr)
 
     def select_action(self, state: np.ndarray, eval_mode: bool = False) -> dict:
-        # Epsilon decay
+        # epsilon decay
         self.epsilon = self.config.eps_end + (
             self.config.eps_start - self.config.eps_end
         ) * math.exp(-1.0 * self.total_steps / self.config.eps_decay)
 
         if not eval_mode and np.random.rand() < self.epsilon:
-            # Exploration
+            # exploration
             action = self.env.action_space.sample()
             return {"action": action, "epsilon": self.epsilon}
 
@@ -84,11 +93,7 @@ class C51Trainer(BaseTrainer):
             "epsilon": self.epsilon,
         }
 
-    def update(self):
-        if len(self.memory) < self.config.batch_size:
-            return None
-
-        # Sample a batch from the replay buffer
+    def _sample_transactions(self):
         states, actions, rewards, next_states, dones = self.memory.sample(
             self.config.batch_size
         )
@@ -99,35 +104,71 @@ class C51Trainer(BaseTrainer):
         next_states = torch.FloatTensor(next_states).to(self.config.device)
         dones = torch.FloatTensor(dones).unsqueeze(1).to(self.config.device)
 
-        with torch.no_grad():
-            # Get Q-values for the next state from the target network to select actions
-            next_q_values_target = self.target_net.get_q_values(next_states)
-            next_actions = next_q_values_target.argmax(1)
+        return states, actions, rewards, next_states, dones
 
-            # Get the full distribution for the next state from the target network
+    def _update_distributional_rl(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Returns
+        -------
+        - losses: shape: (batch_size,)
+        """
+        with torch.no_grad():
+            # policy net output: batch of probability distribution over atoms
+            # shape: (batch_size, action_dim, n_atoms)
+            # probability of each atom for each action
+
+            # support tensor: shape: (n_atoms,) from v_min to v_max
+            # value of each atom
+
+            # probability of each atom * value of each atom => expected value of each atom
+            # sum of expected value of each atom => expected value of each action => q_values
+            next_q_values_policy = self.policy_net.get_q_values(next_states)
+            # select best q value action
+            next_actions = next_q_values_policy.argmax(1)
+
             next_dist_target = self.target_net(next_states)
-            # Select the distribution for the best actions
             next_dist = next_dist_target[range(self.config.batch_size), next_actions]
 
-            # --- Project the target distribution onto the support ---
+            # distributional multi-step return
+
+            # rewards: accumulated reward from n-step return (PER already applied gamma^n_steps when it pushed)
+            # (1 - dones) * gamma^n_steps * support: if is done, all atoms are 0
+            # if not done, all atoms are gamma^n_steps * support
+            # t_z is the target distribution
             t_z = (
-                rewards
-                + (1 - dones)
-                * (self.config.gamma**self.config.n_steps)
-                * self.target_net.support
-            )
+                rewards  # shape: (batch_size, 1)
+                + (1 - dones)  # shape: (batch_size, 1)
+                * (self.config.gamma**self.config.n_steps)  # shape: (batch_size, 1)
+                * self.target_net.support  # shape: (n_atoms,)
+            )  # shape: (batch_size, n_atoms)
+
+            # clamp to valid range
             t_z = t_z.clamp(min=self.config.v_min, max=self.config.v_max)
 
+            # b: the index of the atom that the target distribution is closest to
+            # delta_z is the width of each atom
             b = (t_z - self.config.v_min) / self.target_net.delta_z
+
+            # l: the lower bound of the atom that the target distribution is closest to
+            # u: the upper bound of the atom that the target distribution is closest to
             l = b.floor().long()
             u = b.ceil().long()
 
-            # Fix for the case where l and u are equal
-            l[(u > 0) * (l == u)] -= 1
-            u[(l < self.config.n_atoms - 1) * (l == u)] += 1
+            # clamp to valid range
+            l = torch.clamp(l, 0, self.config.n_atoms - 1)
+            u = torch.clamp(u, 0, self.config.n_atoms - 1)
 
-            # Distribute probability
+            # proj_dist: the projected distribution
             proj_dist = torch.zeros_like(next_dist)
+
+            # offset: the offset of the atom that the target distribution is closest to
             offset = (
                 torch.linspace(
                     0,
@@ -140,6 +181,7 @@ class C51Trainer(BaseTrainer):
                 .to(self.config.device)
             )
 
+            # index_add: add the value of the next_dist to the proj_dist at the index of l + offset and u + offset
             proj_dist.view(-1).index_add_(
                 0, (l + offset).view(-1), (next_dist * (u.float() - b)).view(-1)
             )
@@ -147,20 +189,34 @@ class C51Trainer(BaseTrainer):
                 0, (u + offset).view(-1), (next_dist * (b - l.float())).view(-1)
             )
 
-        # --- Calculate Loss ---
-        # Get the distribution for the actions that were actually taken
+        # dist: the predicted distribution
         dist = self.policy_net(states)
+
+        # log_p: log of the predicted distribution
         log_p = torch.log(dist[range(self.config.batch_size), actions])
 
-        # Cross-entropy loss
-        loss = -(proj_dist * log_p).sum(1).mean()
+        # loss: cross-entropy loss
+        losses = -(proj_dist * log_p).sum(1)
 
-        # --- Optimize the model ---
+        return losses
+
+    def update(self) -> C51UpdateLoss:
+        if len(self.memory) < self.config.batch_size:
+            return None
+
+        states, actions, rewards, next_states, dones = self._sample_transactions()
+
+        losses = self._update_distributional_rl(
+            states, actions, rewards, next_states, dones
+        )
+
+        loss = losses.mean()
+
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        return {"loss": loss.item()}
+        return C51UpdateLoss(loss=loss.item())
 
     def _update_target_net(self):
         if self.total_steps % self.config.target_update_interval == 0:
@@ -190,7 +246,7 @@ class C51Trainer(BaseTrainer):
 
             update_result = self.update()
             if update_result:
-                episode_losses.append(C51UpdateLoss(loss=update_result["loss"]))
+                episode_losses.append(update_result)
 
             self._update_target_net()
 
