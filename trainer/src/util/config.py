@@ -4,7 +4,6 @@ import yaml
 
 
 def load_config_from_yaml(config_path: str) -> dict:
-    """Load configuration from YAML file."""
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
@@ -15,7 +14,6 @@ def load_config_from_yaml(config_path: str) -> dict:
 
 
 def merge_configs(primary_config: dict, secondary_config: dict) -> dict:
-    """Merge configurations with precedence: primary config > secondary config."""
     merged_config = {}
 
     for key, value in secondary_config.items():
@@ -26,14 +24,11 @@ def merge_configs(primary_config: dict, secondary_config: dict) -> dict:
         if value is not None:
             merged_config[key] = value
 
-    # Handle nested model config merging
     if "model" in merged_config and isinstance(merged_config["model"], dict):
-        # If both configs have model as dict, merge them
         if "model" in primary_config and isinstance(primary_config["model"], dict):
             if "model" in secondary_config and isinstance(
                 secondary_config["model"], dict
             ):
-                # Merge nested model configs
                 merged_model_config = {}
                 for k, v in secondary_config["model"].items():
                     if v is not None:

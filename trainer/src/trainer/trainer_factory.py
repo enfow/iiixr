@@ -1,5 +1,3 @@
-import gymnasium as gym
-
 from env.gym import GymEnvFactory
 from trainer.c51_trainer import C51Trainer
 from trainer.ddqn_trainer import DDQNTrainer

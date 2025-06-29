@@ -10,14 +10,12 @@ def save_json(data: dict, file_path: str):
 
 
 def append_json_line(data: dict, file_path: str):
-    """Append a JSON line to a file (JSONL format)"""
     with open(file_path, "a") as f:
         json.dump(data, f)
         f.write("\n")
 
 
 def log_result(result: Union[SingleEpisodeResult, EvalResult], file_path: str):
-    """Log a result by appending it to the file (maintains history)"""
     result_dict = result.to_log_dict()
     append_json_line(result_dict, file_path)
 
@@ -28,7 +26,6 @@ def load_json(file_path: str):
 
 
 def load_jsonl(file_path: str):
-    """Load all JSON lines from a JSONL file"""
     results = []
     try:
         with open(file_path, "r") as f:
