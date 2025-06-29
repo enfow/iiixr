@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 interface ContentFile {
   id: string
   title: string
@@ -10,7 +12,7 @@ interface ContentFile {
 interface ContentNavigationProps {
   files: ContentFile[]
   currentFile: string
-  onFileChange: (fileId: string) => void
+  onFileChange?: (fileId: string) => void
 }
 
 export default function ContentNavigation({ files, currentFile, onFileChange }: ContentNavigationProps) {
@@ -29,17 +31,31 @@ export default function ContentNavigation({ files, currentFile, onFileChange }: 
           <div key={type}>
             <h4 className="text-sm font-medium text-gray-900 mb-2">{type.charAt(0).toUpperCase() + type.slice(1)}</h4>
             {files.map((file) => (
-              <button
-                key={file.id}
-                onClick={() => onFileChange(file.id)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors mr-2 mb-2 ${
-                  currentFile === file.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {file.title}
-              </button>
+              onFileChange ? (
+                <button
+                  key={file.id}
+                  onClick={() => onFileChange(file.id)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors mr-2 mb-2 ${
+                    currentFile === file.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {file.title}
+                </button>
+              ) : (
+                <Link
+                  key={file.id}
+                  href={`/content/${file.id}`}
+                  className={`inline-block px-4 py-2 rounded-lg text-sm font-medium transition-colors mr-2 mb-2 ${
+                    currentFile === file.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {file.title}
+                </Link>
+              )
             ))}
           </div>
         ))}
