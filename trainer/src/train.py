@@ -164,7 +164,6 @@ def main():
         max_steps=config["max_steps"],
         fps=30,
         episodes=1,
-        num_gifs=1,
         render_mode="rgb_array",
     )
 
