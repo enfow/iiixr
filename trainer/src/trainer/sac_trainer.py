@@ -112,10 +112,6 @@ class SACTrainer(BaseTrainer):
 
         return state, action, reward, next_state, done
 
-    def _get_actor_action_and_log_prob(self, state):
-        """Sample action from policy and compute log probability using reparameterization trick"""
-        return self.actor.sample(state)
-
     def update(self) -> SACUpdateLoss:
         """Update all networks following the original SAC algorithm"""
         if len(self.memory) < self.config.batch_size:
@@ -126,7 +122,7 @@ class SACTrainer(BaseTrainer):
         # 1. Update Value Network (Equation 6 on SAC Paper)
         with torch.no_grad():
             # Sample action from current policy
-            next_action, next_log_prob = self._get_actor_action_and_log_prob(state)
+            next_action, next_log_prob = self.actor.sample(state)
 
             # Compute Q-values for sampled actions
             q1_pi = self.critic1(state, next_action)
@@ -168,7 +164,7 @@ class SACTrainer(BaseTrainer):
 
         # 3. Update Policy Network (Equation 13 on SAC Paper)
         # Sample new actions for policy update
-        pi_action, log_prob = self._get_actor_action_and_log_prob(state)
+        pi_action, log_prob = self.actor.sample(state)
 
         # Compute Q-values for policy actions
         q1_pi = self.critic1(state, pi_action)
@@ -188,12 +184,10 @@ class SACTrainer(BaseTrainer):
 
         # 4. Update temperature parameter α
         # Sample actions again to avoid computation graph issues
-        with torch.no_grad():
-            _, log_prob_detached = self._get_actor_action_and_log_prob(state)
 
         # Alpha loss: α * (log π(a|s) + target_entropy)
         alpha_loss = -(
-            self.log_alpha * (log_prob_detached + self.target_entropy)
+            self.log_alpha * (log_prob.detach() + self.target_entropy)
         ).mean()
 
         self.alpha_optimizer.zero_grad()

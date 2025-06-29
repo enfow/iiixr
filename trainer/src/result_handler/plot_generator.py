@@ -8,11 +8,18 @@ import numpy as np
 import pandas as pd
 
 # Import schema classes
-from schema.result import (C51UpdateLoss, DDQNUpdateLoss,
-                           DiscreteSACUpdateLoss, EvalResult, PPOUpdateLoss,
-                           RainbowDQNUpdateLoss, SACUpdateLoss,
-                           SingleEpisodeResult, TD3UpdateLoss,
-                           TotalTrainResult)
+from schema.result import (
+    C51UpdateLoss,
+    DDQNUpdateLoss,
+    DiscreteSACUpdateLoss,
+    EvalResult,
+    PPOUpdateLoss,
+    RainbowDQNUpdateLoss,
+    SACUpdateLoss,
+    SingleEpisodeResult,
+    TD3UpdateLoss,
+    TotalTrainResult,
+)
 
 
 class ResultParser:

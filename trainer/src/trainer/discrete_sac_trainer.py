@@ -4,6 +4,7 @@ Discrete SAC Trainer
 Reference
 ---------
 - [Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor](<https://arxiv.org/pdf/1801.01290>)
+- [Soft Actor-Critic for Discrete Action Settings](<https://arxiv.org/abs/1910.07207>)
 
 Differences with SAC
 -------------------

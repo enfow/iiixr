@@ -97,7 +97,7 @@ class SACV2Trainer(SACTrainer):
 
         # 1. Update Q-networks (Critic)
         with torch.no_grad():
-            next_action, next_log_prob = self._get_actor_action_and_log_prob(next_state)
+            next_action, next_log_prob = self.actor.sample(next_state)
 
             target_q1_next = self.target_critic1(next_state, next_action)
             target_q2_next = self.target_critic2(next_state, next_action)
@@ -124,7 +124,7 @@ class SACV2Trainer(SACTrainer):
         self.critic2_optimizer.step()
 
         # 2. Update Policy Network (Actor)
-        pi_action, log_prob = self._get_actor_action_and_log_prob(state)
+        pi_action, log_prob = self.actor.sample(state)
 
         q1_pi = self.critic1(state, pi_action)
         q2_pi = self.critic2(state, pi_action)
@@ -137,12 +137,7 @@ class SACV2Trainer(SACTrainer):
         self.actor_optimizer.step()
 
         # 3. Update temperature parameter α
-        with torch.no_grad():
-            _, log_prob_detached = self._get_actor_action_and_log_prob(state)
-
-        alpha_loss = (
-            self.log_alpha * (-log_prob_detached - self.target_entropy)
-        ).mean()
+        alpha_loss = (self.log_alpha * (-log_prob.detach() - self.target_entropy)).mean()
 
         self.alpha_optimizer.zero_grad()
         alpha_loss.backward()
