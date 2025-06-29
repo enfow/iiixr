@@ -3,6 +3,7 @@ Discrete SAC implementation
 - Ref: https://arxiv.org/pdf/1910.07207
 """
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -23,7 +24,7 @@ class DiscreteSACPolicy(nn.Module):
         x = self.hidden_layers(state)
         logits = self.fc_out(x)
         return logits
-
+    
 
 class DiscreteSACQNetwork(nn.Module):
     def __init__(
@@ -44,3 +45,11 @@ class DiscreteSACQNetwork(nn.Module):
     def forward(self, state):
         x = self.hidden_layers(state)
         return self.fc_out(x)  # [batch_size, action_dim]
+
+    def freeze(self):
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def unfreeze(self):
+        for param in self.parameters():
+            param.requires_grad = True

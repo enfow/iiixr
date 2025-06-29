@@ -109,7 +109,7 @@ class DiscreteSACTrainer(BaseTrainer):
 
         state, action, reward, next_state, done = self._sample_transactions()
 
-        # Target Q
+        # Target Q (This part is correct)
         with torch.no_grad():
             next_logits = self.actor(next_state)
             next_probs = F.softmax(next_logits, dim=-1)
@@ -123,7 +123,7 @@ class DiscreteSACTrainer(BaseTrainer):
             )
             target = reward + (1 - done) * self.config.gamma * next_v
 
-        # Current Q
+        # Critic Update (This part is correct)
         q1 = self.critic1(state).gather(1, action.unsqueeze(1))
         q2 = self.critic2(state).gather(1, action.unsqueeze(1))
 
@@ -138,6 +138,10 @@ class DiscreteSACTrainer(BaseTrainer):
         critic2_loss.backward()
         self.critic2_optimizer.step()
 
+        # Freeze critic networks to ensure only actor is updated
+        self.critic1.freeze()
+        self.critic2.freeze()
+        
         # Actor update
         logits = self.actor(state)
         probs = F.softmax(logits, dim=-1)
@@ -147,26 +151,28 @@ class DiscreteSACTrainer(BaseTrainer):
         min_q = torch.min(q1_all, q2_all)
 
         actor_loss = (
-            (probs * (self.alpha.detach() * log_probs - min_q.detach()))
+            (probs * (self.alpha.detach() * log_probs - min_q))
             .sum(dim=1)
             .mean()
         )
-
+        
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
 
-        # update temperature parameter
-        entropy = -(probs * log_probs).sum(dim=1, keepdim=True)
-        alpha_loss = -(self.log_alpha * (entropy - self.target_entropy).detach()).mean()
+        # Unfreeze critic networks for the next critic update
+        self.critic1.unfreeze()
+        self.critic2.unfreeze()
+
+        entropy = -(probs.detach() * log_probs.detach()).sum(dim=1, keepdim=True)
+        alpha_loss = -(self.log_alpha * (entropy - self.target_entropy)).mean()
 
         self.alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.alpha_optimizer.step()
-
         self.alpha = self.log_alpha.exp()
 
-        # Soft updates
+        # Soft updates (This part is correct)
         if self.step_count % self.config.target_update_interval == 0:
             for param, target_param in zip(
                 self.critic1.parameters(), self.target_critic1.parameters()
@@ -188,7 +194,7 @@ class DiscreteSACTrainer(BaseTrainer):
             critic1_loss=critic1_loss.item(),
             critic2_loss=critic2_loss.item(),
             alpha_loss=alpha_loss.item(),
-        )
+    )
 
     def train_episode(self) -> SingleEpisodeResult:
         state, _ = self.env.reset()
