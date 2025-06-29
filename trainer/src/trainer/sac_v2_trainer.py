@@ -68,14 +68,12 @@ class SACV2Trainer(SACTrainer):
         self.target_critic1.load_state_dict(self.critic1.state_dict())
         self.target_critic2.load_state_dict(self.critic2.state_dict())
 
-        # Temperature parameter: alpha (learnable)
+        # Temperature parameter: alpha
         self.log_alpha = torch.zeros(1, requires_grad=True, device=self.config.device)
         self.alpha = self.log_alpha.exp()
 
-        # Target entropy
+        # Target entropy: -action_dim
         self.target_entropy = -self.action_dim
-
-        # Replay buffer
 
         # Optimizers
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
