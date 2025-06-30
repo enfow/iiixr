@@ -14,7 +14,40 @@ type: "model"
 - **Delayed Policy Update**: 매번 actor와 critic을 함께 업데이트하지 않고, critic을 actor보다 더욱 자주 업데이트하는 방법을 말하며, 보다 정확한 Q-value를 기반으로 policy가 업데이트될 수 있도록 돕는다.
 - **Target Policy Smoothing**: target action에 noise를 더하는 것으로, deterministic policy의 단점인 overfitting을 방지하는 효과를 기대할 수 있다.
 
-### TD3 Hyperparameters
+### Implementation
+
+**TD3** 논문에 따라 기본 알고리즘을 구현하였고, `BipedalWalker-V3` 실험을 위해 Sequential 구조(`LSTM`, `Transformer`)를 사용하는 Actor 를 추가 구현하였다. 이때 간단한 Configuration 설정 만으로 Actor 구조를 선택 가능하도록 하였다.
+
+Transformer Actor 코드 예시는 아래와 같다.
+
+```python
+# https://github.com/enfow/iiixr/blob/main/trainer/src/model/td3.py
+class TransformerTD3Actor(nn.Module):
+    def __init__(
+        self, state_dim, action_dim, max_action, hidden_dim=256, nhead=8, n_layers=6
+    ):
+        super().__init__()
+        self.max_action = max_action
+        self.embedding = nn.Linear(state_dim, hidden_dim)
+        self.transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                hidden_dim,
+                nhead,
+                batch_first=True,
+            ),
+            n_layers,
+            enable_nested_tensor=True,
+        )
+        self.action_head = nn.Linear(hidden_dim, action_dim)
+
+    def forward(self, state_sequence):
+        embedded = self.embedding(state_sequence)
+        transformed = self.transformer(embedded)
+        action = torch.tanh(self.action_head(transformed[:, -1]))
+        return action * self.max_action
+```
+
+### Hyperparameters
 
 - **policy_delay**: Policy 업데이트 빈도를 조절하는 parameter로, critic을 몇 번 업데이트할 때마다 policy를 1번 업데이트할지를 의미한다.
 - **policy_noise**: Target policy smoothing에 사용되는 noise의 표준편차를 의미한다. 값이 클수록 더 smooth한 Q-function을 얻을 수 있지만 너무 크면 target의 정확성이 떨어질 수 있다.

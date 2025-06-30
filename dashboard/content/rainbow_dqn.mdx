@@ -19,7 +19,15 @@ Rainbow DQN은 DQN의 성능을 개선하기 위해 제안된 다양한 기법�
 
 Rainbow DQN은 다른 DQN 계열의 알고리즘과 마찬가지로 **Discrete Action Space** 를 가진 환경에 대해서만 적용할 수 있다는 단점이 있지만, 다양한 기법들이 서로 결합하여 시너지를 내며 높은 안정성과 성능을 보여주는 알고리즘이다.
 
-### Rainbow DQN hyperparameter
+### Implementation
+
+다양한 알고리즘이 적용되고 있는 만큼 아래 두 알고리즘을 먼저 구현하고, 성능을 검증한 뒤 Rainbow DQN에 적용하는 방식으로 구현을 진행했다.
+
+- [DDQN](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ddqn_trainer.py>)
+- [C51](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/c51_trainer.py>)
+- [RAINBOW-DQN](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/rainbow_dqn_trainer.py>)
+
+### Hyperparameter
 
 - **target_update_interval**:  Target network를 업데이트하는 step 수를 의미한다. interval 마다 target network 를 main network의 파라미터로 만들어준다.
 - **alpha**:  Prioritized experience replay에서 priority의 강도를 조절하는 parameter 이다. 1 은 priority 에 따른 샘플링(greedy)을, 0은 uniform sampling 을 의미한다. priority 순서대로 샘플링하게 되면 overfitting 의 가능성이 높아져, 보통 0.6 정도의 값을 사용한다.

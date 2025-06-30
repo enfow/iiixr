@@ -36,9 +36,11 @@ type: "experiment"
 
 ## 첫 번째 실험
 
-우선 PPO, SAC, TD3와 같이 강화학습에서 높은 성능을 보여주는 대표적인 알고리즘을 구현하고 빠르게 적용해보았다. 매우 도전적인 환경에서 실험을 진행한 만큼, 일반적인 알고리즘으로는 해결하는 데에 어려움을 겪었다.
+우선 **PPO, SAC, TD3**와 같이 강화학습에서 높은 성능을 보여주는 대표적인 알고리즘을 구현하고 빠르게 적용해보았다. 매우 도전적인 환경에서 실험을 진행한 만큼, 일반적인 알고리즘으로는 해결하는 데에 어려움을 겪었다.
 
 ### PPO
+
+[IMPLEMENTATION (CONTINUOUS)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ppo_trainer.py>)
 
 `LunarLander-v3` 환경에서 매우 높은 성능과 수렴 속도를 보여주었던 PPO 알고리즘의 경우 학습에 어려움을 겪었다.
 
@@ -51,6 +53,8 @@ type: "experiment"
 
 ### SAC V2
 
+[IMPLEMENTATION (v2)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/sac_v2_trainer.py>) 
+
 SAC v2 알고리즘의 경우 일부 학습이 진행되어 `Return=100` 에 근접하는 모습을 보였으나, 여전히 높은 성능을 보여주지 못했다.
 
 ![SAC V2 agent on BipedalWalkerHardcore-v3](/experiments/bipedal/sac_v2/training.png)
@@ -61,6 +65,8 @@ SAC v2 알고리즘의 경우 일부 학습이 진행되어 `Return=100` 에 근
 </div>
 
 ### TD3
+
+[IMPLEMENTATION(TD3)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_trainer.py>)
 
 TD3 알고리즘 또한 유사한 결과를 보여주었다. `Return=100` 수준에서 더 이상 학습이 종료되었다.
 
@@ -89,26 +95,34 @@ TD3 알고리즘 또한 유사한 결과를 보여주었다. `Return=100` 수준
 - Generalized Advantage Estimation(GAE) 적용
 - 더욱 큰 Memory size + 다중 환경 병렬 학습
 
-두 가지 가설에 대한 실험 결과는 아래와 같다(TBD)
-
 ### TD3 Sequential(LSTM)
 
-![TD3 Sequential(LSTM) agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3_sequential_lstm/training.png)
+[IMPLEMENTATION (TD3 SEQUENTIAL)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_trainer.py>)
+
+TDB
+
+{/* ![TD3 Sequential(LSTM) agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3_sequential_lstm/training.png)
 
 <div align="center">
   <img src="/experiments/bipedal/td3_sequential_lstm/demo.gif" alt="TD3 Sequential(LSTM) agent on BipedalWalkerHardcore-v3" />
-</div>
+</div> */}
 
 ### TD3 Sequential(Transformer)
 
-![TD3 Sequential(Transformer) agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3_sequential_transformer/training.png)
+[IMPLEMENTATION (TD3 SEQUENTIAL)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_trainer.py>)
+
+TBD
+
+{/* ![TD3 Sequential(Transformer) agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3_sequential_transformer/training.png)
 
 <div align="center">
   <img src="/experiments/bipedal/td3_sequential_transformer/demo.gif" alt="TD3 Sequential(Transformer) agent on BipedalWalkerHardcore-v3" />
-</div>
+</div> */}
 
 
 ## Conclusion
+
+TBD
 
 ## Appendix: Hyperparameter
 

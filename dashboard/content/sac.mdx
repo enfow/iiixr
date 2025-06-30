@@ -18,7 +18,19 @@ SAC는 그 구조상 value network, Q network, policy network를 갖는다. 여�
 
 SAC를 구현하는 방법은 다양하다. 원래 버전은 별도의 value network를 사용하지만, 후속 연구에서는 value function 없이 double target Q network만 사용하는 방법도 제안[2]되었다. 또한 원래 SAC는 Continuous Action을 갖는 환경을 위해 제안되었지만, Discrete 환경에 맞게 구현하는 방법[3]도 있다.
 
-### SAC Hyperparameter
+### Implementation
+
+SAC는 변형이 많은 알고리즘인데, 원 알고리즘을 포함하여 총 세 가지 종류의 구현을 진행했다. 각각의 구현은 각자의 논문을 최대한 따라 구현하기 위해 노력했다. 
+
+- **[Original SAC]** [Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor(Haarnoja, et al. 2018)](<https://arxiv.org/pdf/1812.05905>)
+- **[SAC v2]** [Soft Actor-Critic Algorithms and Applications(Haarnoja, et al. 2018)](<https://arxiv.org/pdf/1812.05905>)
+  - Original SAC 와 달리 State Value Function(V) 이 생략되었다.
+  - Double Target Q Network 가 도입되었다.
+- **[DISCRETE SAC]** [Soft Actor-Critic for Discrete Action Settings(Petros Christodoulou, 2019)](<https://arxiv.org/abs/1910.07207>)
+  - Discrete Action Space 에 맞게 Policy 와 Critic 의 출력 구조가 변경되었다.
+  - Reparameterization Trick 과 같이 Continuouse Action Space 를 가정하고 사용된 부분들이 대체되었다.
+
+### Hyperparameter
 
 - **tau**: Target network의 soft update를 위한 계수이다.  tau 값이 작을수록 target network가 천천히 업데이트되어 학습이 안정적이지만 느려지고, 클수록 빠르게 업데이트되지만 불안정해질 수 있다.
 - **entropy_coef**: Temperature parameter α의 초기값 또는 고정값으로, exploration의 강도를 결정한다.

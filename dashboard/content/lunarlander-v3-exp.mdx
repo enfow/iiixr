@@ -12,13 +12,11 @@ type: "experiment"
 
 - **DDQN(Double Deep Q-Network)**: Value based model 의 Baseline
   - [PAPER](<https://arxiv.org/abs/1509.06461>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ddqn_trainer.py>)
-- **C51(Categorial DQN)**: Rainbow DQN 의 distributional RL 알고리즘의 검증 목적으로 구현
-  - [PAPER](<https://arxiv.org/abs/1707.06887>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/c51_trainer.py>)
 - **RainbowDQN**: DQN 의 성능을 개선하는 여러 알고리즘들을 통합 적용한 알고리즘
   - [REVIEW](./rainbow_dqn) | [PAPER](<https://arxiv.org/abs/1706.02275>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/rainbow_dqn_trainer.py>)
 - **PPO(Discrete)**: Policy-based, On-Policy 알고리즘(Trust Region)
   - [REVIEW](./ppo) | [PAPER](<https://arxiv.org/abs/1707.06347>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_ppo_trainer.py>)
-- **SAC(Discrete)**: Policy-based, Off-Policy 알고리즘(Actor-Critic, Entropy)
+- **SAC(Discrete)**: Policy-based, Off-Policy 알고리즘(Actor-Critic, Maximum Entropy)
   - [REVIEW](<./sac>) | [PAPER](<https://arxiv.org/abs/1910.07207>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_sac_trainer.py>)
 
 ## 실험 환경
@@ -30,34 +28,27 @@ type: "experiment"
 
 ## 실험 결과
 
-상대적으로 간단한 환경에서 진행한 실험인 만큼 모든 알고리즘이 높은 점수를 보여주었다.
+상대적으로 간단한 환경에서 진행한 실험인 만큼 과제에서 요구하는 `PPO`, `SAC`, `Rainbow DQN` 세 알고리즘 모두 `Return=250` 을 넘는 성능을 보여주었을 뿐만 아니라, 성능 비교를 위해 구현한 `DDQN` 으로도 `Episode=1000` 내에 빠르게 높은 성능에 도달하였다.
 
 ### DDQN
+
+[IMPLEMENTATION (DDQN)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ddqn_trainer.py>)
 
 Value Based mdoel 알고리즘의 Baseline 성능을 확인하기 위해 DQN이 가지는 과대 추정 문제를 해결하기 위해 두 개의 네트워크를 사용하는 DDQN 에 대한 실험을 진행했다.
 
 ![DDQN agent on LunarLander-v3](/experiments/lunarlander/ddqn/training.png)
 
-`LunarLander-v3` 에서 약 750 Episode 에서 250 점을 기록했다.
+`LunarLander-v3` 에서 약 750 Episode 에서 `Return=250` 점을 기록했다.
 
 <div align="center">
   <img src="/experiments/lunarlander/ddqn/demo.gif" alt="DDQN agent on LunarLander-v3" />
 </div>
 
-
-### C51
-
-2000 Episode 를 기준으로 C51 은 학습에 성공하지 못했다.
-
-![C51 agent on LunarLander-v3](/experiments/lunarlander/c51/training.png)
-
-<div align="center">
-  <img src="/experiments/lunarlander/c51/demo.gif" alt="C51 agent on LunarLander-v3" />
-</div>
-
 ### RainbowDQN
 
-DQN 계열의 알고리즘에서 적용 가능한 다양한 알고리즘들을 적용한 Rainbow DQN 이 최고 성능 332.27으로 가장 높은 성능을 보여주었다.
+[IMPLEMENTATION (RAINBOW-DQN)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/rainbow_dqn_trainer.py>)
+
+DQN 계열의 알고리즘에서 적용 가능한 다양한 알고리즘들을 적용한 Rainbow DQN 이 최고 성능(Maximum Return) `332.27`으로 가장 높은 성능을 보여주었다.
 
 ![RainbowDQN agent on LunarLander-v3](/experiments/lunarlander/rainbow_dqn/training.png)
 
@@ -67,7 +58,9 @@ DQN 계열의 알고리즘에서 적용 가능한 다양한 알고리즘들을 �
 
 ### PPO
 
-PPO 알고리즘 또한 동일한 환경에서 높은 성능을 보여주었고, 특히 On-Policy 알고리즘의 특징을 반영하듯 매우 빠른 수렴 속도와 안정적인 학습 경향성을 보여주었다.
+[IMPLEMENTATION (DISCRETE)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_ppo_trainer.py>)
+
+PPO 알고리즘 또한 동일한 환경에서 높은 성능을 기록했다. 특히 On-Policy 알고리즘의 특징을 반영하듯 매우 빠른 수렴 속도와 안정적인 학습 경향성을 보여주었다.
 
 ![PPO agent on LunarLander-v3](/experiments/lunarlander/ppo/training.png)
 
@@ -77,14 +70,23 @@ PPO 알고리즘 또한 동일한 환경에서 높은 성능을 보여주었고,
 
 ### SAC(Discrete)
 
+[IMPLEMENTATION (DISCRETE)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_trainer.py>)
 
-![SAC(Discrete) agent on LunarLander-v3](/experiments/lunarlander/sac/training.png)
+TBD
+
+{/* ![SAC(Discrete) agent on LunarLander-v3](/experiments/lunarlander/sac/training.png)
 
 <div align="center">
   <img src="/experiments/lunarlander/sac/demo.gif" alt="SAC(Discrete) agent on LunarLander-v3" />
-</div>
+</div> */}
 
-## Conclusion
+## 실험 결과
+
+`LunarLandver-v3` 환경을 해결하는 데에 `Rainbow DQN` 이 가장 높은 성능을 기록했다는 점에서, 복잡한 알고리즘 조합이 단순한 환경에서도 높은 성능을 보인다는 것을 확인했다. `PPO` 알고리즘은 수렴 속도가 가장 빠르고, 학습이 가장 안정적이었다. 이는 전형적인 On-Policy 계열의 알고리즘의 특성이 이번 실험에서도 확인되었다고 할 수 있다.
+
+### 한계점 및 개선방안
+
+이번 실험에서는 하나의 시드(`seed=42`)로 설정하고 1회 실험을 진행했다. 따라서 실험 결과에 대한 통계적 유의성이 높지 않다. 5~10 개의 시드로 복수 실험하고, 그 성능을 비교해 볼 필요가 있다.
 
 ## Appendix: Hyperparameter
 
