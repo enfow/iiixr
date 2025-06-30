@@ -1,2 +1,11 @@
+# RL Experiment Trainer and Dashboard
 
-[View the full component documentation](https://raw.githubusercontent.com/efnow/repo/main/dashboard/content/methods.mdx)
+## How to Train
+
+To train your RL models, navigate to the trainer directory:
+
+**[→ Go to Trainer Directory](./trainer)**
+
+## How to Deploy Dashboard
+
+**[→ Go to Dashboard Directory](./dashboard)**
