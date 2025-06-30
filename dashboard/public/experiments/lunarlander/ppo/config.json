@@ -1,0 +1,35 @@
+{
+  "model": {
+    "model": "ppo",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "LunarLander-v3",
+  "state_dim": 8,
+  "action_dim": 4,
+  "is_discrete": true,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "n_transactions": 5000,
+  "ppo_epochs": 5,
+  "clip_eps": 0.2,
+  "normalize_advantages": false,
+  "entropy_coef": 0.2
+}

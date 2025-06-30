@@ -1,0 +1,36 @@
+{
+  "model": {
+    "model": "td3",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1
+  },
+  "seed": 42,
+  "episodes": 10000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "BipedalWalkerHardcore-v3",
+  "state_dim": 4,
+  "action_dim": 24,
+  "is_discrete": false,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "tau": 0.005,
+  "policy_delay": 2,
+  "policy_noise": 0.2,
+  "noise_clip": 0.5,
+  "exploration_noise": 0.1,
+  "start_steps": 1000
+}

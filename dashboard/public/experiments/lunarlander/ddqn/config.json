@@ -1,0 +1,35 @@
+{
+  "model": {
+    "model": "ddqn",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "per",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "LunarLander-v3",
+  "state_dim": 8,
+  "action_dim": 4,
+  "is_discrete": true,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "target_update_interval": 8000,
+  "start_steps": 10000,
+  "eps_start": 1.0,
+  "eps_end": 0.01,
+  "eps_decay": 50000
+}
