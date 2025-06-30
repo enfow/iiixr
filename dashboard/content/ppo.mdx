@@ -8,6 +8,9 @@ type: "model"
 
 # Proximal Policy Optimization
 
+[IMPLEMENTATION (CONTINUOUS)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ppo_trainer.py>)
+ | [IMPLEMENTATION (DISCRETE)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_ppo_trainer.py>)
+
 **PPO(Proximal Policy Optimization)** 알고리즘은 **Trust Region Policy Optimization(TRPO)** 의 복잡한 제약 조건을 단순화하면서도 안정적인 학습 성능을 유지하는 것을 목표로 한다. TRPO는 policy 업데이트 시 KL divergence 제약을 통해 policy gradient의 불안정성 문제를 해결했지만, conjugate gradient 계산 등의 복잡한 연산으로 인한 높은 계산 비용이 단점이었다. PPO는 이를 극복하기 위해 KL divergence 제약을 importance sampling ratio에 대한 **간단한 clipping 연산**으로 대체하는 것이 핵심 아이디어다.
 
 $$

@@ -6,6 +6,8 @@ type: "model"
 
 # Soft Actor-Critic(SAC)
 
+[IMPLEMENTATION (ORIGINAL)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/sac_trainer.py>)| [IMPLEMENTATION (v2)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/sac_v2_trainer.py>) | [IMPLEMENTATION (DISCRETE)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_trainer.py>)
+
  **SAC**는 **Off-Policy Actor-Critic** 계열의 알고리즘으로, Reward를 최대화하는 동시에 Policy의 Entropy 또한 함께 최대화하는 방향으로 학습을 진행한다. Policy의 Entropy를 높인다는 것은 특정 Action을 극단적으로 선택할 가능성을 낮추는 것을 의미하며, 이는 학습 과정에서 exploration을 높이는 효과로 이어진다.
 
 $$

@@ -6,6 +6,8 @@ type: "model"
 
 # Twin Delayed DDPG
 
+[IMPLEMENTATION(TD3)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_trainer.py>) | [IMPLEMENTATION (TD3 SEQUENTIAL)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_trainer.py>)
+
 **TD3**는 **DDPG(Deep Deterministic Policy Gradient)** 가 가지고 있는 문제점을 줄이기 위해 제안된 알고리즘이다. 구체적으로 DDPG는 Q-value의 overestimation 문제와 높은 variance로 학습이 불안정한 문제를 가지고 있는데, TD3는 **Twin Critics, Delayed Policy Update, Target Policy Smoothing** 이라는 세 가지 기법을 적용하여 이를 해결한다.
 
 - **Twin Critics**: 두 개의 독립적인 Q-value function을 도입하고, target value 계산 시 두 함수의 값 중 낮은 것을 선택하여 Over Estimation 문제를 해소하는 방법이다.

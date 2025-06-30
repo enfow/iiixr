@@ -1,0 +1,234 @@
+---
+title: "BipedalWalkerHardcore-v3 Experiment"
+date: 2025-06-29
+type: "experiment"
+---
+
+# BipedalWalker-v3 Hardcore Experiment
+
+본 실험은 강화학습의 BipedalWalkerHardcore-v3 환경을 정복하는 강화학습 Agent를 구현하고 성능을 비교 분석하는 것을 목적으로 한다. BipedalWalkerHardcore-v3는 표준적인 제어 문제를 넘어서, 다양한 장애물과 지형 변화를 포함하는 매우 어려운(Hardcore) 환경으로, 에이전트의 강인한 주행 능력과 일반화 성능을 요구한다.
+
+문제를 해결하기 위해 대표적인 Continuous Control 알고리즘인 PPO, SAC, TD3 와 그 확장 모델들을 PyTorch를 사용하여 구현하였다. 세 알고리즘의 일반적인 구현으로는 모두 높은 성능을 달성하기 어려웠던 만큼, Sequential Model을 적용하거나, Return 의 Variance 를 줄이는 방향으로 개선을 시도하여 성능을 높이기 위해 노력했다.
+
+## 실험 모델
+
+- **PPO(Discrete)**: Policy-based, On-Policy 알고리즘(Trust Region)
+  - [REVIEW](./ppo) | [PAPER](<https://arxiv.org/abs/1707.06347>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_ppo_trainer.py>)
+- **SAC(Discrete)**: Policy-based, Off-Policy 알고리즘(Actor-Critic, Entropy)
+  - [REVIEW](<./sac>) | [PAPER](<https://arxiv.org/abs/1910.07207>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_sac_trainer.py>)
+- **TD3**: Policy-based, Off-Policy 알고리즘(Actor-Critic, Entropy)
+  - [REVIEW](<./td3>) | [PAPER](<https://arxiv.org/abs/1802.09477>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_trainer.py>)
+- **TD3 Sequential(LSTM)**: TD3 의 Policy Network 에 LSTM 을 적용한 모델
+  - [REVIEW](<./td3>) | [PAPER](<https://arxiv.org/abs/1802.09477>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_lstm_trainer.py>)
+- **TD3 Sequential(Transformer)**: TD3 의 Policy Network 에 Transformer 를 적용한 모델
+  - [REVIEW](<./td3>) | [PAPER](<https://arxiv.org/abs/1802.09477>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_transformer_trainer.py>)
+
+## 실험 환경
+
+[BipedalWalkerHardcore-v3](./bipedalwalker)
+
+- State space: 24차원의 Continuous Space
+  - 선체 각도, 각속도, 수평/수직 속도, 관절 위치/속도, 다리 접촉 여부, 10개의 라이다 센서 값
+- Action space: 4차원의 Continuous Space
+  - 양쪽 고관절과 무릎 관절에 가해지는 토크의 크기
+- `Hardcore=True` 옵션 적용
+  - 일반 BipedalWalker 환경에 더해, 다양한 장애물들이 무작위로 발생한다.
+
+## 첫 번째 실험
+
+우선 PPO, SAC, TD3와 같이 강화학습에서 높은 성능을 보여주는 대표적인 알고리즘을 구현하고 빠르게 적용해보았다. 매우 도전적인 환경에서 실험을 진행한 만큼, 일반적인 알고리즘으로는 해결하는 데에 어려움을 겪었다.
+
+### PPO
+
+`LunarLander-v3` 환경에서 매우 높은 성능과 수렴 속도를 보여주었던 PPO 알고리즘의 경우 학습에 어려움을 겪었다.
+
+![PPO agent on BipedalWalkerHardcore-v3](/experiments/bipedal/ppo/training.png)
+![PPO agent on BipedalWalkerHardcore-v3](/experiments/bipedal/ppo/evaluation.png)
+
+<div align="center">
+  <img src="/experiments/bipedal/ppo/demo.gif" alt="PPO agent on BipedalWalkerHardcore-v3" />
+</div>
+
+### SAC V2
+
+SAC v2 알고리즘의 경우 일부 학습이 진행되어 `Return=100` 에 근접하는 모습을 보였으나, 여전히 높은 성능을 보여주지 못했다.
+
+![SAC V2 agent on BipedalWalkerHardcore-v3](/experiments/bipedal/sac_v2/training.png)
+![SAC V2 agent on BipedalWalkerHardcore-v3](/experiments/bipedal/sac_v2/evaluation.png)
+
+<div align="center">
+  <img src="/experiments/bipedal/sac_v2/demo.gif" alt="SAC V2 agent on BipedalWalkerHardcore-v3" />
+</div>
+
+### TD3
+
+TD3 알고리즘 또한 유사한 결과를 보여주었다. `Return=100` 수준에서 더 이상 학습이 종료되었다.
+
+![TD3 agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3/training.png)
+![TD3 agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3/evaluation.png)
+
+<div align="center">
+  <img src="/experiments/bipedal/td3/demo.gif" alt="TD3 agent on BipedalWalkerHardcore-v3" />
+</div>
+
+## 두 번째 실험
+
+첫 번째 실험에서 세 가지 모델의 성능이 모두 좋지 않게 나왔다. 이를 개선하기 위해 두 가지 가설을 세우고 관련하여 실험을 진행했다.
+
+첫 번째 가설은 환경적 특성에 관한 것으로, **여러 Step의 State 정보** 를 Policy 에게 함께 제공하면 더 높은 성능을 보여줄 수 있을 것이라는 점이다. BipedalWalker-v3 환경은 두 발을 가진 로봇을 제어하여 앞으로 걷도록 하는 문제인데, 이때 로봇은 State 로 라이다 입력 값을 받아 앞선 지형의 구조를 파악할 수 있다. 이때 과거 여러 시점의 정보들을 함께 제공하면 장애물을 해결하는 Action을 선택하는 능력을 쉽게 습득할 수 있을 것으로 보았다. 이를 위해 여러 개의 Transition 을 관리할 수 있도록 Replay Buffer를 개선하였고, TD3 모델을 기준으로 **LSTM, Transformer** 등 Sequential data 를 처리할 수 있는 모델들을 Policy Network 에 적용하여 실험을 진행했다.
+
+두 번째는 Training/Evaluation 과정에서 **Return 의 Variance 가 과도하게 크다** 는 점에서 착안하여, 이를 해결하면 더 안정적이고 높은 성능을 보여줄 수 있을 것이라 판단했다. 강화학습에서 학습이 진행됨에 따라 Score 의 변동성이 커지는 것은 다소 일반적인 현상이고, 특히 BipedalWalker-v3 Hardcore와 같이 환경의 랜덤성이 높을수록 Variance는 더욱 크게 나타나는 경향이 있다. 하지만 Return 의 Variance 를 줄이면 보다 안정적인 학습이 가능한 만큼, 랜덤성이 큰 환경에 대처하는 방법과 함께 다양한 방법들을 고려해보았다. 구체적인 방법들은 다음과 같다.
+
+**TD3**
+- Agent에 Sequential Model(Transformer, LSTM) 적용
+- Prioritized Experience Replay(PER) 적용
+- 더욱 큰/점진적인 Buffer Size 의 증가
+- N-Step Returns
+
+**PPO**
+- GAE
+- 더욱 큰 Memory size + 다중 환경 병렬 학습
+
+두 가지 가설에 대한 실험 결과는 아래와 같다(TBD)
+
+### TD3 Sequential(LSTM)
+
+![TD3 Sequential(LSTM) agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3_sequential_lstm/training.png)
+
+<div align="center">
+  <img src="/experiments/bipedal/td3_sequential_lstm/demo.gif" alt="TD3 Sequential(LSTM) agent on BipedalWalkerHardcore-v3" />
+</div>
+
+### TD3 Sequential(Transformer)
+
+![TD3 Sequential(Transformer) agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3_sequential_transformer/training.png)
+
+<div align="center">
+  <img src="/experiments/bipedal/td3_sequential_transformer/demo.gif" alt="TD3 Sequential(Transformer) agent on BipedalWalkerHardcore-v3" />
+</div>
+
+
+## Conclusion
+
+## Appendix: Hyperparameter
+
+### PPO
+
+```json
+{
+  "model": {
+    "model": "ppo",
+    "hidden_dim": 256,
+    "n_layers": 2,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1,
+    "per_n_steps": 3
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 2000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "BipedalWalkerHardcore-v3",
+  "state_dim": null,
+  "action_dim": null,
+  "is_discrete": null,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "n_transactions": 10000,
+  "ppo_epochs": 7,
+  "clip_eps": 0.2,
+  "normalize_advantages": true,
+  "entropy_coef": 0.01
+}
+```
+
+### SAC V2
+
+```json
+{
+  "model": {
+    "model": "sac_v2",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "BipedalWalkerHardcore-v3",
+  "state_dim": null,
+  "action_dim": null,
+  "is_discrete": null,
+  "device": "cuda",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "tau": 0.005,
+  "entropy_coef": 0.2,
+  "start_steps": 10000,
+  "target_update_interval": 8000
+}
+```
+
+### TD3
+
+```json
+{
+  "model": {
+    "model": "td3",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1
+  },
+  "seed": 42,
+  "episodes": 10000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "BipedalWalkerHardcore-v3",
+  "state_dim": 4,
+  "action_dim": 24,
+  "is_discrete": false,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "tau": 0.005,
+  "policy_delay": 2,
+  "policy_noise": 0.2,
+  "noise_clip": 0.5,
+  "exploration_noise": 0.1,
+  "start_steps": 1000
+}
+```
