@@ -3,16 +3,17 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Header from "@/components/Header";
-import TrainingControl from "@/components/TrainingControl";
 import ContentNavigation from "@/components/ContentNavigation";
-import { getMDXFiles } from '@/lib/mdx-loader'
+import MDXContent from "@/components/MDXContent";
+import { getMDXFiles, getMDXFile, MDXPost } from '@/lib/mdx-loader'
 
 export default function Home() {
   const [contentFiles, setContentFiles] = useState<Array<{id: string, title: string, description?: string, type: string}>>([])
+  const [mainPageContent, setMainPageContent] = useState<MDXPost | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Load content files on component mount
+    // Load content files and main page content on component mount
     const loadContent = async () => {
       try {
         const files = await getMDXFiles()
@@ -23,6 +24,12 @@ export default function Home() {
           type: file.type
         }))
         setContentFiles(fileList)
+        
+        // Load main page content
+        const mainPage = await getMDXFile('mainPage')
+        if (mainPage) {
+          setMainPageContent(mainPage)
+        }
       } catch (error) {
         console.error('Error loading MDX files:', error)
       } finally {
@@ -50,27 +57,31 @@ export default function Home() {
     <div className="min-h-screen bg-gray-100">
       <Header />
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-medium text-gray-900">Welcome to iiixr Dashboard</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              This is your new dashboard application with MDX content support. Click on any content below to view it.
-            </p>
-            <div className="mt-4">
-              <Link
-                href="/content"
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Browse All Content →
-              </Link>
-            </div>
-          </div>
-          {/* <TrainingControl /> */}
+        <div className="grid gap-8">
+
+          {/* Content Navigation */}
           {contentFiles.length > 0 && (
-            <ContentNavigation 
-              files={contentFiles}
-              currentFile=""
-            />
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Content List</h2>
+                <Link
+                  href="/content"
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  View All Content →
+                </Link>
+              </div>
+              <ContentNavigation 
+                files={contentFiles}
+                currentFile=""
+              />
+            </div>
+          )}
+          {/* Main Page Content */}
+          {mainPageContent && (
+            <div className="bg-white rounded-lg shadow p-8">
+              <MDXContent post={mainPageContent} />
+            </div>
           )}
         </div>
       </main>

@@ -25,11 +25,11 @@ export default function ContentNavigation({ files, currentFile, onFileChange }: 
   
   return (
     <div className="bg-white rounded-lg shadow p-6 mb-6">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">Available Content</h3>
+      <h3 className="text-xl font-bold text-gray-900 mb-4">Contents</h3>
       <div className="flex flex-wrap gap-3">
         {Object.entries(groupedFiles).map(([type, files]) => (
           <div key={type}>
-            <h4 className="text-sm font-medium text-gray-900 mb-2">{type.charAt(0).toUpperCase() + type.slice(1)}</h4>
+            <h4 className="text-xl font-medium text-gray-900 mb-2">{type.charAt(0).toUpperCase() + type.slice(1)}</h4>
             {files.map((file) => (
               onFileChange ? (
                 <button

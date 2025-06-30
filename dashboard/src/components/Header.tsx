@@ -6,7 +6,7 @@ export default function Header() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-center">
           <Link href="/" className="hover:opacity-80 transition-opacity">
-            <h1 className="text-2xl font-bold text-gray-900 cursor-pointer">iiixr</h1>
+            <h1 className="text-2xl font-bold text-gray-900 cursor-pointer">Experiment Dashboard for IIIXR lab</h1>
           </Link>
         </div>
       </div>

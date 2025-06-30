@@ -6,9 +6,9 @@ type: "experiment"
 
 # BipedalWalker-v3 Hardcore Experiment
 
-본 실험은 강화학습의 BipedalWalkerHardcore-v3 환경을 정복하는 강화학습 Agent를 구현하고 성능을 비교 분석하는 것을 목적으로 한다. BipedalWalkerHardcore-v3는 표준적인 제어 문제를 넘어서, 다양한 장애물과 지형 변화를 포함하는 매우 어려운(Hardcore) 환경으로, 에이전트의 강인한 주행 능력과 일반화 성능을 요구한다.
+본 실험은 강화학습으로 `BipedalWalkerHardcore-v3` 환경을 정복하는 Agent를 구현하고 성능을 비교 분석하는 것을 목적으로 한다. BipedalWalkerHardcore-v3는 표준적인 제어 문제를 넘어서, 다양한 장애물과 지형 변화를 포함하는 환경(Hardcore)으로, 랜덤성이 강한 환경에서 Agent 의 학습 능력 및 일반화 성능을 요구한다.
 
-문제를 해결하기 위해 대표적인 Continuous Control 알고리즘인 PPO, SAC, TD3 와 그 확장 모델들을 PyTorch를 사용하여 구현하였다. 세 알고리즘의 일반적인 구현으로는 모두 높은 성능을 달성하기 어려웠던 만큼, Sequential Model을 적용하거나, Return 의 Variance 를 줄이는 방향으로 개선을 시도하여 성능을 높이기 위해 노력했다.
+문제를 해결하기 위해 대표적인 Continuous Control 알고리즘인 `PPO`, `SAC`, `TD3` 와 그 확장 모델들을 PyTorch를 사용하여 구현하였다. 세 알고리즘의 일반적인 구현으로는 모두 높은 성능을 달성하기 어려웠던 만큼, **Sequential Model**을 적용하거나, **Return 의 Variance 를 줄이는 방향**으로 개선을 시도하여 성능을 높이기 위해 노력했다.
 
 ## 실험 모델
 
