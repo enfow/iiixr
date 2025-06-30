@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { notFound } from 'next/navigation'
 import Header from "@/components/Header"
 import MDXContent from "@/components/MDXContent"
@@ -8,12 +8,13 @@ import ContentNavigation from "@/components/ContentNavigation"
 import { getMDXFiles, getMDXFile, MDXPost } from '@/lib/mdx-loader'
 
 interface ContentPageProps {
-  params: {
+  params: Promise<{
     content_name: string
-  }
+  }>
 }
 
 export default function ContentPage({ params }: ContentPageProps) {
+  const { content_name } = use(params)
   const [contentFiles, setContentFiles] = useState<Array<{id: string, title: string, description?: string, type: string}>>([])
   const [currentPost, setCurrentPost] = useState<MDXPost | null>(null)
   const [loading, setLoading] = useState(true)
@@ -31,7 +32,7 @@ export default function ContentPage({ params }: ContentPageProps) {
         setContentFiles(fileList)
         
         // Load the specific post based on the route parameter
-        const post = await getMDXFile(params.content_name)
+        const post = await getMDXFile(content_name)
         if (!post) {
           notFound()
           return
@@ -46,7 +47,7 @@ export default function ContentPage({ params }: ContentPageProps) {
     }
 
     loadContent()
-  }, [params.content_name])
+  }, [content_name])
 
   if (loading) {
     return (
@@ -73,7 +74,7 @@ export default function ContentPage({ params }: ContentPageProps) {
           {contentFiles.length > 0 && (
             <ContentNavigation 
               files={contentFiles}
-              currentFile={params.content_name}
+              currentFile={content_name}
             />
           )}
           <div className="bg-white rounded-lg shadow p-6">

@@ -267,16 +267,70 @@ body {
   font-size: 1.25rem;
 }
 
-.prose ul, .prose ol {
+/* List styles with bullet points */
+.prose ul {
   color: #374151;
   margin-bottom: 1.25rem;
   padding-left: 1.5rem;
   font-size: 1.25rem;
+  list-style-type: disc;
+}
+
+.prose ol {
+  color: #374151;
+  margin-bottom: 1.25rem;
+  padding-left: 1.5rem;
+  font-size: 1.25rem;
+  list-style-type: decimal;
 }
 
 .prose li {
   margin-bottom: 0.5rem;
   line-height: 1.8;
+  padding-left: 0.5rem;
+}
+
+/* Nested list styles */
+.prose ul ul {
+  list-style-type: circle;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose ul ul ul {
+  list-style-type: square;
+}
+
+.prose ol ol {
+  list-style-type: lower-alpha;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose ol ol ol {
+  list-style-type: lower-roman;
+}
+
+/* Hyperlink styles */
+.prose a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-decoration-color: #93c5fd;
+  text-underline-offset: 2px;
+  transition: all 0.2s ease-in-out;
+}
+
+.prose a:hover {
+  color: #1d4ed8;
+  text-decoration-color: #3b82f6;
+}
+
+.prose a:visited {
+  color: #7c3aed;
+}
+
+.prose a:active {
+  color: #dc2626;
 }
 
 .prose strong {
