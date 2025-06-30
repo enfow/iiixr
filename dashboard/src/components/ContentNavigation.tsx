@@ -16,8 +16,9 @@ interface ContentNavigationProps {
 }
 
 export default function ContentNavigation({ files, currentFile, onFileChange }: ContentNavigationProps) {
-  // group files by type
-  const groupedFiles = files.reduce((acc, file) => {
+  // Filter out files with type "main" and group remaining files by type
+  const filteredFiles = files.filter(file => file.type !== 'main')
+  const groupedFiles = filteredFiles.reduce((acc, file) => {
     acc[file.type] = acc[file.type] || []
     acc[file.type].push(file)
     return acc
