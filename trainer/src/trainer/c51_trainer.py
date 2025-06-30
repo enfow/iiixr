@@ -20,7 +20,7 @@ from trainer.base_trainer import BaseTrainer
 V_MIN_MAX = {
     "BipedalWalker-v3": (-200.0, 300.0),
     "BipedalWalkerHardcore-v3": (-200.0, 300.0),
-    "LunarLander-v2": (-400.0, 400.0),
+    "LunarLander-v2": (-500.0, 400.0),
 }
 
 

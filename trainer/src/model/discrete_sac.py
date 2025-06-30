@@ -3,9 +3,7 @@ Discrete SAC implementation
 - Ref: https://arxiv.org/pdf/1910.07207
 """
 
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class DiscreteSACPolicy(nn.Module):

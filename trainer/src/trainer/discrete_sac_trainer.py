@@ -172,8 +172,8 @@ class DiscreteSACTrainer(BaseTrainer):
         self.alpha_optimizer.step()
         self.alpha = self.log_alpha.exp()
 
-        # Soft updates (This part is correct)
         if self.step_count % self.config.target_update_interval == 0:
+            print(f"Updating target networks at step {self.step_count}")
             for param, target_param in zip(
                 self.critic1.parameters(), self.target_critic1.parameters()
             ):
@@ -213,11 +213,11 @@ class DiscreteSACTrainer(BaseTrainer):
             if loss is not None:
                 episode_losses.append(loss)
 
+            self.step_count += 1
+
             if done:
                 episode_steps = step + 1
                 break
-
-        self.step_count += 1
 
         return SingleEpisodeResult(
             episode_total_reward=np.sum(episode_rewards),
