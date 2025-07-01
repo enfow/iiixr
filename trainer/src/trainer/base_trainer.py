@@ -22,10 +22,18 @@ class BaseTrainer:
 
     def __init__(self, env_name: str, config_dict: dict, save_dir: str):
         config = self.config_class.from_dict(config_dict)
+        print(f"config: {config}")
         set_seed(config.seed)
 
         self.env_name = env_name
         self.env = GymEnvFactory(env_name)
+        print(f"training env_name: {env_name}")
+        print(f"evaluation env_name: {config.eval_env}")
+        self.eval_env = (
+            GymEnvFactory(config.eval_env)
+            if config.eval_env is not None
+            else GymEnvFactory(env_name)
+        )
         self.config = config
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
@@ -125,18 +133,19 @@ class BaseTrainer:
 
     def evaluate(self, episodes=10):
         self.eval_mode_on()
-
         scores = []
         steps = []
         for _ in range(episodes):
-            state, _ = self.env.reset()
+            state, _ = self.eval_env.reset()
             done = False
             total_reward = 0
             step = 0
 
             while not done:
                 action = self.select_action(state, eval_mode=True)["action"]
-                next_state, reward, terminated, truncated, _ = self.env.step(action)
+                next_state, reward, terminated, truncated, _ = self.eval_env.step(
+                    action
+                )
                 done = terminated or truncated
                 state = next_state
                 total_reward += reward
