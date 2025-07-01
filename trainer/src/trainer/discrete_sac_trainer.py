@@ -138,34 +138,30 @@ class DiscreteSACTrainer(BaseTrainer):
         critic2_loss.backward()
         self.critic2_optimizer.step()
 
-        # Freeze critic networks to ensure only actor is updated
-        self.critic1.freeze()
-        self.critic2.freeze()
-        
         # Actor update
         logits = self.actor(state)
         probs = F.softmax(logits, dim=-1)
         log_probs = F.log_softmax(logits, dim=-1)
-        q1_all = self.critic1(state)
-        q2_all = self.critic2(state)
-        min_q = torch.min(q1_all, q2_all)
+
+        with torch.no_grad():
+            q1_all = self.critic1(state)
+            q2_all = self.critic2(state)
+            min_q = torch.min(q1_all, q2_all)
 
         actor_loss = (
-            (probs * (self.alpha.detach() * log_probs - min_q))
+            (probs * (self.alpha.detach() * log_probs - min_q.detach()))
             .sum(dim=1)
             .mean()
         )
-        
+
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
 
-        # Unfreeze critic networks for the next critic update
-        self.critic1.unfreeze()
-        self.critic2.unfreeze()
-
-        entropy = -(probs.detach() * log_probs.detach()).sum(dim=1, keepdim=True)
-        alpha_loss = -(self.log_alpha * (entropy - self.target_entropy)).mean()
+        # Alpha (temperature) update
+        # For the alpha loss, the entropy should be treated as a constant, so detach it.
+        entropy = -(probs * log_probs).sum(dim=1).mean()
+        alpha_loss = -(self.log_alpha * (entropy.detach() - self.target_entropy)).mean()
 
         self.alpha_optimizer.zero_grad()
         alpha_loss.backward()
@@ -173,7 +169,6 @@ class DiscreteSACTrainer(BaseTrainer):
         self.alpha = self.log_alpha.exp()
 
         if self.step_count % self.config.target_update_interval == 0:
-            print(f"Updating target networks at step {self.step_count}")
             for param, target_param in zip(
                 self.critic1.parameters(), self.target_critic1.parameters()
             ):
@@ -194,7 +189,7 @@ class DiscreteSACTrainer(BaseTrainer):
             critic1_loss=critic1_loss.item(),
             critic2_loss=critic2_loss.item(),
             alpha_loss=alpha_loss.item(),
-    )
+        )
 
     def train_episode(self) -> SingleEpisodeResult:
         state, _ = self.env.reset()
