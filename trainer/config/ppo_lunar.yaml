@@ -2,24 +2,27 @@
 # Environment settings
 env: "LunarLander-v3"
 model:
-  model: "discrete_sac"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
+  model: "ppo"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
   hidden_dim: 256
-  n_layers: 3
+  n_layers: 2
   embedding_type: "fc"  # Options: fc, transformer
 
 buffer:
   buffer_size: 1000000
   buffer_type: "default"
   seq_len: 1
+  alpha: 0.6
+  beta_start: 0.4
+  beta_frames: 100000
 
 # Training parameters
 seed: 42
 episodes: 5000
-max_steps: 1000
+max_steps: 2000
 lr: 3e-4
 gamma: 0.99
 batch_size: 256
-start_steps: 20000
+start_steps: 10000
 
 # Device settings
 device: "cpu"  # Options: cpu, cuda
@@ -32,9 +35,10 @@ eval_episodes: 10
 # Save settings
 save_dir: "results"
 
-# target update interval(controlled by tau)
-target_update_interval: 1
-
-# SAC specific parameters
-tau: 0.005
-entropy_coef: 0.98
+# PPO specific parameters
+ppo_epochs: 7
+clip_eps: 0.2
+n_transactions: 10000
+normalize_advantages: true
+gae: true
+gae_lambda: 0.99

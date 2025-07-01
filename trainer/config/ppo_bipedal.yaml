@@ -43,3 +43,5 @@ ppo_epochs: 7
 clip_eps: 0.2
 n_transactions: 10000
 normalize_advantages: true
+gae: false
+gae_lambda: 0.95
