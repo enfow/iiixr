@@ -56,6 +56,7 @@ class BaseConfig(BaseModel):
     batch_size: int = 256
     # env
     env: str = None
+    eval_env: str = None
     state_dim: Optional[int] = None
     action_dim: Optional[int] = None
     is_discrete: Optional[bool] = None
@@ -142,6 +143,8 @@ class PPOConfig(BaseConfig):
     clip_eps: float = 0.2
     normalize_advantages: bool = False
     entropy_coef: float = 0.01
+    gae: bool = False
+    gae_lambda: float = 0.95
 
 
 class SACConfig(BaseConfig):
