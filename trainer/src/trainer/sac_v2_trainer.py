@@ -137,7 +137,9 @@ class SACV2Trainer(SACTrainer):
         self.actor_optimizer.step()
 
         # 3. Update temperature parameter α
-        alpha_loss = (self.log_alpha * (-log_prob.detach() - self.target_entropy)).mean()
+        alpha_loss = (
+            self.log_alpha * (-log_prob.detach() - self.target_entropy)
+        ).mean()
 
         self.alpha_optimizer.zero_grad()
         alpha_loss.backward()
