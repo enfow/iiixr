@@ -1,10 +1,25 @@
+from typing import Optional, Type
+
 import gymnasium as gym
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from env.custom_env import CustomBipedalWalkerWrapper
 
 
 class CustomEnv(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     env_name: str
     kwargs: dict
+    wrapper: Optional[Type[gym.Wrapper]] = None
+
+    @field_validator("wrapper")
+    @classmethod
+    def validate_wrapper(cls, v):
+        if v is not None:
+            if not (isinstance(v, type) and issubclass(v, gym.Wrapper)):
+                raise ValueError("Must be a subclass of gym.Wrapper")
+        return v
 
 
 class TestGymEnv(gym.Env):
@@ -28,6 +43,11 @@ CUSTOM_ENVS = {
     "BipedalWalkerHardcore-v3": CustomEnv(
         env_name="BipedalWalker-v3", kwargs={"hardcore": True}
     ),
+    "CustomBipedalWalkerHardcore-v3": CustomEnv(
+        env_name="BipedalWalker-v3",
+        kwargs={"hardcore": True},
+        wrapper=CustomBipedalWalkerWrapper,
+    ),
     "TestGymEnv": CustomEnv(env_name="TestGymEnv", kwargs={}),
 }
 
@@ -44,9 +64,17 @@ class GymEnvFactory:
             if env_name == "TestGymEnv":
                 return TestGymEnv(env_name, **kwargs)
             else:
-                return gym.make(
-                    CUSTOM_ENVS[env_name].env_name, **CUSTOM_ENVS[env_name].kwargs
-                )
+                if CUSTOM_ENVS[env_name].wrapper:
+                    return CUSTOM_ENVS[env_name].wrapper(
+                        gym.make(
+                            CUSTOM_ENVS[env_name].env_name,
+                            **CUSTOM_ENVS[env_name].kwargs,
+                        )
+                    )
+                else:
+                    return gym.make(
+                        CUSTOM_ENVS[env_name].env_name, **CUSTOM_ENVS[env_name].kwargs
+                    )
         elif env_name in cls._registered_envs:
             return gym.make(env_name, **kwargs)
         else:
@@ -59,5 +87,5 @@ class GymEnvFactory:
 
 if __name__ == "__main__":
     print(GymEnvFactory.valid_envs())
-    env = GymEnvFactory("BipedalWalkerHardcore-v3")
+    env = GymEnvFactory("CustomBipedalWalkerHardcore-v3")
     print(env)
