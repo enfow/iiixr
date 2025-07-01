@@ -96,6 +96,7 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
+# Deprecated
 class PPOMemory:
     """
     On-Policy Memory

@@ -10,7 +10,6 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-from model.buffer import PPOMemory
 from model.ppo import ContinuousActor, ContinuousCritic
 from schema.config import PPOConfig
 from schema.result import PPOUpdateLoss, SingleEpisodeResult
@@ -36,7 +35,7 @@ class PPOTrainer(BaseTrainer):
             self.config.model.hidden_dim,
             n_layers=self.config.model.n_layers,
         ).to(self.config.device)
-        self.memory = PPOMemory()
+        self.memory = None
         self.actor_optimizer = optim.Adam(
             list(self.actor.parameters()),
             lr=self.config.lr,
@@ -65,36 +64,12 @@ class PPOTrainer(BaseTrainer):
                 "logprob": logprob.item(),
             }
 
-    def compute_returns(self, rewards, dones, gamma=0.99):
-        returns = []
-        R = 0
-        for r, d in zip(reversed(rewards), reversed(dones)):
-            if d:
-                R = 0
-            R = r + gamma * R
-            returns.insert(0, R)
-        return returns
-
     def _get_current_logprobs(self, states, actions):
         mean, log_std = self.actor(states)
         std = torch.exp(log_std)
         dist = torch.distributions.Normal(mean, std)
         logprobs = dist.log_prob(actions).sum(dim=-1)
         return logprobs
-
-    def _sample_transactions(self):
-        states = torch.FloatTensor(np.array(self.memory.states)).to(self.config.device)
-        actions = torch.FloatTensor(np.array(self.memory.actions)).to(
-            self.config.device
-        )
-        old_logprobs = torch.FloatTensor(self.memory.logprobs).to(self.config.device)
-        returns = torch.FloatTensor(
-            self.compute_returns(
-                self.memory.rewards, self.memory.dones, self.config.gamma
-            )
-        ).to(self.config.device)
-        advantages = returns - self.critic(states).squeeze().detach()
-        return states, actions, old_logprobs, returns, advantages
 
     def _get_entropy(self, states):
         mean, log_std = self.actor(states)
@@ -103,43 +78,184 @@ class PPOTrainer(BaseTrainer):
         entropy = dist.entropy().sum(dim=-1)
         return entropy
 
-    def update(self) -> PPOUpdateLoss:
-        total_loss = 0
-        states, actions, old_logprobs, returns, advantages = self._sample_transactions()
+    def collect_episode_data(self):
+        """Collect data for one complete episode"""
+        state, _ = self.env.reset()
+        episode_states, episode_actions, episode_logprobs = [], [], []
+        episode_rewards, episode_dones = [], []
 
+        while True:
+            action_info = self.select_action(state)
+            action, logprob = action_info["action"], action_info["logprob"]
+
+            episode_states.append(state)
+            episode_actions.append(action)
+            episode_logprobs.append(logprob)
+
+            next_state, reward, terminated, truncated, _ = self.env.step(action)
+            done = terminated or truncated
+
+            episode_rewards.append(reward)
+            episode_dones.append(done)
+
+            state = next_state
+
+            if done:
+                break
+
+        return {
+            "states": episode_states,
+            "actions": episode_actions,
+            "logprobs": episode_logprobs,
+            "rewards": episode_rewards,
+            "dones": episode_dones,
+            "episode_length": len(episode_states),
+        }
+
+    def compute_monte_carlo_returns(self, rewards, dones):
+        """Compute Monte Carlo returns for a single episode"""
+        returns = []
+        _return = 0
+        for r, d in zip(reversed(rewards), reversed(dones)):
+            if d:
+                _return = 0
+            _return = r + self.config.gamma * _return
+            returns.insert(0, _return)
+        return torch.FloatTensor(returns).to(self.config.device)
+
+    def compute_episode_gae(self, episode_data):
+        """Compute GAE for a single episode"""
+        states = torch.FloatTensor(np.array(episode_data["states"])).to(
+            self.config.device
+        )
+        rewards = torch.tensor(episode_data["rewards"], dtype=torch.float32).to(
+            self.config.device
+        )
+        dones = torch.tensor(episode_data["dones"], dtype=torch.float32).to(
+            self.config.device
+        )
+
+        with torch.no_grad():
+            values = self.critic(states).squeeze()
+            if values.dim() == 0:  # Handle single-step episodes
+                values = values.unsqueeze(0)
+
+            # For episode-based collection, compute next values properly
+            next_values = torch.zeros_like(values)
+            if len(values) > 1:
+                next_values[:-1] = values[1:]  # V(s_{t+1}) for t < T-1
+            next_values[-1] = 0.0  # V(s_T) = 0 for terminal state
+
+        advantages = torch.zeros_like(rewards)
+        gae_advantage = 0
+
+        for t in reversed(range(len(rewards))):
+            td_error = (
+                rewards[t]
+                + self.config.gamma * next_values[t] * (1 - dones[t])
+                - values[t]
+            )
+
+            gae_advantage = (
+                td_error
+                + self.config.gamma
+                * self.config.gae_lambda
+                * (1 - dones[t])
+                * gae_advantage
+            )
+            advantages[t] = gae_advantage
+
+        returns = advantages + values
+        return {
+            "states": states,
+            "actions": episode_data["actions"],
+            "logprobs": episode_data["logprobs"],
+            "returns": returns,
+            "advantages": advantages,
+            "rewards": rewards,
+        }
+
+    def compute_episode_mc_returns(self, episode_data):
+        """Compute Monte Carlo returns for a single episode"""
+        states = torch.FloatTensor(np.array(episode_data["states"])).to(
+            self.config.device
+        )
+        returns = self.compute_monte_carlo_returns(
+            episode_data["rewards"], episode_data["dones"]
+        )
+
+        with torch.no_grad():
+            values = self.critic(states).squeeze()
+            if values.dim() == 0:  # Handle single-step episodes
+                values = values.unsqueeze(0)
+
+        advantages = returns - values
+
+        return {
+            "states": states,
+            "actions": episode_data["actions"],
+            "logprobs": episode_data["logprobs"],
+            "returns": returns,
+            "advantages": advantages,
+            "rewards": torch.tensor(episode_data["rewards"], dtype=torch.float32).to(
+                self.config.device
+            ),
+        }
+
+    def get_all_episode_data(self, all_episode_data):
+        all_states = torch.cat([ep["states"] for ep in all_episode_data], dim=0)
+        all_actions = torch.FloatTensor(
+            np.concatenate([ep["actions"] for ep in all_episode_data])
+        ).to(self.config.device)
+        all_logprobs = torch.FloatTensor(
+            np.concatenate([ep["logprobs"] for ep in all_episode_data])
+        ).to(self.config.device)
+        all_returns = torch.cat([ep["returns"] for ep in all_episode_data], dim=0)
+        all_advantages = torch.cat([ep["advantages"] for ep in all_episode_data], dim=0)
+        return all_states, all_actions, all_logprobs, all_returns, all_advantages
+
+    def update(self, all_episode_data) -> PPOUpdateLoss:
+        """Update policy using collected episode data"""
+        all_states, all_actions, all_logprobs, all_returns, all_advantages = (
+            self.get_all_episode_data(all_episode_data)
+        )
+
+        # Normalize advantages
         if self.config.normalize_advantages:
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            all_advantages = (all_advantages - all_advantages.mean()) / (
+                all_advantages.std() + 1e-8
+            )
+
+        # Perform PPO updates
+        total_actor_loss = 0
+        total_critic_loss = 0
+        total_entropy_loss = 0
 
         for _ in range(self.config.ppo_epochs):
-            logprobs = self._get_current_logprobs(states, actions)
+            logprobs = self._get_current_logprobs(all_states, all_actions)
 
-            # importance sampling ratio: prob of action under new policy / prob of action under old policy
-            ratio = torch.exp(logprobs - old_logprobs)
-            surr1 = ratio * advantages
-            # clip the ratio to be between 1-epsilon and 1+epsilon
+            # importance sampling ratio
+            ratio = torch.exp(logprobs - all_logprobs)
+            surr1 = ratio * all_advantages
             surr2 = (
-                torch.clamp(
-                    ratio,
-                    1 - self.config.clip_eps,
-                    1 + self.config.clip_eps,
-                )
-                * advantages
+                torch.clamp(ratio, 1 - self.config.clip_eps, 1 + self.config.clip_eps)
+                * all_advantages
             )
-            # min(r_t(theta)A_t, clip(r_t(theta)A_t, 1-epsilon, 1+epsilon))
             actor_loss = -torch.min(surr1, surr2).mean()
-            # a squared-error loss (V_theta(st) − V_target(st))2
+
+            # Critic loss
             critic_loss = torch.nn.functional.mse_loss(
-                self.critic(states).squeeze(), returns
+                self.critic(all_states).squeeze(), all_returns
             )
 
             # Entropy bonus
-            entropy = self._get_entropy(states)
+            entropy = self._get_entropy(all_states)
             entropy_loss = -self.config.entropy_coef * entropy.mean()
-            total_actor_loss = actor_loss + entropy_loss
+            total_actor_loss_step = actor_loss + entropy_loss
 
             # Update actor
             self.actor_optimizer.zero_grad()
-            total_actor_loss.backward(retain_graph=True)
+            total_actor_loss_step.backward()
             self.actor_optimizer.step()
 
             # Update critic
@@ -147,45 +263,48 @@ class PPOTrainer(BaseTrainer):
             critic_loss.backward()
             self.critic_optimizer.step()
 
-            total_loss += actor_loss.item() + critic_loss.item() + entropy_loss.item()
-        # on-policy: clear memory
-        self.memory.clear()
+            total_actor_loss += actor_loss.item()
+            total_critic_loss += critic_loss.item()
+            total_entropy_loss += entropy_loss.item()
 
         return PPOUpdateLoss(
-            actor_loss=actor_loss.item(),
-            critic_loss=critic_loss.item(),
-            entropy_loss=entropy_loss.item(),
+            actor_loss=total_actor_loss / self.config.ppo_epochs,
+            critic_loss=total_critic_loss / self.config.ppo_epochs,
+            entropy_loss=total_entropy_loss / self.config.ppo_epochs,
         )
 
     def train_episode(self) -> SingleEpisodeResult:
-        state, _ = self.env.reset()
-        done = False
-        episode_rewards, episode_losses, episode_steps = [], [], [0]
+        """Train using episode-by-episode collection"""
+        all_episode_data = []
+        total_rewards = []
+        episode_lengths = []
+        total_steps = 0
+        episode_count = 0
 
-        while sum(episode_steps) < self.config.n_transactions:
-            action_info = self.select_action(state)
-            action, logprob = action_info["action"], action_info["logprob"]
-            next_state, reward, terminated, truncated, _ = self.env.step(action)
-            done = terminated or truncated
-            self.memory.store(state, action, logprob, reward, done)
-            state = next_state
-            episode_rewards.append(reward)
-            episode_steps[-1] += 1
+        # Collect multiple episodes until we have enough transitions
+        while total_steps < self.config.n_transactions:
+            episode_data = self.collect_episode_data()
+            episode_count += 1
+            episode_length = episode_data["episode_length"]
+            total_steps += episode_length
+            episode_lengths.append(episode_length)
+            total_rewards.extend(episode_data["rewards"])
 
-            if done:
-                state, _ = self.env.reset()
-                episode_steps.append(0)
+            # Compute returns/advantages for this episode
+            if self.config.gae:
+                processed_episode = self.compute_episode_gae(episode_data)
+            else:
+                processed_episode = self.compute_episode_mc_returns(episode_data)
 
-        update_result = self.update()
+            all_episode_data.append(processed_episode)
 
-        if update_result is not None:
-            episode_losses.append(update_result)
-        # Because of the ppo algorithm, need to divide the total reward by the number of episodes
-        # to get the average reward per episode.
+        # Update policy using all collected episodes
+        update_result = self.update(all_episode_data)
+
         return SingleEpisodeResult(
-            episode_total_reward=round(np.sum(episode_rewards) / len(episode_steps), 2),
-            episode_steps=round(np.mean(episode_steps), 2),
-            episode_losses=episode_losses,
+            episode_total_reward=round(np.sum(total_rewards) / episode_count, 2),
+            episode_steps=round(np.mean(episode_lengths), 2),
+            episode_losses=[update_result],
         )
 
     def save_model(self):

@@ -1,6 +1,5 @@
 """
 Discrete PPO Trainer
-
 Reference
 ---------
 - [Proximal Policy Optimization Algorithms](<https://arxiv.org/pdf/1707.06347>)
@@ -10,10 +9,9 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-from model.buffer import PPOMemory
 from model.ppo import DiscreteActor, DiscreteCritic
 from schema.config import PPOConfig
-from trainer.ppo_trainer import PPOTrainer
+from trainer.ppo_trainer import PPOTrainer, PPOUpdateLoss
 
 
 class DiscretePPOTrainer(PPOTrainer):
@@ -24,6 +22,7 @@ class DiscretePPOTrainer(PPOTrainer):
         super().__init__(env_name, config, save_dir)
 
     def _init_models(self):
+        """Override to use discrete actor/critic"""
         self.actor = DiscreteActor(
             self.state_dim,
             self.action_dim,
@@ -35,7 +34,6 @@ class DiscretePPOTrainer(PPOTrainer):
             self.config.model.hidden_dim,
             n_layers=self.config.model.n_layers,
         ).to(self.config.device)
-        self.memory = PPOMemory()
         self.actor_optimizer = optim.Adam(
             list(self.actor.parameters()),
             lr=self.config.lr,
@@ -46,6 +44,7 @@ class DiscretePPOTrainer(PPOTrainer):
         )
 
     def select_action(self, state, eval_mode: bool = False):
+        """Override for discrete action selection"""
         with torch.no_grad():
             state = torch.FloatTensor(state).to(self.config.device)
             probs = self.actor(state)
@@ -64,26 +63,29 @@ class DiscretePPOTrainer(PPOTrainer):
             }
 
     def _get_current_logprobs(self, states, actions):
+        """Override for discrete action log probabilities"""
         probs = self.actor(states)
         dist = torch.distributions.Categorical(probs)
         logprobs = dist.log_prob(actions)
         return logprobs
 
-    def _sample_transactions(self):
-        states = torch.FloatTensor(np.array(self.memory.states)).to(self.config.device)
-        actions = torch.LongTensor(self.memory.actions).to(self.config.device)
-        old_logprobs = torch.FloatTensor(self.memory.logprobs).to(self.config.device)
-        returns = torch.FloatTensor(
-            self.compute_returns(
-                self.memory.rewards, self.memory.dones, self.config.gamma
-            )
-        ).to(self.config.device)
-        advantages = returns - self.critic(states).squeeze().detach()
-        return states, actions, old_logprobs, returns, advantages
-
     def _get_entropy(self, states):
+        """Override for discrete action entropy"""
         logits = self.actor(states)
         probs = torch.softmax(logits, dim=-1)
         log_probs = torch.log_softmax(logits, dim=-1)
         entropy = -(probs * log_probs).sum(dim=-1)
         return entropy
+
+    def get_all_episode_data(self, all_episode_data):
+        all_states = torch.cat([ep["states"] for ep in all_episode_data], dim=0)
+        all_actions = torch.LongTensor(
+            np.concatenate([ep["actions"] for ep in all_episode_data])
+        ).to(self.config.device)
+        all_logprobs = torch.FloatTensor(
+            np.concatenate([ep["logprobs"] for ep in all_episode_data])
+        ).to(self.config.device)
+        all_returns = torch.cat([ep["returns"] for ep in all_episode_data], dim=0)
+        all_advantages = torch.cat([ep["advantages"] for ep in all_episode_data], dim=0)
+
+        return all_states, all_actions, all_logprobs, all_returns, all_advantages
