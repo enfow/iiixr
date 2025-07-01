@@ -70,15 +70,15 @@ PPO 알고리즘 또한 동일한 환경에서 높은 성능을 기록했다. �
 
 ### SAC(Discrete)
 
-[IMPLEMENTATION (DISCRETE)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_trainer.py>)
+[IMPLEMENTATION (DISCRETE)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_sac_trainer.py>)
 
-TBD
+Discrete Action Space 에 맞게 구현된 SAC 알고리즘 또한 앞선 PPO, Rainbow DQN 알고리즘들과 유사한 성능을 보여주었다. PPO와 비교해 볼 때 Return 의 Variance 가 더 큰 것을 확인할 수 있다.
 
-{/* ![SAC(Discrete) agent on LunarLander-v3](/experiments/lunarlander/sac/training.png)
+![SAC(Discrete) agent on LunarLander-v3](/experiments/lunarlander/discrete_sac/training.png)
 
 <div align="center">
-  <img src="/experiments/lunarlander/sac/demo.gif" alt="SAC(Discrete) agent on LunarLander-v3" />
-</div> */}
+  <img src="/experiments/lunarlander/discrete_sac/demo.gif" alt="SAC(Discrete) agent on LunarLander-v3" />
+</div>
 
 ## 실험 결과
 
@@ -125,51 +125,6 @@ TBD
   "eval_episodes": 10,
   "target_update_interval": 8000,
   "start_steps": 10000,
-  "eps_start": 1.0,
-  "eps_end": 0.01,
-  "eps_decay": 50000
-}
-```
-
-### C51
-
-```json
-{
-  "model": {
-    "model": "c51",
-    "hidden_dim": 256,
-    "n_layers": 3,
-    "embedding_type": "fc"
-  },
-  "buffer": {
-    "buffer_size": 1000000,
-    "buffer_type": "default",
-    "alpha": 0.6,
-    "beta_start": 0.4,
-    "beta_frames": 100000,
-    "seq_len": 1,
-    "per_n_steps": 3
-  },
-  "seed": 42,
-  "episodes": 2000,
-  "max_steps": 1000,
-  "lr": 0.0003,
-  "gamma": 0.99,
-  "batch_size": 256,
-  "env": "LunarLander-v3",
-  "state_dim": null,
-  "action_dim": null,
-  "is_discrete": null,
-  "device": "cpu",
-  "eval": true,
-  "eval_period": 10,
-  "eval_episodes": 10,
-  "target_update_interval": 8000,
-  "start_steps": 10000,
-  "n_atoms": 51,
-  "v_min": -400.0,
-  "v_max": 400.0,
-  "n_steps": 3,
   "eps_start": 1.0,
   "eps_end": 0.01,
   "eps_decay": 50000
@@ -260,5 +215,39 @@ TBD
 ### SAC(Discrete)
 
 ```json
-
+{
+  "model": {
+    "model": "discrete_sac",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1,
+    "per_n_steps": 3
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "LunarLander-v3",
+  "state_dim": null,
+  "action_dim": null,
+  "is_discrete": null,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "tau": 0.005,
+  "entropy_coef": 0.98,
+  "start_steps": 20000,
+  "target_update_interval": 1
+}
 ```

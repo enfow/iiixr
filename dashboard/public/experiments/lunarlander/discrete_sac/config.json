@@ -1,0 +1,35 @@
+{
+  "model": {
+    "model": "discrete_sac",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1,
+    "per_n_steps": 3
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "LunarLander-v3",
+  "state_dim": null,
+  "action_dim": null,
+  "is_discrete": null,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "tau": 0.005,
+  "entropy_coef": 0.98,
+  "start_steps": 20000,
+  "target_update_interval": 1
+}
