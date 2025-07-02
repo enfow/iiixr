@@ -220,6 +220,12 @@ class TD3Config(BaseConfig):
     start_steps: int = 10000
 
 
+class TD3ForkConfig(TD3Config):
+    fork_alpha: float = 0.5
+    fork_hidden_dim: int = 256
+    fork_n_layers: int = 2
+
+
 class EvalConfig:
     eval_episodes: int = 10
     eval_render: bool = False

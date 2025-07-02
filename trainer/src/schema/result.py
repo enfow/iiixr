@@ -73,6 +73,15 @@ class TD3UpdateLoss(UpdateLoss):
         return self.actor_loss + self.critic_loss
 
 
+class TD3FORKUpdateLoss(TD3UpdateLoss):
+    system_loss: float
+    reward_loss: float
+
+    @property
+    def total_loss(self):
+        return self.actor_loss + self.critic_loss + self.system_loss + self.reward_loss
+
+
 class SingleEpisodeResult(BaseModel):
     episode_number: int = None
     episode_total_reward: float = None

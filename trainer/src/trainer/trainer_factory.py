@@ -8,6 +8,7 @@ from trainer.ppo_trainer import PPOTrainer
 from trainer.rainbow_dqn_trainer import RainbowDQNTrainer
 from trainer.sac_trainer import SACTrainer
 from trainer.sac_v2_trainer import SACV2Trainer
+from trainer.td3_fork_trainer import TD3FORKTrainer
 from trainer.td3_sequential_trainer import TD3SequentialTrainer
 from trainer.td3_trainer import TD3Trainer
 from util.gym_env import is_discrete_action_space
@@ -23,6 +24,7 @@ SELECTABLE_MODELS = [
     DDQNTrainer.name,
     C51Trainer.name,
     PPOSequentialTrainer.name,
+    TD3FORKTrainer.name,
 ]
 
 
@@ -64,5 +66,7 @@ class TrainerFactory:
             return C51Trainer(env_name, config_dict, save_dir)
         elif model_name == PPOSequentialTrainer.name:
             return PPOSequentialTrainer(env_name, config_dict, save_dir)
+        elif model_name == TD3FORKTrainer.name:
+            return TD3FORKTrainer(env_name, config_dict, save_dir)
         else:
             raise ValueError(f"Unknown model: {model_name}")
