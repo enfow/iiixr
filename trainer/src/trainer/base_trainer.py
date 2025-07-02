@@ -9,7 +9,7 @@ import imageio
 import numpy as np
 
 from env.gym import GymEnvFactory
-from model.buffer import PrioritizedReplayBuffer, ReplayBuffer
+from model.buffer import ReplayBuffer, ReployBufferFactory
 from schema.config import BufferType
 from schema.result import EvalResult, TotalTrainResult
 from util.file import log_result, save_json
@@ -47,22 +47,8 @@ class BaseTrainer:
         )
         print(f"State dim: {self.state_dim}, Action dim: {self.action_dim}")
 
-        if self.config.buffer.buffer_type == BufferType.PER:
-            print("Using PrioritizedReplayBuffer")
-            self.memory = PrioritizedReplayBuffer(
-                capacity=self.config.buffer.buffer_size,
-                alpha=self.config.buffer.alpha,
-                beta_start=self.config.buffer.beta_start,
-                beta_frames=self.config.buffer.beta_frames,
-                n_steps=self.config.buffer.per_n_steps,
-                gamma=self.config.gamma,
-            )
-        else:
-            print("Using ReplayBuffer")
-            self.memory = ReplayBuffer(
-                capacity=self.config.buffer.buffer_size,
-                seq_len=self.config.buffer.seq_len,
-            )
+        self.memory = ReployBufferFactory(self.config)
+
         self.state_history = deque(maxlen=self.config.buffer.seq_len)
         self.total_train_result = TotalTrainResult.initialize()
         self.best_score = -np.inf

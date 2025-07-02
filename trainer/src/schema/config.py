@@ -14,6 +14,7 @@ class ModelEmbeddingType(str, Enum):
 
 class BufferType(str, Enum):
     DEFAULT = "default"  # simple replay buffer
+    SEQUENTIAL = "sequential"  # sequence replay buffer
     PER = "per"  # prioritized experience replay
 
 
@@ -23,6 +24,7 @@ class ModelConfig(BaseModel):
     hidden_dim: int = 256
     n_layers: int = 3
     embedding_type: ModelEmbeddingType = ModelEmbeddingType.FC
+    use_layernorm: bool = False
 
     @classmethod
     def from_dict(cls, config: dict):
@@ -38,6 +40,7 @@ class BufferConfig(BaseModel):
     beta_frames: int = 100000
     # sequence length (if use transformer or RNN)
     seq_len: int = 1
+    seq_stride: int = 1
     per_n_steps: int = 3
 
     @classmethod
@@ -69,34 +72,6 @@ class BaseConfig(BaseModel):
 
     @classmethod
     def from_dict(cls, config: dict):
-        # Handle nested model config
-        if "model" in config and isinstance(config["model"], dict):
-            # If model is a dict, it contains model-specific config
-            model_config = config["model"]
-            # Extract model name if present
-            model_name = model_config.get("model")
-            if model_name:
-                config["model"] = model_name
-            # Create ModelConfig instance
-            config["model"] = ModelConfig.from_dict(model_config)
-        elif "model" in config and isinstance(config["model"], str):
-            # If model is a string, create ModelConfig with just the model name
-            model_name = config["model"]
-            config["model"] = ModelConfig(model=model_name)
-
-        if "buffer" in config and isinstance(config["buffer"], dict):
-            buffer_config = config["buffer"]
-            config["buffer"] = BufferConfig.from_dict(buffer_config)
-        elif "buffer" in config and isinstance(config["buffer"], str):
-            config["buffer"] = BufferConfig(
-                buffer_type=BufferType.DEFAULT,
-                buffer_size=config.get("buffer_size", 1000000),
-                seq_len=config.get("seq_len", 1),
-                alpha=config.get("alpha", 0.6),
-                beta_start=config.get("beta_start", 0.4),
-                beta_frames=config.get("beta_frames", 100000),
-            )
-
         cls._check_validity(config)
         cls._check_device(config)
         return cls(**config)
@@ -105,6 +80,50 @@ class BaseConfig(BaseModel):
     def _check_validity(config: dict):
         model_config = config["model"]
         buffer_config = config["buffer"]
+        if "model" in config and isinstance(model_config, dict):
+            model_config = config["model"]
+            model_name = model_config.get("model")
+            if model_name:
+                model_config["model"] = model_name
+            # Create ModelConfig instance
+            model_config = ModelConfig.from_dict(model_config)
+        elif "model" in config and isinstance(model_config, str):
+            # If model is a string, create ModelConfig with just the model name
+            model_name = config["model"]
+            model_config = ModelConfig(model=model_name)
+
+        if "buffer" in config and isinstance(buffer_config, dict):
+            # when buffer is a dict, it contains buffer-specific config
+            buffer_config = config["buffer"]
+
+            if config["buffer"]["buffer_type"] == "sequential":
+                if config["buffer"]["seq_len"] == 1:
+                    raise ValueError(
+                        "seq_len must be greater than 1 for sequential buffer"
+                    )
+
+            buffer_config = BufferConfig.from_dict(buffer_config)
+
+        elif "buffer" in config and isinstance(buffer_config, str):
+            # when buffer is a string, create BufferConfig with default values (old)
+            buffer_config = BufferConfig(
+                buffer_type=BufferType.DEFAULT,
+                buffer_size=config.get("buffer_size", 1000000),
+                seq_len=config.get("seq_len", 1),
+                alpha=config.get("alpha", 0.6),
+                beta_start=config.get("beta_start", 0.4),
+                beta_frames=config.get("beta_frames", 100000),
+            )
+
+        if (
+            model_config.model not in ["ppo", "td3", "td3_seq"]
+            and model_config.use_layernorm
+        ):
+            raise ValueError(
+                "currently, use_layernorm is only supported for ppo, td3, and td3_seq"
+            )
+
+        # check if the config is valid
         if model_config.embedding_type == ModelEmbeddingType.TRANSFORMER:
             if buffer_config.buffer_type == BufferType.PER:
                 raise ValueError("PER is not supported for transformer")

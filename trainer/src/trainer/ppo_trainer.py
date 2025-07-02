@@ -29,11 +29,13 @@ class PPOTrainer(BaseTrainer):
             self.action_dim,
             self.config.model.hidden_dim,
             n_layers=self.config.model.n_layers,
+            use_layernorm=self.config.model.use_layernorm,
         ).to(self.config.device)
         self.critic = ContinuousCritic(
             self.state_dim,
             self.config.model.hidden_dim,
             n_layers=self.config.model.n_layers,
+            use_layernorm=self.config.model.use_layernorm,
         ).to(self.config.device)
         self.memory = None
         self.actor_optimizer = optim.Adam(

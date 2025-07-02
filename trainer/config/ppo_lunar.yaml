@@ -6,6 +6,7 @@ model:
   hidden_dim: 256
   n_layers: 2
   embedding_type: "fc"  # Options: fc, transformer
+  use_layernorm: false
 
 buffer:
   buffer_size: 1000000

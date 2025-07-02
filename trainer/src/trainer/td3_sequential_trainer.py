@@ -18,6 +18,8 @@ from schema.config import ModelEmbeddingType, TD3Config
 from schema.result import SingleEpisodeResult, TD3UpdateLoss
 from trainer.base_trainer import BaseTrainer
 
+N_TRANSFORMER_HEADS = 8
+
 
 class TD3SequentialTrainer(BaseTrainer):
     name = "td3_seq"
@@ -41,8 +43,9 @@ class TD3SequentialTrainer(BaseTrainer):
                 self.action_dim,
                 self.max_action,
                 hidden_dim=self.config.model.hidden_dim,
-                nhead=8,
+                nhead=N_TRANSFORMER_HEADS,
                 n_layers=self.config.model.n_layers,
+                use_layernorm=self.config.model.use_layernorm,
             ).to(self.config.device)
         elif self.config.model.embedding_type == ModelEmbeddingType.LSTM:
             self.actor = LSTMTD3Actor(
@@ -51,6 +54,7 @@ class TD3SequentialTrainer(BaseTrainer):
                 max_action=self.max_action,
                 hidden_dim=self.config.model.hidden_dim,
                 n_layers=self.config.model.n_layers,
+                use_layernorm=self.config.model.use_layernorm,
             ).to(self.config.device)
         else:
             raise ValueError(f"Invalid actor type: {self.config.model.actor_type}")
@@ -60,6 +64,7 @@ class TD3SequentialTrainer(BaseTrainer):
             self.action_dim,
             self.config.model.hidden_dim,
             n_layers=self.config.model.n_layers,
+            use_layernorm=self.config.model.use_layernorm,
         ).to(self.config.device)
 
         self.actor_target = copy.deepcopy(self.actor)

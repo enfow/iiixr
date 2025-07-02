@@ -9,7 +9,7 @@ model:
 
 buffer:
   buffer_size: 1000000
-  buffer_type: "default"
+  buffer_type: "sequential"
   seq_len: 10
 
 # Training parameters

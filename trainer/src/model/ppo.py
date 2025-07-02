@@ -17,12 +17,22 @@ class DiscreteActor(nn.Module):
         action_dim: int,
         hidden_dim: int,
         n_layers: int = 2,
+        use_layernorm: bool = False,
     ):
         super().__init__()
-        layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
+
+        layers = []
+        layers.extend([nn.Linear(state_dim, hidden_dim)])
+        if use_layernorm:
+            layers.append(nn.LayerNorm(hidden_dim))
+        layers.append(nn.ReLU())
+
         for _ in range(n_layers - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
+            if use_layernorm:
+                layers.append(nn.LayerNorm(hidden_dim))
             layers.append(nn.ReLU())
+
         self.shared_layers = nn.Sequential(*layers)
         self.output = nn.Linear(hidden_dim, action_dim)
 
@@ -37,12 +47,22 @@ class DiscreteCritic(nn.Module):
         state_dim: int,
         hidden_dim: int = 64,
         n_layers: int = 2,
+        use_layernorm: bool = False,
     ):
         super().__init__()
-        layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
+
+        layers = []
+        layers.extend([nn.Linear(state_dim, hidden_dim)])
+        if use_layernorm:
+            layers.append(nn.LayerNorm(hidden_dim))
+        layers.append(nn.ReLU())
+
         for _ in range(n_layers - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
+            if use_layernorm:
+                layers.append(nn.LayerNorm(hidden_dim))
             layers.append(nn.ReLU())
+
         self.hidden_layers = nn.Sequential(*layers)
         self.fc_out = nn.Linear(hidden_dim, 1)
 
@@ -58,14 +78,23 @@ class ContinuousActor(nn.Module):
         action_dim: int,
         hidden_dim: int,
         n_layers: int = 2,
+        use_layernorm: bool = False,
     ):
         super().__init__()
-        layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
+
+        layers = []
+        layers.extend([nn.Linear(state_dim, hidden_dim)])
+        if use_layernorm:
+            layers.append(nn.LayerNorm(hidden_dim))
+        layers.append(nn.ReLU())
+
         for _ in range(n_layers - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
+            if use_layernorm:
+                layers.append(nn.LayerNorm(hidden_dim))
             layers.append(nn.ReLU())
-        self.shared_layers = nn.Sequential(*layers)
 
+        self.shared_layers = nn.Sequential(*layers)
         self.mean_head = nn.Linear(hidden_dim, action_dim)
         self.log_std_head = nn.Linear(hidden_dim, action_dim)
 
@@ -83,12 +112,22 @@ class ContinuousCritic(nn.Module):
         state_dim: int,
         hidden_dim: int = 64,
         n_layers: int = 2,
+        use_layernorm: bool = False,
     ):
         super().__init__()
-        layers = [nn.Linear(state_dim, hidden_dim), nn.ReLU()]
+
+        layers = []
+        layers.extend([nn.Linear(state_dim, hidden_dim)])
+        if use_layernorm:
+            layers.append(nn.LayerNorm(hidden_dim))
+        layers.append(nn.ReLU())
+
         for _ in range(n_layers - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
+            if use_layernorm:
+                layers.append(nn.LayerNorm(hidden_dim))
             layers.append(nn.ReLU())
+
         self.hidden_layers = nn.Sequential(*layers)
         self.fc_out = nn.Linear(hidden_dim, 1)
 

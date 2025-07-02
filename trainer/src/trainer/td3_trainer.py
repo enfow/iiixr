@@ -35,6 +35,7 @@ class TD3Trainer(BaseTrainer):
             self.config.model.hidden_dim,
             n_layers=self.config.model.n_layers,
             max_action=self.max_action,
+            use_layernorm=self.config.model.use_layernorm,
         ).to(self.config.device)
 
         self.critic = TD3Critic(
@@ -42,6 +43,7 @@ class TD3Trainer(BaseTrainer):
             self.action_dim,
             self.config.model.hidden_dim,
             n_layers=self.config.model.n_layers,
+            use_layernorm=self.config.model.use_layernorm,
         ).to(self.config.device)
 
         self.actor_target = copy.deepcopy(self.actor)

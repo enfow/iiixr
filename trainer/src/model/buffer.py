@@ -8,91 +8,120 @@ Reference
 
 import random
 from collections import deque
+from typing import List, Set, Tuple
 
 import numpy as np
 
+from schema.config import BaseConfig, BufferType
+
 
 class ReplayBuffer:
-    """
-    Simple Replay Buffer
-
-    Note
-    ----
-    - if seq_len == 1, return a batch of transitions(default)
-    - if seq_len > 1, return sequences that don't cross episode boundaries
-    """
-
-    def __init__(
-        self,
-        capacity,
-        seq_len: int = 1,
-    ):
+    def __init__(self, capacity: int):
         self.buffer = deque(maxlen=capacity)
-        self.seq_len: int = seq_len
-        self.episode_starts = []
 
     def push(self, state, action, reward, next_state, done):
         self.buffer.append((state, action, reward, next_state, done))
 
-    def sample(self, batch_size):
-        if self.seq_len == 1:
-            batch = random.sample(self.buffer, batch_size)
-            state, action, reward, next_state, done = map(np.stack, zip(*batch))
-            return state, action, reward, next_state, done
-        else:
-            return self._sample_sequences(batch_size)
+    def sample(self, batch_size: int):
+        batch = random.sample(self.buffer, batch_size)
+        state, action, reward, next_state, done = map(np.stack, zip(*batch))
+        return state, action, reward, next_state, done
 
-    def _sample_sequences(self, batch_size):
-        if len(self.buffer) < self.seq_len:
-            return None
+    def __len__(self):
+        return len(self.buffer)
 
-        valid_starts = []
-        for i in range(len(self.buffer) - self.seq_len + 1):
-            sequence_indices = set(range(i + 1, i + self.seq_len))
-            if not sequence_indices.intersection(self.episode_starts):
-                valid_starts.append(i)
 
+class SeqReplayBuffer:
+    def __init__(self, capacity: int, seq_len: int, seq_stride: int = 1):
+        self.buffer = deque(maxlen=capacity)
+        self.seq_len = seq_len
+        self.seq_stride = seq_stride
+        self.capacity = capacity
+
+        self.episode_starts: List[int] = []
+        self.min_seq_span = (self.seq_len - 1) * self.seq_stride + 1
+
+    def push(self, state, action, reward, next_state, done: bool):
+        # If the buffer is full, the oldest element is about to be dropped.
+        # We must decrement all episode start indices to reflect this shift.
+        if len(self.buffer) == self.capacity:
+            if self.episode_starts and self.episode_starts[0] == 0:
+                self.episode_starts.pop(0)
+            self.episode_starts = [i - 1 for i in self.episode_starts]
+
+        current_index = len(self.buffer)
+        self.buffer.append((state, action, reward, next_state, done))
+
+        if done:
+            # The next transition will be the start of a new episode.
+            self.episode_starts.append(current_index + 1)
+
+    def sample(self, batch_size: int) -> Tuple[np.ndarray, ...]:
+        if len(self.buffer) < self.min_seq_span:
+            return self._return_for_invalids()
+
+        valid_starts = self._get_valid_starts()
+
+        if not valid_starts:
+            return self._return_for_invalids()
+
+        # Sample with replacement if not enough valid starts, otherwise sample without.
         if len(valid_starts) < batch_size:
             selected_starts = random.choices(valid_starts, k=batch_size)
         else:
             selected_starts = random.sample(valid_starts, batch_size)
 
         sequences = []
-        for start in selected_starts:
-            sequence = list(self.buffer)[start : start + self.seq_len]
+        for start_idx in selected_starts:
+            end_idx = start_idx + self.min_seq_span
+            sequence = [
+                self.buffer[i] for i in range(start_idx, end_idx, self.seq_stride)
+            ]
             sequences.append(sequence)
+        batch = [list(zip(*seq)) for seq in sequences]
 
-        return self._format_sequences(sequences)
+        states, actions, rewards, next_states, dones = zip(*batch)
 
-    def _format_sequences(self, sequences):
-        if not sequences:
-            return tuple(np.array([]) for _ in range(5))
+        # Stack into final numpy arrays.
+        return (
+            np.array(states, dtype=np.float32),
+            np.array(actions, dtype=np.float32),
+            np.array(rewards, dtype=np.float32),
+            np.array(next_states, dtype=np.float32),
+            np.array(dones, dtype=bool),
+        )
 
-        num_sequences = len(sequences)
-        seq_length = len(sequences[0])
+    def _get_valid_starts(self) -> List[int]:
+        all_possible_starts = set(range(len(self.buffer) - self.min_seq_span + 1))
 
-        first_transition = sequences[0][0]
-        state_shape = np.array(first_transition[0]).shape
-        action_shape = np.array(first_transition[1]).shape
+        invalid_starts: Set[int] = set()
+        for episode_start_idx in self.episode_starts:
+            start_of_invalid_range = episode_start_idx - (self.min_seq_span - 1)
+            end_of_invalid_range = episode_start_idx
 
-        # pre-allocation for better performance
-        state_seqs = np.zeros((num_sequences, seq_length, *state_shape))
-        action_seqs = np.zeros((num_sequences, seq_length, *action_shape))
-        reward_seqs = np.zeros((num_sequences, seq_length))
-        next_state_seqs = np.zeros((num_sequences, seq_length, *state_shape))
-        done_seqs = np.zeros((num_sequences, seq_length), dtype=bool)
+            for i in range(start_of_invalid_range, end_of_invalid_range):
+                if i >= 0:
+                    invalid_starts.add(i)
 
-        for i, seq in enumerate(sequences):
-            for j, transition in enumerate(seq):
-                state_seqs[i, j] = transition[0]
-                action_seqs[i, j] = transition[1]
-                reward_seqs[i, j] = transition[2]
-                next_state_seqs[i, j] = transition[3]
-                done_seqs[i, j] = transition[4]
+        valid_starts = list(all_possible_starts - invalid_starts)
+        return valid_starts
 
-        return state_seqs, action_seqs, reward_seqs, next_state_seqs, done_seqs
+    def _return_for_invalids(self) -> Tuple[np.ndarray, ...]:
+        if self.buffer:
+            s_shape = (0, self.seq_len, *np.array(self.buffer[0][0]).shape)
+            a_shape = (0, self.seq_len, *np.array(self.buffer[0][1]).shape)
+        else:  # Fallback if buffer is also empty.
+            s_shape, a_shape = (0, self.seq_len, 0), (0, self.seq_len, 0)
 
-    def __len__(self):
+        return (
+            np.empty(s_shape, dtype=np.float32),
+            np.empty(a_shape, dtype=np.float32),
+            np.empty((0, self.seq_len), dtype=np.float32),
+            np.empty(s_shape, dtype=np.float32),
+            np.empty((0, self.seq_len), dtype=bool),
+        )
+
+    def __len__(self) -> int:
         return len(self.buffer)
 
 
@@ -198,6 +227,21 @@ class PrioritizedReplayBuffer:
     ----
     - the buffer stores experiences and samples them based on their TD-error
     - the buffer computes N-step returns to provide a more stable learning target
+
+    Parameters
+    ----------
+    capacity: int
+        The maximum number of transitions to store in the buffer.
+    alpha: float
+        The priority exponent.
+    beta_start: float
+        The initial value of beta for Importance-Sampling (IS) correction.
+    beta_frames: int
+        The number of frames to anneal beta to 1.0.
+    n_steps: int
+        The number of steps for N-step returns.
+    gamma: float
+        The discount factor.
     """
 
     def __init__(
@@ -209,12 +253,6 @@ class PrioritizedReplayBuffer:
         n_steps: int = 3,
         gamma: float = 0.99,
     ):
-        # PER parameters
-        # alpha: controls how much prioritization is used (0=uniform, 1=full)
-        # beta_start: initial value of beta for Importance-Sampling (IS) correction
-        # beta_frames: number of frames to anneal beta to 1.0
-        # n_steps: the number of steps for N-step returns
-        # gamma: the discount factor
         self.tree = SumTree(capacity)
         self.alpha = alpha
         self.beta = beta_start
@@ -328,3 +366,38 @@ class PrioritizedReplayBuffer:
     def __len__(self) -> int:
         """Returns the number of N-step transitions stored in the buffer."""
         return len(self.tree)
+
+
+class ReployBufferFactory:
+    def __new__(cls, config: BaseConfig):
+        if config.buffer.buffer_type == BufferType.DEFAULT:
+            print(f"Using ReplayBuffer | size: {config.buffer.buffer_size}")
+            return ReplayBuffer(config.buffer.buffer_size)
+
+        elif config.buffer.buffer_type == BufferType.SEQUENTIAL:
+            print(
+                f"Using SeqReplayBuffer | size: {config.buffer.buffer_size} ",
+                f"| seq_len: {config.buffer.seq_len} ",
+                f"| seq_stride: {config.buffer.seq_stride}",
+            )
+            return SeqReplayBuffer(
+                config.buffer.buffer_size,
+                config.buffer.seq_len,
+                config.buffer.seq_stride,
+            )
+
+        elif config.buffer.buffer_type == BufferType.PER:
+            print(
+                f"Using PrioritizedReplayBuffer | size: {config.buffer.buffer_size} ",
+                f"| n_steps: {config.buffer.per_n_steps}",
+            )
+            return PrioritizedReplayBuffer(
+                capacity=config.buffer.buffer_size,
+                alpha=config.buffer.alpha,
+                beta_start=config.buffer.beta_start,
+                beta_frames=config.buffer.beta_frames,
+                n_steps=config.buffer.per_n_steps,
+                gamma=config.gamma,
+            )
+        else:
+            raise ValueError(f"Invalid buffer type: {config.buffer.buffer_type}")
