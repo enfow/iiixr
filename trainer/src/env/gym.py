@@ -1,42 +1,61 @@
-from typing import Optional, Type
+from typing import Any, Dict, Optional, Type
 
 import gymnasium as gym
+import numpy as np
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from env.custom_env import CustomBipedalWalkerWrapper
+
+class CustomBipedalWalkerWrapper(gym.Wrapper):
+    """
+    A custom wrapper for BipedalWalker environments that adds a penalty for falling.
+    """
+
+    def __init__(self, env: gym.Env, config: Dict[str, Any] = None):
+        super().__init__(env)
+        self.config = config if config is not None else {}
+        self.fall_penalty = self.config.get("penalty", -100.0)
+        print(
+            f"-> CustomBipedalWalkerWrapper applied with fall_penalty: {self.fall_penalty}"
+        )
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        if terminated and reward < 0:
+            reward += self.fall_penalty
+        return obs, reward, terminated, truncated, info
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
 
 
 class CustomEnv(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
     env_name: str
-    kwargs: dict
+    kwargs: dict = {}
     wrapper: Optional[Type[gym.Wrapper]] = None
+    wrapper_config: dict = {}
 
     @field_validator("wrapper")
     @classmethod
     def validate_wrapper(cls, v):
-        if v is not None:
-            if not (isinstance(v, type) and issubclass(v, gym.Wrapper)):
-                raise ValueError("Must be a subclass of gym.Wrapper")
+        if v and not (isinstance(v, type) and issubclass(v, gym.Wrapper)):
+            raise ValueError("Wrapper must be a subclass of gym.Wrapper")
         return v
 
 
 class TestGymEnv(gym.Env):
     def __init__(self, env_name: str, **kwargs):
-        self.env_name = env_name
-        self.kwargs = kwargs
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=(2,))
         self.observation_space = gym.spaces.Box(low=-1, high=1, shape=(2,))
 
-    def reset(self):
+    def reset(self, **kwargs):
         return self.observation_space.sample(), {}
 
     def step(self, action):
         return self.observation_space.sample(), 0, False, False, {}
 
     def close(self):
-        return
+        pass
 
 
 CUSTOM_ENVS = {
@@ -47,38 +66,54 @@ CUSTOM_ENVS = {
         env_name="BipedalWalker-v3",
         kwargs={"hardcore": True},
         wrapper=CustomBipedalWalkerWrapper,
+        wrapper_config={"penalty": -100.0},
     ),
-    "TestGymEnv": CustomEnv(env_name="TestGymEnv", kwargs={}),
+    "TestGymEnv": CustomEnv(env_name="TestGymEnv"),
 }
 
 
 class GymEnvFactory:
     """
-    Factory class for gym environments.
+    Factory for creating single or vectorized gym environments.
     """
 
     _registered_envs = list(gym.envs.registry.keys())
 
-    def __new__(cls, env_name: str, **kwargs):
+    @staticmethod
+    def _generate_env(env_name: str, **kwargs) -> gym.Env:
+        """Creates a single environment instance. Corrected to be a staticmethod."""
         if env_name in CUSTOM_ENVS:
+            custom_def = CUSTOM_ENVS[env_name]
             if env_name == "TestGymEnv":
-                return TestGymEnv(env_name, **kwargs)
-            else:
-                if CUSTOM_ENVS[env_name].wrapper:
-                    return CUSTOM_ENVS[env_name].wrapper(
-                        gym.make(
-                            CUSTOM_ENVS[env_name].env_name,
-                            **CUSTOM_ENVS[env_name].kwargs,
-                        )
-                    )
-                else:
-                    return gym.make(
-                        CUSTOM_ENVS[env_name].env_name, **CUSTOM_ENVS[env_name].kwargs
-                    )
-        elif env_name in cls._registered_envs:
+                return TestGymEnv(env_name, **custom_def.kwargs)
+
+            # Create the base environment
+            base_env = gym.make(custom_def.env_name, **custom_def.kwargs)
+
+            # Apply wrapper if defined
+            if custom_def.wrapper:
+                return custom_def.wrapper(base_env, config=custom_def.wrapper_config)
+            return base_env
+
+        elif env_name in GymEnvFactory._registered_envs:
             return gym.make(env_name, **kwargs)
         else:
             raise ValueError(f"Invalid environment name: {env_name}")
+
+    def __new__(cls, env_name: str, n_envs: int = 1, **kwargs):
+        """Creates a single or vectorized environment."""
+        if n_envs < 1:
+            raise ValueError(f"Number of environments must be at least 1, got {n_envs}")
+
+        if n_envs == 1:
+            return cls._generate_env(env_name, **kwargs)
+        else:
+            print(f"Creating {n_envs} vectorized environments")
+            # Create a vectorized environment
+            env_fns = [
+                lambda: cls._generate_env(env_name, **kwargs) for _ in range(n_envs)
+            ]
+            return gym.vector.AsyncVectorEnv(env_fns)
 
     @classmethod
     def valid_envs(cls):
@@ -86,6 +121,50 @@ class GymEnvFactory:
 
 
 if __name__ == "__main__":
-    print(GymEnvFactory.valid_envs())
-    env = GymEnvFactory("CustomBipedalWalkerHardcore-v3")
-    print(env)
+    print("=" * 60)
+    print("### TEST 1: Creating a single, standard gym environment ###")
+    env1 = GymEnvFactory("CartPole-v1")
+    print(f"Successfully created: {env1}")
+    obs, info = env1.reset()
+    print(f"Observation shape: {obs.shape}")
+    action = env1.action_space.sample()
+    obs, reward, term, trunc, info = env1.step(action)
+    print(f"Step successful. Reward: {reward}")
+    env1.close()
+    print("Test 1 PASSED")
+    print("=" * 60)
+
+    print("\n### TEST 2: Creating a single, custom environment WITHOUT wrapper ###")
+    env2 = GymEnvFactory("BipedalWalkerHardcore-v3")
+    print(f"Successfully created: {env2}")
+    obs, info = env2.reset()
+    print(f"Observation shape: {obs.shape}")
+    env2.close()
+    print("Test 2 PASSED")
+    print("=" * 60)
+
+    print("\n### TEST 3: Creating a single, custom environment WITH wrapper ###")
+    env3 = GymEnvFactory("CustomBipedalWalkerHardcore-v3")
+    print(f"Successfully created: {env3}")
+    obs, info = env3.reset()
+    print(f"Observation shape: {obs.shape}")
+    env3.close()
+    print("Test 3 PASSED")
+    print("=" * 60)
+
+    print("\n### TEST 4: Creating a PARALLEL, custom-wrapped environment ###")
+    N_ENVS = 4
+    env4 = GymEnvFactory("CustomBipedalWalkerHardcore-v3", n_envs=N_ENVS)
+    print(f"Successfully created: {env4}")
+    obs, info = env4.reset()
+    print(f"Vectorized observation shape: {obs.shape}")
+    assert obs.shape == (N_ENVS, 24), "Vectorized observation shape is incorrect!"
+    actions = env4.action_space.sample()
+    print(f"Vectorized action shape: {actions.shape}")
+    assert actions.shape == (N_ENVS, 4), "Vectorized action shape is incorrect!"
+    obs, rewards, terms, truncs, infos = env4.step(actions)
+    print(f"Vectorized step successful. Rewards shape: {rewards.shape}")
+    assert rewards.shape == (N_ENVS,), "Vectorized rewards shape is incorrect!"
+    env4.close()
+    print("Test 4 PASSED")
+    print("=" * 60)

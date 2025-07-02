@@ -29,24 +29,36 @@ class BaseTrainer:
         print(f"training env_name: {env_name}")
         print(f"evaluation env_name: {config.eval_env}")
         self.eval_env = (
-            GymEnvFactory(config.eval_env)
+            GymEnvFactory(config.eval_env, n_envs=1)
             if config.eval_env is not None
-            else GymEnvFactory(env_name)
+            else GymEnvFactory(env_name, n_envs=1)
         )
         self.config = config
         self.save_dir = save_dir
         os.makedirs(self.save_dir, exist_ok=True)
         self.is_discrete = is_discrete_action_space(self.env)
 
-        self.state_dim = self.env.observation_space.shape[0]
-        self.action_dim = (
-            self.env.action_space.n
-            if self.is_discrete
-            else self.env.action_space.shape[0]
-        )
+        self.n_envs = self.config.n_envs
+        self.seq_len = self.config.model.seq_len
+        self.seq_stride = self.config.model.seq_stride
+
+        if self.n_envs > 1:
+            # TODO: it may not work well with discrete action space
+            self.state_dim = self.env.observation_space.shape[1]
+            self.action_dim = self.env.action_space.shape[1]
+        else:
+            self.state_dim = self.env.observation_space.shape[0]
+            self.action_dim = (
+                self.env.action_space.n
+                if self.is_discrete
+                else self.env.action_space.shape[0]
+            )
         print(f"State dim: {self.state_dim}, Action dim: {self.action_dim}")
 
-        self.memory = ReployBufferFactory(self.config)
+        if config.model.model in ["ppo_seq", "ppo"]:
+            self.memory = None
+        else:
+            self.memory = ReployBufferFactory(self.config)
 
         self.state_history = deque(maxlen=self.config.model.seq_len)
         self.total_train_result = TotalTrainResult.initialize()

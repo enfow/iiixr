@@ -136,7 +136,6 @@ def main():
     model_params = config.get("model", {})
 
     config["model"] = model_params
-
     # Create save directory path
     save_dir = os.path.join(
         config["save_dir"],
