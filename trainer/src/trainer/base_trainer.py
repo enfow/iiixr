@@ -61,6 +61,7 @@ class BaseTrainer:
             self.memory = ReployBufferFactory(self.config)
 
         self.state_history = deque(maxlen=self.config.model.seq_len)
+        self.eval_state_history = deque(maxlen=self.config.model.seq_len)
         self.total_train_result = TotalTrainResult.initialize()
         self.best_score = -np.inf
         self.best_results: EvalResult = None

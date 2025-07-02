@@ -639,6 +639,7 @@ class PPOSequentialTrainer(PPOTrainer):
         self.actor.eval()
         self.critic.eval()
         self._reset_hidden_state(batch_size=1)
+        self.eval_state_history.clear()
 
     def eval_mode_off(self):
         self.actor.train()
