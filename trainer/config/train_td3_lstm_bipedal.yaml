@@ -7,12 +7,12 @@ model:
   n_layers: 2
   embedding_type: "lstm"  # Options: fc, lstm, transformer
   use_layernorm: true
+  seq_len: 10
+  seq_stride: 2
 
 buffer:
   buffer_size: 1000000
   buffer_type: "sequential"
-  seq_len: 10
-  seq_stride: 2
 
 # Training parameters
 seed: 42

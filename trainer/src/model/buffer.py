@@ -377,13 +377,13 @@ class ReployBufferFactory:
         elif config.buffer.buffer_type == BufferType.SEQUENTIAL:
             print(
                 f"Using SeqReplayBuffer | size: {config.buffer.buffer_size} ",
-                f"| seq_len: {config.buffer.seq_len} ",
-                f"| seq_stride: {config.buffer.seq_stride}",
+                f"| seq_len: {config.model.seq_len} ",
+                f"| seq_stride: {config.model.seq_stride}",
             )
             return SeqReplayBuffer(
                 config.buffer.buffer_size,
-                config.buffer.seq_len,
-                config.buffer.seq_stride,
+                config.model.seq_len,
+                config.model.seq_stride,
             )
 
         elif config.buffer.buffer_type == BufferType.PER:

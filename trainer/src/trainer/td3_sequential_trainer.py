@@ -81,8 +81,8 @@ class TD3SequentialTrainer(BaseTrainer):
         """Create a sequence from current state and history"""
         self.state_history.append(state)
 
-        if len(self.state_history) < self.config.buffer.seq_len:
-            padding_needed = self.config.buffer.seq_len - len(self.state_history)
+        if len(self.state_history) < self.config.model.seq_len:
+            padding_needed = self.config.model.seq_len - len(self.state_history)
             padded_states = [state] * padding_needed + list(self.state_history)
         else:
             padded_states = list(self.state_history)

@@ -19,7 +19,8 @@ class PPOSequentialTrainer(PPOTrainer):
         self, env_name: str, config: PPOConfig, save_dir: str = "results/ppo_seq"
     ):
         super().__init__(env_name, config, save_dir)
-        self.seq_len = self.config.seq_len
+        self.seq_len = self.config.model.seq_len
+        self.seq_stride = self.config.model.seq_stride
 
     def _init_models(self):
         """Initializes models based on the specified embedding_type."""
@@ -54,7 +55,7 @@ class PPOSequentialTrainer(PPOTrainer):
                 model_config.hidden_dim,
                 n_layers=model_config.n_layers,
             ).to(device)
-            self.state_history = deque(maxlen=self.config.seq_len)
+            self.state_history = deque(maxlen=self.config.model.seq_len)
         else:
             raise ValueError(f"Unknown embedding type: {model_config.embedding_type}")
 
@@ -155,8 +156,6 @@ class PPOSequentialTrainer(PPOTrainer):
                 break
         episode_data["episode_length"] = len(episode_data["states"])
         return episode_data
-
-    # --- Overridden Methods to Fix Inheritance Issues ---
 
     def train_episode(self) -> SingleEpisodeResult:
         """Main training loop for an episode. Overrides the base method."""
@@ -274,17 +273,17 @@ class PPOSequentialTrainer(PPOTrainer):
         )
         return episode_data
 
-    # --- Update Logic ---
-
     def update(self, all_episode_data) -> PPOUpdateLoss:
         """Dispatches to the correct update method based on model type."""
         if self.config.model.embedding_type == ModelEmbeddingType.LSTM:
-            return self._update_lstm(all_episode_data)
+            if self.seq_stride > 1:
+                return self._update_lstm_strided(all_episode_data)
+            else:
+                return self._update_lstm(all_episode_data)
         else:
             return self._update_transformer(all_episode_data)
 
     def _update_lstm(self, all_episode_data):
-        """Performs PPO updates for the LSTM model using full episodes as sequences."""
         total_actor_loss, total_critic_loss, total_entropy_loss = 0, 0, 0
         ppo_epochs = self.config.ppo_epochs
 
@@ -352,7 +351,6 @@ class PPOSequentialTrainer(PPOTrainer):
         )
 
     def _update_transformer(self, all_episode_data):
-        """Performs PPO updates for the Transformer by sampling valid windows."""
         all_states, all_actions, all_logprobs, all_returns, all_advantages = (
             self.get_all_episode_data(all_episode_data)
         )
@@ -370,7 +368,8 @@ class PPOSequentialTrainer(PPOTrainer):
         for episode_data in all_episode_data:
             end = start + episode_data["episode_length"]
             if end - start >= self.seq_len:
-                for i in range(start, end - self.seq_len + 1):
+                # Use seq_stride to sample windows with specified stride
+                for i in range(start, end - self.seq_len + 1, self.seq_stride):
                     valid_indices.append(i)
             start = end
 
@@ -422,6 +421,113 @@ class PPOSequentialTrainer(PPOTrainer):
 
                 values = self.critic(state_batch).squeeze(-1)
                 critic_loss = torch.nn.functional.mse_loss(values, return_batch)
+                self.critic_optimizer.zero_grad()
+                critic_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    self.critic.parameters(), self.config.max_grad_norm
+                )
+                self.critic_optimizer.step()
+
+                total_actor_loss += actor_loss.item()
+                total_critic_loss += critic_loss.item()
+                total_entropy_loss += entropy_loss.item()
+
+        num_updates = ppo_epochs * (len(indices) // batch_size)
+        if num_updates == 0:
+            return PPOUpdateLoss(actor_loss=0, critic_loss=0, entropy_loss=0)
+        return PPOUpdateLoss(
+            actor_loss=total_actor_loss / num_updates,
+            critic_loss=total_critic_loss / num_updates,
+            entropy_loss=total_entropy_loss / num_updates,
+        )
+
+    def _update_lstm_strided(self, all_episode_data):
+        all_states, all_actions, all_logprobs, all_returns, all_advantages = (
+            self.get_all_episode_data(all_episode_data)
+        )
+        if self.config.normalize_advantages:
+            all_advantages = (all_advantages - all_advantages.mean()) / (
+                all_advantages.std() + 1e-8
+            )
+
+        total_actor_loss, total_critic_loss, total_entropy_loss = 0, 0, 0
+        ppo_epochs = self.config.ppo_epochs
+        batch_size = self.config.batch_size
+
+        # Sample windows with seq_stride (same logic as Transformer)
+        valid_indices = []
+        start = 0
+        for episode_data in all_episode_data:
+            end = start + episode_data["episode_length"]
+            if end - start >= self.seq_len:
+                for i in range(start, end - self.seq_len + 1, self.seq_stride):
+                    valid_indices.append(i)
+            start = end
+
+        if not valid_indices:
+            return PPOUpdateLoss(actor_loss=0, critic_loss=0, entropy_loss=0)
+        indices = np.array(valid_indices)
+
+        for _ in range(ppo_epochs):
+            np.random.shuffle(indices)
+            for i in range(0, len(indices), batch_size):
+                batch_indices = indices[i : i + batch_size]
+
+                # Create batched sequences for LSTM
+                state_batch = torch.stack(
+                    [all_states[j : j + self.seq_len] for j in batch_indices]
+                ).to(self.config.device)  # (batch_size, seq_len, state_dim)
+                action_batch = torch.stack(
+                    [all_actions[j : j + self.seq_len] for j in batch_indices]
+                ).to(self.config.device)
+                old_logprob_batch = torch.stack(
+                    [all_logprobs[j : j + self.seq_len] for j in batch_indices]
+                ).to(self.config.device)
+                return_batch = torch.stack(
+                    [all_returns[j : j + self.seq_len] for j in batch_indices]
+                ).to(self.config.device)
+                advantage_batch = torch.stack(
+                    [all_advantages[j : j + self.seq_len] for j in batch_indices]
+                ).to(self.config.device)
+
+                # Reset hidden state for each batch (independent sequences)
+                batch_size_actual = state_batch.size(0)
+                self._reset_hidden_state(batch_size_actual)
+
+                # Forward pass through LSTM
+                mean, log_std, _ = self.actor(state_batch, self.actor_hidden)
+                dist = torch.distributions.Normal(mean, torch.exp(log_std))
+                logprobs = dist.log_prob(action_batch).sum(dim=-1)
+
+                # PPO loss calculation
+                ratio = torch.exp(logprobs - old_logprob_batch)
+                surr1 = ratio * advantage_batch
+                surr2 = (
+                    torch.clamp(
+                        ratio, 1 - self.config.clip_eps, 1 + self.config.clip_eps
+                    )
+                    * advantage_batch
+                )
+                actor_loss = -torch.min(surr1, surr2).mean()
+
+                entropy = dist.entropy().sum(dim=-1).mean()
+                entropy_loss = -self.config.entropy_coef * entropy
+                total_actor_loss_step = actor_loss + entropy_loss
+
+                # Actor update
+                self.actor_optimizer.zero_grad()
+                total_actor_loss_step.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    self.actor.parameters(), self.config.max_grad_norm
+                )
+                self.actor_optimizer.step()
+
+                # Critic update
+                self._reset_hidden_state(batch_size_actual)
+                values, _ = self.critic(state_batch, self.critic_hidden)
+                values = values.squeeze(-1)
+                critic_loss = torch.nn.functional.mse_loss(values, return_batch)
+
                 self.critic_optimizer.zero_grad()
                 critic_loss.backward()
                 torch.nn.utils.clip_grad_norm_(
