@@ -9,8 +9,7 @@ import imageio
 import numpy as np
 
 from env.gym import GymEnvFactory
-from model.buffer import ReplayBuffer, ReployBufferFactory
-from schema.config import BufferType
+from model.buffer import ReployBufferFactory
 from schema.result import EvalResult, TotalTrainResult
 from util.file import log_result, save_json
 from util.gym_env import is_discrete_action_space
@@ -26,7 +25,7 @@ class BaseTrainer:
         set_seed(config.seed)
 
         self.env_name = env_name
-        self.env = GymEnvFactory(env_name)
+        self.env = GymEnvFactory(env_name, n_envs=config.n_envs)
         print(f"training env_name: {env_name}")
         print(f"evaluation env_name: {config.eval_env}")
         self.eval_env = (
