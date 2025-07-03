@@ -74,6 +74,7 @@ class BaseTrainer:
         self.log_file = os.path.join(self.save_dir, "metrics.jsonl")
         self.model_file = os.path.join(self.save_dir, "best_model.pth")
         self.config_file = os.path.join(self.save_dir, "config.json")
+        self.is_hardcore = False
         self._log_config()
         self._init_models()
 
@@ -101,6 +102,27 @@ class BaseTrainer:
         print(f"Env: {self.env_name} Model: {self.config.model.model}")
 
     def _handle_curriculum_env(self, score: float):
+        if self.config.curriculum_threshold is None:
+            return
+
+        # temporary code for vectorized env(n_envs > 1, which does not have is_curriculum attribute)
+        if self.config.n_envs > 1:
+            print(
+                "Curriculum env |",
+                f"current score: {score:.2f} |",
+                f"threshold: {self.config.curriculum_threshold:.2f} |",
+                f"is_hardcore: {self.is_hardcore}",
+            )
+            if not self.is_hardcore and score > self.config.curriculum_threshold:
+                self.is_hardcore = True
+                print("=" * 40)
+                print(f"Changing env to {self.config.eval_env}")
+                print("=" * 40)
+                self.env = GymEnvFactory(
+                    self.config.eval_env, n_envs=self.config.n_envs
+                )
+            return
+
         if hasattr(self.env, "is_curriculum"):
             print(
                 f"current env: {self.env_name} |",
