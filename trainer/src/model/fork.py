@@ -13,6 +13,9 @@ class SystemNetwork(nn.Module):
     def __init__(
         self, state_dim: int, action_dim: int, hidden_dim: int, n_layers: int = 2
     ):
+        print(
+            f"SystemNetwork: state_dim={state_dim}, action_dim={action_dim}, hidden_dim={hidden_dim}, n_layers={n_layers}"
+        )
         super().__init__()
         layers = [nn.Linear(state_dim + action_dim, hidden_dim), nn.ReLU()]
         for _ in range(n_layers - 1):
@@ -34,6 +37,9 @@ class RewardNetwork(nn.Module):
     def __init__(
         self, state_dim: int, action_dim: int, hidden_dim: int, n_layers: int = 2
     ):
+        print(
+            f"RewardNetwork: state_dim={state_dim}, action_dim={action_dim}, hidden_dim={hidden_dim}, n_layers={n_layers}"
+        )
         super().__init__()
         layers = [nn.Linear(state_dim + action_dim, hidden_dim), nn.ReLU()]
         for _ in range(n_layers - 1):
