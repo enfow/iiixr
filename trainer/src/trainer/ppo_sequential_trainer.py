@@ -97,16 +97,6 @@ class PPOSequentialTrainer(PPOTrainer):
                 torch.zeros(num_layers, b_size, hidden_dim).to(device),
             )
 
-    # def _create_padded_sequence(self, history, state_dim):
-    #     """Create properly padded sequence for transformer input"""
-    #     sequence = list(history)
-    #     if len(sequence) < self.seq_len:
-    #         # Use zero padding instead of repeating first state
-    #         padding_length = self.seq_len - len(sequence)
-    #         padding = [np.zeros(state_dim) for _ in range(padding_length)]
-    #         sequence = padding + sequence
-    #     return sequence[-self.seq_len :]  # Take last seq_len steps
-
     def _create_padded_sequence_tensor(
         self, history_tensor, seq_len, state_dim, device
     ):
