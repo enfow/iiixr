@@ -235,16 +235,12 @@ class PPOSequentialTrainer(PPOTrainer):
 
             state = next_state
             if done:
-                # IMPORTANT: Do NOT reset hidden state here as it will be reset
-                # at the start of the next episode. This preserves the final
-                # hidden state for potential value estimation if needed.
                 break
 
         episode_data["episode_length"] = len(episode_data["rewards"])
         return episode_data
 
     def collect_trajectories(self):
-        # (Parallel Mode)
         num_steps = self.config.n_transactions // self.n_envs
         data = {
             "states": np.zeros(
@@ -297,7 +293,6 @@ class PPOSequentialTrainer(PPOTrainer):
                     "episode_length": trajectories["states"].shape[0],
                 }
 
-                # Validate individual environment data
                 if np.any(np.isnan(episode_data["rewards"])) or np.any(
                     np.isinf(episode_data["rewards"])
                 ):
@@ -314,7 +309,6 @@ class PPOSequentialTrainer(PPOTrainer):
             update_result = self.update(all_episode_data)
             total_rewards = np.sum(trajectories["rewards"])
 
-            # Use valid_env_count for more accurate averaging
             effective_env_count = max(valid_env_count, 1)
 
             return SingleEpisodeResult(
