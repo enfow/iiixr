@@ -28,6 +28,42 @@ class CustomBipedalWalkerWrapper(gym.Wrapper):
         return self.env.reset(**kwargs)
 
 
+class CurriculumBipedalWalkerWrapper(gym.Wrapper):
+    is_curriculum = True
+    _default_curriculum_threshold = 200.0
+
+    def __init__(self, env: gym.Env, config: Dict[str, Any] = None):
+        super().__init__(env)
+        self.is_hardcore = False
+        self.curriculum_threshold = config.get("curriculum_threshold", None)
+        if self.curriculum_threshold is None:
+            self.curriculum_threshold = self._default_curriculum_threshold
+            print(
+                f"CurriculumBipedalWalkerWrapper applied with default curriculum_threshold: {self.curriculum_threshold}"
+            )
+        else:
+            print(
+                f"CurriculumBipedalWalkerWrapper applied with curriculum_threshold: {self.curriculum_threshold}"
+            )
+
+    def step(self, action):
+        return self.env.step(action)
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+    def set_hardcore(self, score: float):
+        """Sets the environment to hardcore mode."""
+        if not self.is_hardcore and score > self.curriculum_threshold:
+            print("\n" + "=" * 40)
+            print(
+                f"CHANGING ENVIRONMENT TO HARDCORE: {score:.2f} > {self.curriculum_threshold:.2f}"
+            )
+            print("=" * 40 + "\n")
+            self.env.unwrapped.hardcore = True
+            self.is_hardcore = True
+
+
 class CustomEnv(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     env_name: str
@@ -68,7 +104,11 @@ CUSTOM_ENVS = {
         wrapper=CustomBipedalWalkerWrapper,
         wrapper_config={"penalty": -100.0},
     ),
-    "TestGymEnv": CustomEnv(env_name="TestGymEnv"),
+    "CurriculumBipedalWalker-v3": CustomEnv(
+        env_name="BipedalWalker-v3",
+        wrapper=CurriculumBipedalWalkerWrapper,
+        wrapper_config={},
+    ),
 }
 
 
@@ -92,7 +132,12 @@ class GymEnvFactory:
 
             # Apply wrapper if defined
             if custom_def.wrapper:
-                return custom_def.wrapper(base_env, config=custom_def.wrapper_config)
+                _base_config = custom_def.wrapper_config
+                if "curriculum_threshold" in kwargs:
+                    _base_config["curriculum_threshold"] = kwargs[
+                        "curriculum_threshold"
+                    ]
+                return custom_def.wrapper(base_env, config=_base_config)
             return base_env
 
         elif env_name in GymEnvFactory._registered_envs:

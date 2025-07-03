@@ -1,6 +1,6 @@
 # Training Configuration File for TD3 on BipedalWalker
 # Environment settings
-env: "BipedalWalkerHardcore-v3"
+env: "CurriculumBipedalWalker-v3"
 model:
   model: "td3"
   hidden_dim: 256
@@ -17,13 +17,14 @@ buffer:
 
 # Training parameters
 seed: 42
-episodes: 5000
+episodes: 10000
 max_steps: 2000
 lr: 3e-4
 gamma: 0.99
 buffer_size: 1000000
 batch_size: 256
 start_steps: 25000
+curriculum_threshold: 100
 
 # Device settings
 device: "cpu"  # Options: cpu, cuda

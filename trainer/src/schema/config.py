@@ -70,6 +70,8 @@ class BaseConfig(BaseModel):
     eval: bool = True
     eval_period: int = 10
     eval_episodes: int = 10
+    # curriculum
+    curriculum_threshold: Optional[float] = None
 
     @classmethod
     def from_dict(cls, config: dict):

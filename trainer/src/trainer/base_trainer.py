@@ -25,7 +25,11 @@ class BaseTrainer:
         set_seed(config.seed)
 
         self.env_name = env_name
-        self.env = GymEnvFactory(env_name, n_envs=config.n_envs)
+        self.env = GymEnvFactory(
+            env_name,
+            n_envs=config.n_envs,
+            curriculum_threshold=config.curriculum_threshold,
+        )
         print(f"training env_name: {env_name}")
         print(f"evaluation env_name: {config.eval_env}")
         self.eval_env = (
@@ -96,6 +100,10 @@ class BaseTrainer:
         # print env and model info
         print(f"Env: {self.env_name} Model: {self.config.model.model}")
 
+    def _handle_curriculum_env(self, eval_result: EvalResult):
+        if hasattr(self.env, "is_curriculum") and self.env.is_curriculum:
+            self.env.set_hardcore(eval_result.avg_score)
+
     def train(self):
         if hasattr(self.config, "start_steps") and self.config.start_steps > 0:
             self.collect_initial_data(self.config.start_steps)
@@ -128,6 +136,7 @@ class BaseTrainer:
                 self._print_trainer_summary()
                 print(eval_result)
                 log_result(eval_result, self.log_file)
+                self._handle_curriculum_env(eval_result)
 
     def evaluate(self, episodes=10):
         self.eval_mode_on()
