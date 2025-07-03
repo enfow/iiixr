@@ -687,9 +687,10 @@ class PPOSequentialTrainer(PPOTrainer):
 
                 self.actor_optimizer.zero_grad()
                 total_actor_loss_step.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    self.actor.parameters(), self.config.max_grad_norm
-                )
+                if hasattr(self.config, "max_grad_norm"):
+                    torch.nn.utils.clip_grad_norm_(
+                        self.actor.parameters(), self.config.max_grad_norm
+                    )
                 self.actor_optimizer.step()
 
                 self._reset_hidden_state(batch_size=state_batch.size(0))
@@ -699,9 +700,10 @@ class PPOSequentialTrainer(PPOTrainer):
 
                 self.critic_optimizer.zero_grad()
                 critic_loss.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    self.critic.parameters(), self.config.max_grad_norm
-                )
+                if hasattr(self.config, "max_grad_norm"):
+                    torch.nn.utils.clip_grad_norm_(
+                        self.critic.parameters(), self.config.max_grad_norm
+                    )
                 self.critic_optimizer.step()
 
                 total_actor_loss += actor_loss.item()
