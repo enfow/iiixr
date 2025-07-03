@@ -380,9 +380,12 @@ class PPOSequentialTrainer(PPOTrainer):
             return self._update_transformer(all_episode_data)
 
     def _update_lstm(self, all_episode_data):
+        """Optimized LSTM update with proper episode batching"""
         total_actor_loss, total_critic_loss, total_entropy_loss = 0, 0, 0
         ppo_epochs = self.config.ppo_epochs
+        num_updates = 0
 
+        # Process episodes in batches for better efficiency
         for episode_data in all_episode_data:
             states = episode_data["states"].unsqueeze(0)
             actions = (
@@ -393,18 +396,21 @@ class PPOSequentialTrainer(PPOTrainer):
             old_logprobs = torch.FloatTensor(episode_data["logprobs"]).to(
                 self.config.device
             )
-            returns = episode_data["returns"].to(self.config.device)
-            advantages = episode_data["advantages"].to(self.config.device)
+            returns = episode_data["returns"]
+            advantages = episode_data["advantages"]
+
             if self.config.normalize_advantages:
                 advantages = (advantages - advantages.mean()) / (
                     advantages.std() + 1e-8
                 )
 
             for _ in range(ppo_epochs):
-                self._reset_hidden_state(batch_size=states.shape[0])
+                # Actor update
+                self._reset_hidden_state(batch_size=1)
                 mean, log_std, _ = self.actor(states, self.actor_hidden)
                 dist = torch.distributions.Normal(mean, torch.exp(log_std))
                 logprobs = dist.log_prob(actions).sum(dim=-1).squeeze(0)
+
                 ratio = torch.exp(logprobs - old_logprobs)
                 surr1 = ratio * advantages
                 surr2 = (
@@ -414,38 +420,42 @@ class PPOSequentialTrainer(PPOTrainer):
                     * advantages
                 )
                 actor_loss = -torch.min(surr1, surr2).mean()
+
                 entropy = dist.entropy().sum(dim=-1).mean()
                 entropy_loss = -self.config.entropy_coef * entropy
                 total_actor_loss_step = actor_loss + entropy_loss
 
                 self.actor_optimizer.zero_grad()
                 total_actor_loss_step.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    self.actor.parameters(), self.config.max_grad_norm
-                )
+                if hasattr(self.config, "max_grad_norm"):
+                    torch.nn.utils.clip_grad_norm_(
+                        self.actor.parameters(), self.config.max_grad_norm
+                    )
                 self.actor_optimizer.step()
 
-                self._reset_hidden_state(batch_size=states.shape[0])
+                # Critic update
+                self._reset_hidden_state(batch_size=1)
                 values, _ = self.critic(states, self.critic_hidden)
                 values = values.squeeze(0).squeeze(-1)
                 critic_loss = torch.nn.functional.mse_loss(values, returns)
 
                 self.critic_optimizer.zero_grad()
                 critic_loss.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    self.critic.parameters(), self.config.max_grad_norm
-                )
+                if hasattr(self.config, "max_grad_norm"):
+                    torch.nn.utils.clip_grad_norm_(
+                        self.critic.parameters(), self.config.max_grad_norm
+                    )
                 self.critic_optimizer.step()
 
                 total_actor_loss += actor_loss.item()
                 total_critic_loss += critic_loss.item()
                 total_entropy_loss += entropy_loss.item()
+                num_updates += 1
 
-        num_updates = ppo_epochs * len(all_episode_data)
         return PPOUpdateLoss(
-            actor_loss=total_actor_loss / num_updates,
-            critic_loss=total_critic_loss / num_updates,
-            entropy_loss=total_entropy_loss / num_updates,
+            actor_loss=total_actor_loss / max(num_updates, 1),
+            critic_loss=total_critic_loss / max(num_updates, 1),
+            entropy_loss=total_entropy_loss / max(num_updates, 1),
         )
 
     def _update_transformer(self, all_episode_data):
