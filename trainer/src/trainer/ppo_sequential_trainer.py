@@ -82,7 +82,9 @@ class PPOSequentialTrainer(PPOTrainer):
                 self.critic_hidden[0][:, i, :].zero_()
                 self.critic_hidden[1][:, i, :].zero_()
         else:
-            b_size = batch_size if batch_size is not None else self.n_envs
+            b_size = (
+                batch_size if batch_size is not None else getattr(self, "n_envs", 1)
+            )
             device = self.config.device
             hidden_dim = self.config.model.hidden_dim
             num_layers = self.config.model.n_layers
@@ -250,7 +252,10 @@ class PPOSequentialTrainer(PPOTrainer):
     def train_episode(self) -> SingleEpisodeResult:
         if self.n_envs > 1:
             trajectories = self.collect_trajectories()
+
             all_episode_data = []
+            valid_env_count = 0
+
             for i in range(self.n_envs):
                 episode_data = {
                     "states": trajectories["states"][:, i, :],
@@ -260,39 +265,94 @@ class PPOSequentialTrainer(PPOTrainer):
                     "dones": trajectories["dones"][:, i],
                     "episode_length": trajectories["states"].shape[0],
                 }
+
+                # Validate individual environment data
+                if np.any(np.isnan(episode_data["rewards"])) or np.any(
+                    np.isinf(episode_data["rewards"])
+                ):
+                    print(f"Warning: Invalid rewards in environment {i}, skipping...")
+                    continue
+
                 processed_episode = self.compute_episode_gae(episode_data)
                 all_episode_data.append(processed_episode)
+                valid_env_count += 1
+
+            if not all_episode_data:
+                raise RuntimeError("No valid environment data collected for training")
 
             update_result = self.update(all_episode_data)
             total_rewards = np.sum(trajectories["rewards"])
+
+            # Use valid_env_count for more accurate averaging
+            effective_env_count = max(valid_env_count, 1)
+
             return SingleEpisodeResult(
-                episode_total_reward=round(total_rewards / self.n_envs, 2),
+                episode_total_reward=round(total_rewards / effective_env_count, 2),
                 episode_steps=round(trajectories["states"].shape[0], 2),
                 episode_losses=[update_result],
             )
         else:
-            (
-                all_episode_data,
-                total_rewards,
-                episode_lengths,
-                total_steps,
-                episode_count,
-            ) = [], 0, [], 0, 0
+            # n_env == 1
+            all_episode_data = []
+            total_rewards = 0
+            episode_lengths = []
+            total_steps = 0
+            episode_count = 0
+
             while total_steps < self.config.n_transactions:
                 episode_data = self.collect_episode_data()
+
+                # Validate episode data
+                if episode_data["episode_length"] == 0:
+                    print("Warning: Collected episode with 0 length, skipping...")
+                    continue
+
                 episode_count += 1
                 total_steps += episode_data["episode_length"]
                 episode_lengths.append(episode_data["episode_length"])
                 total_rewards += np.sum(episode_data["rewards"])
-                processed_episode = self.compute_episode_gae(episode_data)
-                all_episode_data.append(processed_episode)
+
+                try:
+                    processed_episode = self.compute_episode_gae(episode_data)
+                    all_episode_data.append(processed_episode)
+                except Exception as e:
+                    print(f"Warning: Failed to process episode {episode_count}: {e}")
+                    continue
+
+            if not all_episode_data:
+                raise RuntimeError("No valid episodes collected for training")
 
             update_result = self.update(all_episode_data)
             return SingleEpisodeResult(
-                episode_total_reward=round(total_rewards / episode_count, 2),
-                episode_steps=round(np.mean(episode_lengths), 2),
+                episode_total_reward=round(total_rewards / max(episode_count, 1), 2),
+                episode_steps=round(
+                    np.mean(episode_lengths) if episode_lengths else 0, 2
+                ),
                 episode_losses=[update_result],
             )
+
+            # (
+            #     all_episode_data,
+            #     total_rewards,
+            #     episode_lengths,
+            #     total_steps,
+            #     episode_count,
+            # ) = [], 0, [], 0, 0
+            # while total_steps < self.config.n_transactions:
+            #     episode_data = self.collect_episode_data()
+            #     episode_count += 1
+            #     total_steps += episode_data["episode_length"]
+            #     episode_lengths.append(episode_data["episode_length"])
+            #     total_rewards += np.sum(episode_data["rewards"])
+            #     processed_episode = self.compute_episode_gae(episode_data)
+            #     all_episode_data.append(processed_episode)
+
+            # update_result = self.update(all_episode_data)
+            # return SingleEpisodeResult(
+            #     episode_total_reward=round(total_rewards / episode_count, 2),
+            #     episode_steps=round(np.mean(episode_lengths), 2),
+            #     episode_losses=[update_result],
+            # )
 
     def compute_episode_gae(self, episode_data):
         """Compute GAE with proper handling of sequential models"""
