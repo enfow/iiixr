@@ -241,6 +241,8 @@ class SACTrainer(BaseTrainer):
                 if update_result is not None:
                     episode_losses.append(update_result)
 
+            self.step_count += 1
+
         return SingleEpisodeResult(
             episode_total_reward=round(np.sum(episode_rewards), 2),
             episode_steps=round(np.sum(episode_steps), 2),

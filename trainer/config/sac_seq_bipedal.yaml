@@ -1,0 +1,43 @@
+# Training Configuration File
+# Environment settings
+env: "BipedalWalkerHardcore-v3"
+model:
+  model: "sac_seq"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
+  hidden_dim: 256
+  n_layers: 2
+  seq_len: 2
+  seq_stride: 1
+  embedding_type: "lstm"  # Options: fc, lstm
+
+buffer:
+  buffer_size: 1000000
+  buffer_type: "sequential"
+  alpha: 0.6
+  beta_start: 0.4
+  beta_frames: 100000
+
+# Training parameters
+seed: 42
+episodes: 5000
+max_steps: 2000
+lr: 3e-4
+gamma: 0.99
+batch_size: 256
+start_steps: 10000
+
+# Device settings
+device: "cpu"  # Options: cpu, cuda
+
+# Evaluation settings
+eval: true
+eval_period: 1
+eval_episodes: 10
+
+# Save settings
+save_dir: "results"
+
+policy_update_interval: 2
+
+# SAC specific parameters
+tau: 0.005
+entropy_coef: 0.2

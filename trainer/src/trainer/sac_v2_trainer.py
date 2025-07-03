@@ -124,27 +124,28 @@ class SACV2Trainer(SACTrainer):
         self.critic2_optimizer.step()
 
         # 2. Update Policy Network (Actor)
-        pi_action, log_prob = self.actor.sample(state)
+        if self.step_count % self.config.policy_update_interval == 0:
+            pi_action, log_prob = self.actor.sample(state)
 
-        q1_pi = self.critic1(state, pi_action)
-        q2_pi = self.critic2(state, pi_action)
-        min_q_pi = torch.min(q1_pi, q2_pi)
+            q1_pi = self.critic1(state, pi_action)
+            q2_pi = self.critic2(state, pi_action)
+            min_q_pi = torch.min(q1_pi, q2_pi)
 
-        actor_loss = (self.alpha * log_prob - min_q_pi).mean()
+            actor_loss = (self.alpha * log_prob - min_q_pi).mean()
 
-        self.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        self.actor_optimizer.step()
+            self.actor_optimizer.zero_grad()
+            actor_loss.backward()
+            self.actor_optimizer.step()
 
-        # 3. Update temperature parameter α
-        alpha_loss = (
-            self.log_alpha * (-log_prob.detach() - self.target_entropy)
-        ).mean()
+            # 3. Update temperature parameter α
+            alpha_loss = (
+                self.log_alpha * (-log_prob.detach() - self.target_entropy)
+            ).mean()
 
-        self.alpha_optimizer.zero_grad()
-        alpha_loss.backward()
-        self.alpha_optimizer.step()
-        self.alpha = self.log_alpha.exp()
+            self.alpha_optimizer.zero_grad()
+            alpha_loss.backward()
+            self.alpha_optimizer.step()
+            self.alpha = self.log_alpha.exp()
 
         # 4. Soft update target networks
         for param, target_param in zip(
