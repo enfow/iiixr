@@ -11,8 +11,8 @@ import pandas as pd
 from schema.result import (C51UpdateLoss, DDQNUpdateLoss,
                            DiscreteSACUpdateLoss, EvalResult, PPOUpdateLoss,
                            RainbowDQNUpdateLoss, SACUpdateLoss,
-                           SingleEpisodeResult, TD3UpdateLoss,
-                           TotalTrainResult)
+                           SingleEpisodeResult, TD3FORKUpdateLoss,
+                           TD3UpdateLoss, TotalTrainResult)
 
 
 class ResultParser:
@@ -67,6 +67,8 @@ class ResultParser:
             return PPOUpdateLoss(**loss_data)
         elif model_name == "discrete_ppo":
             return PPOUpdateLoss(**loss_data)  # Uses same loss as PPO
+        elif model_name == "ppo_seq":
+            return PPOUpdateLoss(**loss_data)
         elif model_name == "sac":
             return SACUpdateLoss(**loss_data)
         elif model_name == "sac_v2":
@@ -83,6 +85,8 @@ class ResultParser:
             return C51UpdateLoss(**loss_data)
         elif model_name == "ddqn":
             return DDQNUpdateLoss(**loss_data)
+        elif model_name == "td3_fork":
+            return TD3FORKUpdateLoss(**loss_data)
         else:
             # Fallback to generic loss
             raise ValueError(f"Unknown model name: {model_name}")
