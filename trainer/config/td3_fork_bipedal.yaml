@@ -42,3 +42,8 @@ policy_delay: 2
 policy_noise: 0.2
 noise_clip: 0.5
 exploration_noise: 0.1 
+
+# fork
+fork_alpha: 0.5
+fork_hidden_dim: 256
+fork_n_layers: 2
