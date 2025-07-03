@@ -135,68 +135,54 @@ class LSTMSACPolicy(nn.Module):
         super().__init__()
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
-
-        # Shared MLP to process each state observation individually
-        self.shared_layers = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-        )
-
-        # LSTM layer to process the sequence of embedded states
+        self.shared_layers = nn.Sequential(nn.Linear(state_dim, hidden_dim), nn.ReLU())
         self.lstm = nn.LSTM(
             input_size=hidden_dim,
             hidden_size=hidden_dim,
             num_layers=n_layers,
             batch_first=True,
         )
-
-        # Output heads for policy parameters
         self.mean_head = nn.Linear(hidden_dim, action_dim)
         self.log_std_head = nn.Linear(hidden_dim, action_dim)
 
     def forward(self, state_sequence, hidden_state=None):
-        """
-        Processes a sequence of states.
-        :param state_sequence: Shape (batch_size, seq_len, state_dim)
-        :param hidden_state: Initial hidden state for the LSTM
-        :return: mean, log_std for each step in the sequence, and the next hidden state.
-        """
+        if state_sequence.dim() == 2:
+            state_sequence = state_sequence.unsqueeze(1)
         batch_size, seq_len, _ = state_sequence.shape
 
-        # Process each state through the shared layers
         embedded_state = self.shared_layers(
-            state_sequence.view(batch_size * seq_len, -1)
+            state_sequence.reshape(batch_size * seq_len, -1)
         )
         embedded_state = embedded_state.view(batch_size, seq_len, -1)
-
-        # Pass the sequence of embedded states through the LSTM
         lstm_out, next_hidden = self.lstm(embedded_state, hidden_state)
 
-        # Get policy parameters from the LSTM's output sequence
         mean = self.mean_head(lstm_out)
         log_std = self.log_std_head(lstm_out)
         log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
-
         return mean, log_std, next_hidden
 
-    def sample(self, state_sequence, hidden_state=None):
+    def evaluate(self, state_sequence, hidden_state=None):
+        """Returns sequences of actions and log-probs for training."""
         mean, log_std, next_hidden = self.forward(state_sequence, hidden_state)
+        std = log_std.exp()
+        normal = torch.distributions.Normal(mean, std)
+        z = normal.rsample()
+        actions = torch.tanh(z)
+        log_probs = normal.log_prob(z) - torch.log(1 - actions.pow(2) + 1e-6)
+        log_probs = log_probs.sum(dim=-1, keepdim=True)
+        return actions, log_probs, next_hidden
 
-        # Use the last output of the sequence for action selection
+    def sample(self, state_sequence, hidden_state=None):
+        """Returns a single action from the last step for interaction."""
+        mean, log_std, next_hidden = self.forward(state_sequence, hidden_state)
         last_mean = mean[:, -1, :]
         last_log_std = log_std[:, -1, :]
-
         std = last_log_std.exp()
         normal = torch.distributions.Normal(last_mean, std)
-
-        # Reparameterization trick
         z = normal.rsample()
         action = torch.tanh(z)
-
-        # Calculate log_prob with correction for tanh squashing
         log_prob = normal.log_prob(z) - torch.log(1 - action.pow(2) + 1e-6)
         log_prob = log_prob.sum(dim=1, keepdim=True)
-
         return action, log_prob, next_hidden
 
 
@@ -209,44 +195,44 @@ class LSTMSACQNetwork(nn.Module):
         n_layers: int = 2,
     ):
         super().__init__()
-        # Shared MLP to process each state observation
-        self.shared_layers = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-        )
-
-        # LSTM layer to process the sequence of embedded states
+        self.shared_layers = nn.Sequential(nn.Linear(state_dim, hidden_dim), nn.ReLU())
         self.lstm = nn.LSTM(
             input_size=hidden_dim,
             hidden_size=hidden_dim,
             num_layers=n_layers,
             batch_first=True,
         )
-
-        # Final MLP to compute Q-value from the combined state-feature and action
         self.q_head = nn.Sequential(
             nn.Linear(hidden_dim + action_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, 1),
         )
 
-    def forward(self, state_sequence, action, hidden_state=None):
+    def forward(self, state_sequence, action_sequence, hidden_state=None):
+        """Processes sequences of states and actions to return a sequence of Q-values."""
+        if state_sequence.dim() == 2:
+            state_sequence = state_sequence.unsqueeze(1)
+
         batch_size, seq_len, _ = state_sequence.shape
 
-        # Process each state through the shared layers
+        # If action_sequence is a single action, repeat it for the whole sequence
+        if action_sequence.dim() == 2:
+            action_sequence = action_sequence.unsqueeze(1).repeat(1, seq_len, 1)
+
         embedded_state = self.shared_layers(
-            state_sequence.view(batch_size * seq_len, -1)
+            state_sequence.reshape(batch_size * seq_len, -1)
         )
         embedded_state = embedded_state.view(batch_size, seq_len, -1)
-
-        # Pass the sequence of embedded states through the LSTM
         lstm_out, _ = self.lstm(embedded_state, hidden_state)
 
-        # Use the last feature vector from the LSTM output
-        last_state_feature = lstm_out[:, -1, :]
+        # Combine LSTM features with actions at each time step
+        combined = torch.cat([lstm_out, action_sequence], dim=2)
 
-        # Combine the final state feature with the action and compute Q-value
-        combined = torch.cat([last_state_feature, action], dim=1)
-        q_value = self.q_head(combined)
+        # Reshape and compute Q-values
+        combined_reshaped = combined.reshape(batch_size * seq_len, -1)
+        q_value_reshaped = self.q_head(combined_reshaped)
 
-        return q_value
+        # Reshape Q-values back to sequence format
+        q_value_sequence = q_value_reshaped.view(batch_size, seq_len, 1)
+
+        return q_value_sequence

@@ -141,11 +141,6 @@ class ContinuousCritic(nn.Module):
 
 
 class LSTMContinuousActor(nn.Module):
-    """
-    A continuous actor model that uses an LSTM layer to process sequences of states.
-    It outputs the mean and log standard deviation for a Gaussian policy.
-    """
-
     def __init__(
         self,
         state_dim: int,
