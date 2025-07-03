@@ -97,6 +97,30 @@ class PPOSequentialTrainer(PPOTrainer):
                 torch.zeros(num_layers, b_size, hidden_dim).to(device),
             )
 
+    # def _create_padded_sequence(self, history, state_dim):
+    #     """Create properly padded sequence for transformer input"""
+    #     sequence = list(history)
+    #     if len(sequence) < self.seq_len:
+    #         # Use zero padding instead of repeating first state
+    #         padding_length = self.seq_len - len(sequence)
+    #         padding = [np.zeros(state_dim) for _ in range(padding_length)]
+    #         sequence = padding + sequence
+    #     return sequence[-self.seq_len :]  # Take last seq_len steps
+
+    def _create_padded_sequence_tensor(
+        self, history_tensor, seq_len, state_dim, device
+    ):
+        """Create padded sequence keeping everything as tensors"""
+        if len(history_tensor) < seq_len:
+            padding_length = seq_len - len(history_tensor)
+            padding = torch.zeros(
+                padding_length, state_dim, device=device, dtype=history_tensor.dtype
+            )
+            sequence = torch.cat([padding, history_tensor], dim=0)
+        else:
+            sequence = history_tensor[-seq_len:]
+        return sequence
+
     def _create_padded_sequence(self, history, state_dim):
         """Create properly padded sequence for transformer input"""
         sequence = list(history)
@@ -105,16 +129,15 @@ class PPOSequentialTrainer(PPOTrainer):
             padding_length = self.seq_len - len(sequence)
             padding = [np.zeros(state_dim) for _ in range(padding_length)]
             sequence = padding + sequence
-        return sequence[-self.seq_len :]  # Take last seq_len steps
+        return sequence[-self.seq_len :]
 
     def select_action(self, state, eval_mode: bool = False):
         with torch.no_grad():
-            # Evaluation mode always uses a single environment, so is_parallel is effectively false.
             is_parallel = not eval_mode and state.ndim > 1
             state_tensor = torch.FloatTensor(state).to(self.config.device)
 
             if self.config.model.embedding_type == ModelEmbeddingType.LSTM:
-                # Add batch and sequence dimensions
+                # LSTM logic remains the same
                 state_tensor = (
                     state_tensor.unsqueeze(0) if not is_parallel else state_tensor
                 )
@@ -125,7 +148,15 @@ class PPOSequentialTrainer(PPOTrainer):
 
             elif self.config.model.embedding_type == ModelEmbeddingType.TRANSFORMER:
                 if eval_mode:
-                    self.eval_state_history.append(state)
+                    # ✅ Convert state to tensor and append
+                    state_tensor_single = (
+                        state_tensor
+                        if state_tensor.dim() == 1
+                        else state_tensor.squeeze(0)
+                    )
+                    self.eval_state_history.append(
+                        state_tensor_single.cpu().numpy()
+                    )  # Keep minimal conversion
                     sequence = self._create_padded_sequence(
                         self.eval_state_history, self.state_dim
                     )
@@ -168,7 +199,7 @@ class PPOSequentialTrainer(PPOTrainer):
             if not is_parallel:
                 result["action"] = result["action"].squeeze(0)
                 result["logprob"] = result["logprob"].item()
-            return result
+        return result
 
     def collect_episode_data(self):
         # (Sequential Mode)
@@ -331,29 +362,6 @@ class PPOSequentialTrainer(PPOTrainer):
                 episode_losses=[update_result],
             )
 
-            # (
-            #     all_episode_data,
-            #     total_rewards,
-            #     episode_lengths,
-            #     total_steps,
-            #     episode_count,
-            # ) = [], 0, [], 0, 0
-            # while total_steps < self.config.n_transactions:
-            #     episode_data = self.collect_episode_data()
-            #     episode_count += 1
-            #     total_steps += episode_data["episode_length"]
-            #     episode_lengths.append(episode_data["episode_length"])
-            #     total_rewards += np.sum(episode_data["rewards"])
-            #     processed_episode = self.compute_episode_gae(episode_data)
-            #     all_episode_data.append(processed_episode)
-
-            # update_result = self.update(all_episode_data)
-            # return SingleEpisodeResult(
-            #     episode_total_reward=round(total_rewards / episode_count, 2),
-            #     episode_steps=round(np.mean(episode_lengths), 2),
-            #     episode_losses=[update_result],
-            # )
-
     def compute_episode_gae(self, episode_data):
         """Compute GAE with proper handling of sequential models"""
         states = torch.FloatTensor(np.array(episode_data["states"])).to(
@@ -369,37 +377,38 @@ class PPOSequentialTrainer(PPOTrainer):
         with torch.no_grad():
             if self.config.model.embedding_type == ModelEmbeddingType.LSTM:
                 self._reset_hidden_state(batch_size=1)
-                states_batch = states.unsqueeze(0)  # Add batch dimension
+                states_batch = states.unsqueeze(0)
                 values, _ = self.critic(states_batch, self.critic_hidden)
                 values = values.squeeze(0).squeeze(-1)
             elif self.config.model.embedding_type == ModelEmbeddingType.TRANSFORMER:
-                values = []
-                temp_history = deque(maxlen=self.seq_len)
+                # ✅ Keep everything as tensors on the same device
+                batch_sequences = []
+                episode_length = len(states)
 
-                for i, state in enumerate(states):
-                    temp_history.append(state.cpu().numpy())
-                    sequence = list(temp_history)
-                    if len(sequence) < self.seq_len:
-                        padding_length = self.seq_len - len(sequence)
-                        padding = [
-                            np.zeros(self.state_dim) for _ in range(padding_length)
-                        ]
-                        sequence = padding + sequence
+                for i in range(episode_length):
+                    # Get history up to current timestep
+                    start_idx = max(0, i + 1 - self.seq_len)
+                    history_tensor = states[start_idx : i + 1]
 
-                    state_batch = torch.FloatTensor(np.array([sequence])).to(
-                        self.config.device
+                    # Create padded sequence using tensor operations
+                    sequence = self._create_padded_sequence_tensor(
+                        history_tensor, self.seq_len, self.state_dim, self.config.device
                     )
-                    value = self.critic(state_batch)[
-                        :, -1, :
-                    ].squeeze()  # Take last timestep output
-                    values.append(value)
-                values = torch.stack(values)
+                    batch_sequences.append(sequence)
+
+                # ✅ Stack all sequences and process in one forward pass
+                state_batch = torch.stack(batch_sequences)  # [T, seq_len, state_dim]
+                values = self.critic(state_batch)[:, -1, :].squeeze()
+
+                if values.dim() == 0:
+                    values = values.unsqueeze(0)
             else:
                 values = self.critic(states).squeeze()
 
             if values.dim() == 0:
                 values = values.unsqueeze(0)
 
+        # GAE computation remains the same
         advantages = torch.zeros_like(rewards)
         gae_advantage = 0
 
