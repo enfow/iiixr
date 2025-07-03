@@ -5,7 +5,7 @@ model:
   model: "sac_seq"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3
   hidden_dim: 256
   n_layers: 2
-  seq_len: 2
+  seq_len: 16
   seq_stride: 1
   embedding_type: "lstm"  # Options: fc, lstm
 
@@ -18,19 +18,20 @@ buffer:
 
 # Training parameters
 seed: 42
-episodes: 5000
+episodes: 10000
 max_steps: 2000
 lr: 3e-4
 gamma: 0.99
 batch_size: 256
-start_steps: 10000
+start_steps: 25000
+n_envs: 1
 
 # Device settings
 device: "cpu"  # Options: cpu, cuda
 
 # Evaluation settings
 eval: true
-eval_period: 1
+eval_period: 20
 eval_episodes: 10
 
 # Save settings

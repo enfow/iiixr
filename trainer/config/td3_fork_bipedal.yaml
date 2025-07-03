@@ -4,7 +4,7 @@ env: "BipedalWalkerHardcore-v3"
 model:
   model: "td3_fork"
   hidden_dim: 256
-  n_layers: 2
+  n_layers: 3
   embedding_type: "fc"  # Options: fc, transformer
 
 buffer:
@@ -19,7 +19,7 @@ max_steps: 2000
 lr: 3e-4
 gamma: 0.99
 buffer_size: 1000000
-batch_size: 256
+batch_size: 512
 start_steps: 25000
 
 # Device settings
@@ -46,4 +46,4 @@ exploration_noise: 0.1
 # fork
 fork_alpha: 0.5
 fork_hidden_dim: 256
-fork_n_layers: 2
+fork_n_layers: 3

@@ -243,6 +243,8 @@ class SACTrainer(BaseTrainer):
 
             self.step_count += 1
 
+        self._on_episode_end()
+
         return SingleEpisodeResult(
             episode_total_reward=round(np.sum(episode_rewards), 2),
             episode_steps=round(np.sum(episode_steps), 2),
@@ -261,6 +263,9 @@ class SACTrainer(BaseTrainer):
             },
             self.model_file,
         )
+
+    def _on_episode_end(self):
+        pass
 
     def load_model(self):
         checkpoint = torch.load(self.model_file)
