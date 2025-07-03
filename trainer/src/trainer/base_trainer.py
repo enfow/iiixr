@@ -100,9 +100,18 @@ class BaseTrainer:
         # print env and model info
         print(f"Env: {self.env_name} Model: {self.config.model.model}")
 
-    def _handle_curriculum_env(self, eval_result: EvalResult):
-        if hasattr(self.env, "is_curriculum") and self.env.is_curriculum:
-            self.env.set_hardcore(eval_result.avg_score)
+    def _handle_curriculum_env(self, score: float):
+        if hasattr(self.env, "is_curriculum"):
+            print(
+                f"current env: {self.env_name} |",
+                f"eval_env: {self.config.eval_env} |",
+                f"current score: {score:.2f} |",
+                f"threshold: {self.env.curriculum_threshold:.2f} |",
+                f"is_hardcore: {self.env.is_hardcore}",
+            )
+
+            if self.env.is_curriculum:
+                self.env.set_hardcore(score)
 
     def train(self):
         if hasattr(self.config, "start_steps") and self.config.start_steps > 0:
@@ -136,7 +145,8 @@ class BaseTrainer:
                 self._print_trainer_summary()
                 print(eval_result)
                 log_result(eval_result, self.log_file)
-                self._handle_curriculum_env(eval_result)
+
+                self._handle_curriculum_env(single_episode_result.episode_total_reward)
 
     def evaluate(self, episodes=10):
         self.eval_mode_on()

@@ -9,7 +9,7 @@ model:
 
 buffer:
   buffer_size: 1000000
-  buffer_type: "default"
+  buffer_type: "per"
   seq_len: 1
   alpha: 0.6
   beta_start: 0.4
@@ -32,7 +32,7 @@ device: "cpu"  # Options: cpu, cuda
 # Evaluation settings
 eval: true
 eval_env: "BipedalWalkerHardcore-v3"
-eval_period: 1
+eval_period: 10
 eval_episodes: 10
 
 # Save settings
