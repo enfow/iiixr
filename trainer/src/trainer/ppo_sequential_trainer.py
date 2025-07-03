@@ -95,58 +95,15 @@ class PPOSequentialTrainer(PPOTrainer):
                 torch.zeros(num_layers, b_size, hidden_dim).to(device),
             )
 
-    # def select_action(self, state, eval_mode: bool = False):
-    #     with torch.no_grad():
-    #         is_parallel = state.ndim > 1
-    #         state_tensor = torch.FloatTensor(state).to(self.config.device)
-
-    #         if self.config.model.embedding_type == ModelEmbeddingType.LSTM:
-    #             state_tensor = (
-    #                 state_tensor.unsqueeze(0) if not is_parallel else state_tensor
-    #             )
-    #             state_tensor = state_tensor.unsqueeze(1)
-    #             mean, log_std, next_hidden = self.actor(state_tensor, self.actor_hidden)
-    #             self.actor_hidden = next_hidden
-    #             output = mean.squeeze(1), log_std.squeeze(1)
-    #         elif self.config.model.embedding_type == ModelEmbeddingType.TRANSFORMER:
-    #             # This part is complex and requires careful sequence management
-    #             # The logic here is simplified for a single step action selection
-    #             if is_parallel:
-    #                 for i in range(self.n_envs):
-    #                     self.state_history[i].append(state[i])
-    #                 sequences = [list(hist) for hist in self.state_history]
-    #                 state_batch = torch.FloatTensor(np.array(sequences)).to(
-    #                     self.config.device
-    #                 )
-    #             else:
-    #                 self.state_history.append(state)
-    #                 sequence = list(self.state_history)
-    #                 padding = (
-    #                     [sequence[0]] * (self.seq_len - len(sequence))
-    #                     if sequence
-    #                     else [np.zeros(self.state_dim)] * self.seq_len
-    #                 )
-    #                 state_batch = torch.FloatTensor(np.array([padding + sequence])).to(
-    #                     self.config.device
-    #                 )
-
-    #             mean, log_std = self.actor(state_batch)
-    #             output = mean[:, -1, :], log_std[:, -1, :]
-    #         else:  # FC
-    #             mean, log_std = self.actor(state_tensor)
-    #             output = mean, log_std
-
-    #         mean, log_std = output
-    #         std = torch.exp(log_std)
-    #         dist = torch.distributions.Normal(mean, std)
-    #         action = mean if eval_mode else dist.sample()
-    #         logprob = dist.log_prob(action).sum(dim=-1)
-
-    #         result = {"action": action.cpu().numpy(), "logprob": logprob.cpu().numpy()}
-    #         if not is_parallel:
-    #             result["action"] = result["action"].squeeze(0)
-    #             result["logprob"] = result["logprob"].item()
-    #         return result
+    def _create_padded_sequence(self, history, state_dim):
+        """Create properly padded sequence for transformer input"""
+        sequence = list(history)
+        if len(sequence) < self.seq_len:
+            # Use zero padding instead of repeating first state
+            padding_length = self.seq_len - len(sequence)
+            padding = [np.zeros(state_dim) for _ in range(padding_length)]
+            sequence = padding + sequence
+        return sequence[-self.seq_len :]  # Take last seq_len steps
 
     def select_action(self, state, eval_mode: bool = False):
         with torch.no_grad():
@@ -167,49 +124,34 @@ class PPOSequentialTrainer(PPOTrainer):
             elif self.config.model.embedding_type == ModelEmbeddingType.TRANSFORMER:
                 if eval_mode:
                     self.eval_state_history.append(state)
-                    sequence = list(self.eval_state_history)
-                    padding = (
-                        [sequence[0]] * (self.seq_len - len(sequence))
-                        if sequence
-                        else [np.zeros(self.state_dim)] * self.seq_len
+                    sequence = self._create_padded_sequence(
+                        self.eval_state_history, self.state_dim
                     )
-                    state_batch = torch.FloatTensor(np.array([padding + sequence])).to(
+                    state_batch = torch.FloatTensor(np.array([sequence])).to(
                         self.config.device
                     )
                 elif is_parallel:
                     for i in range(self.n_envs):
                         self.state_history[i].append(state[i])
-                    sequences = [list(hist) for hist in self.state_history]
-                    padded_sequences = []
-                    for seq in sequences:
-                        if len(seq) < self.seq_len:
-                            padding = [seq[0] if seq else np.zeros(self.state_dim)] * (
-                                self.seq_len - len(seq)
-                            )
-                            padded_sequences.append(padding + seq)
-                        else:
-                            padded_sequences.append(seq)
-                    state_batch = torch.FloatTensor(np.array(padded_sequences)).to(
+                    sequences = []
+                    for hist in self.state_history:
+                        seq = self._create_padded_sequence(hist, self.state_dim)
+                        sequences.append(seq)
+                    state_batch = torch.FloatTensor(np.array(sequences)).to(
                         self.config.device
                     )
                 else:  # Sequential training
                     self.state_history.append(state)
-                    sequence = list(self.state_history)
-                    padding = (
-                        [sequence[0]] * (self.seq_len - len(sequence))
-                        if sequence
-                        else [np.zeros(self.state_dim)] * self.seq_len
+                    sequence = self._create_padded_sequence(
+                        self.state_history, self.state_dim
                     )
-                    state_batch = torch.FloatTensor(np.array([padding + sequence])).to(
+                    state_batch = torch.FloatTensor(np.array([sequence])).to(
                         self.config.device
                     )
 
                 mean, log_std = self.actor(state_batch)
                 output = mean[:, -1, :], log_std[:, -1, :]
-            else:  # FC
-                # Assuming a simple FC model for non-recurrent case
-                # mean, log_std = self.actor(state_tensor)
-                # output = mean, log_std
+            else:
                 raise NotImplementedError(
                     "FC model not fully implemented in this example."
                 )
