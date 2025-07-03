@@ -10,6 +10,8 @@ from schema.config import ModelEmbeddingType, PPOConfig
 from schema.result import PPOUpdateLoss, SingleEpisodeResult
 from trainer.ppo_trainer import PPOTrainer
 
+SEQ_MODEL_EMBEDDING_TYPES = [ModelEmbeddingType.LSTM, ModelEmbeddingType.TRANSFORMER]
+
 
 class PPOSequentialTrainer(PPOTrainer):
     name = "ppo_seq"
@@ -19,11 +21,15 @@ class PPOSequentialTrainer(PPOTrainer):
         self, env_name: str, config: PPOConfig, save_dir: str = "results/ppo_seq"
     ):
         super().__init__(env_name, config, save_dir)
-        self._init_models()
 
     def _init_models(self):
         device = self.config.device
         model_config = self.config.model
+
+        if model_config.embedding_type not in SEQ_MODEL_EMBEDDING_TYPES:
+            raise NotImplementedError(
+                f"Embedding type {model_config.embedding_type} not implemented"
+            )
 
         if model_config.embedding_type == ModelEmbeddingType.LSTM:
             self.actor = LSTMContinuousActor(
@@ -52,16 +58,14 @@ class PPOSequentialTrainer(PPOTrainer):
                 self.state_dim, model_config.hidden_dim, n_layers=model_config.n_layers
             ).to(device)
 
-        if model_config.embedding_type in [
-            ModelEmbeddingType.LSTM,
-            ModelEmbeddingType.TRANSFORMER,
-        ]:
-            if self.n_envs > 1:
-                self.state_history = [
-                    deque(maxlen=self.seq_len) for _ in range(self.n_envs)
-                ]
-            else:
-                self.state_history = deque(maxlen=self.seq_len)
+        if hasattr(self, "n_envs") and self.n_envs > 1:
+            self.state_history = [
+                deque(maxlen=self.seq_len) for _ in range(self.n_envs)
+            ]
+        else:
+            self.state_history = deque(maxlen=self.seq_len)
+
+        self.eval_state_history = deque(maxlen=self.seq_len)
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.config.lr)
@@ -225,7 +229,13 @@ class PPOSequentialTrainer(PPOTrainer):
     def collect_episode_data(self):
         # (Sequential Mode)
         state, _ = self.env.reset()
-        self._reset_hidden_state(batch_size=1)
+
+        # Reset sequence tracking for both LSTM and Transformer
+        if self.config.model.embedding_type == ModelEmbeddingType.LSTM:
+            self._reset_hidden_state(batch_size=1)
+        elif self.config.model.embedding_type == ModelEmbeddingType.TRANSFORMER:
+            self.state_history.clear()
+
         episode_data = {
             "states": [],
             "actions": [],
@@ -241,17 +251,20 @@ class PPOSequentialTrainer(PPOTrainer):
                 action_info["action"]
             )
             done = terminated or truncated
-            for k, v in {
-                "states": state,
-                "actions": action_info["action"],
-                "logprobs": action_info["logprob"],
-                "rewards": reward,
-                "dones": done,
-            }.items():
-                episode_data[k].append(v)
+
+            episode_data["states"].append(state)
+            episode_data["actions"].append(action_info["action"])
+            episode_data["logprobs"].append(action_info["logprob"])
+            episode_data["rewards"].append(reward)
+            episode_data["dones"].append(done)
+
             state = next_state
             if done:
+                # IMPORTANT: Do NOT reset hidden state here as it will be reset
+                # at the start of the next episode. This preserves the final
+                # hidden state for potential value estimation if needed.
                 break
+
         episode_data["episode_length"] = len(episode_data["rewards"])
         return episode_data
 
@@ -295,8 +308,6 @@ class PPOSequentialTrainer(PPOTrainer):
     def train_episode(self) -> SingleEpisodeResult:
         if self.n_envs > 1:
             trajectories = self.collect_trajectories()
-            # This part is complex and requires careful GAE implementation for recurrent models
-            # For simplicity, we create a compatible dict and use the sequential GAE logic
             all_episode_data = []
             for i in range(self.n_envs):
                 episode_data = {
@@ -342,6 +353,7 @@ class PPOSequentialTrainer(PPOTrainer):
             )
 
     def compute_episode_gae(self, episode_data):
+        """Compute GAE with proper handling of sequential models"""
         states = torch.FloatTensor(np.array(episode_data["states"])).to(
             self.config.device
         )
@@ -353,18 +365,44 @@ class PPOSequentialTrainer(PPOTrainer):
         )
 
         with torch.no_grad():
-            states_batch = states.unsqueeze(0)
             if self.config.model.embedding_type == ModelEmbeddingType.LSTM:
                 self._reset_hidden_state(batch_size=1)
+                states_batch = states.unsqueeze(0)  # Add batch dimension
                 values, _ = self.critic(states_batch, self.critic_hidden)
                 values = values.squeeze(0).squeeze(-1)
-            else:  # Transformer
-                values = self.critic(states_batch).squeeze(0).squeeze(-1)
+            elif self.config.model.embedding_type == ModelEmbeddingType.TRANSFORMER:
+                values = []
+                temp_history = deque(maxlen=self.seq_len)
+
+                for i, state in enumerate(states):
+                    temp_history.append(state.cpu().numpy())
+                    sequence = list(temp_history)
+                    if len(sequence) < self.seq_len:
+                        padding_length = self.seq_len - len(sequence)
+                        padding = [
+                            np.zeros(self.state_dim) for _ in range(padding_length)
+                        ]
+                        sequence = padding + sequence
+
+                    state_batch = torch.FloatTensor(np.array([sequence])).to(
+                        self.config.device
+                    )
+                    value = self.critic(state_batch)[
+                        :, -1, :
+                    ].squeeze()  # Take last timestep output
+                    values.append(value)
+                values = torch.stack(values)
+            else:
+                values = self.critic(states).squeeze()
+
+            if values.dim() == 0:
+                values = values.unsqueeze(0)
 
         advantages = torch.zeros_like(rewards)
         gae_advantage = 0
+
         for t in reversed(range(len(rewards))):
-            next_value = values[t + 1] if t < len(rewards) - 1 else 0
+            next_value = values[t + 1] if t < len(rewards) - 1 else 0.0
             td_error = (
                 rewards[t] + self.config.gamma * next_value * (1 - dones[t]) - values[t]
             )
@@ -377,17 +415,18 @@ class PPOSequentialTrainer(PPOTrainer):
             )
             advantages[t] = gae_advantage
 
-        episode_data.update(
-            {
-                "states": states,
-                "returns": advantages + values,
-                "advantages": advantages,
-                "rewards": rewards,
-                "logprobs": episode_data["logprobs"],
-                "actions": episode_data["actions"],
-            }
-        )
-        return episode_data
+        returns = advantages + values
+
+        return {
+            "states": states,
+            "actions": episode_data["actions"],
+            "logprobs": episode_data["logprobs"],
+            "returns": returns,
+            "advantages": advantages,
+            "rewards": rewards,
+            "dones": dones,
+            "episode_length": len(rewards),
+        }
 
     def update(self, all_episode_data):
         if self.config.model.embedding_type == ModelEmbeddingType.LSTM:
