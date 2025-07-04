@@ -5,7 +5,10 @@ model:
   model: "td3"
   hidden_dim: 256
   n_layers: 2
-  embedding_type: "fc"  # Options: fc, transformer
+  embedding_type: "fc"  # Options: fc, transformerp
+  seq_len: 1
+  seq_stride: 1
+  use_layernorm: true
 
 buffer:
   buffer_size: 1000000
@@ -14,17 +17,18 @@ buffer:
   alpha: 0.6
   beta_start: 0.4
   beta_frames: 100000
+  per_n_steps: 3
 
 # Training parameters
 seed: 42
-episodes: 10000
+episodes: 50000
 max_steps: 2000
 lr: 3e-4
 gamma: 0.99
 buffer_size: 1000000
-batch_size: 256
+batch_size: 512
 start_steps: 25000
-curriculum_threshold: 100
+curriculum_threshold: 250
 
 # Device settings
 device: "cpu"  # Options: cpu, cuda
@@ -32,14 +36,11 @@ device: "cpu"  # Options: cpu, cuda
 # Evaluation settings
 eval: true
 eval_env: "BipedalWalkerHardcore-v3"
-eval_period: 10
+eval_period: 20
 eval_episodes: 10
 
 # Save settings
 save_dir: "results"
-
-# target update interval
-target_update_interval: 8000
 
 # TD3 specific parameters
 tau: 0.005
