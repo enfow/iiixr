@@ -90,7 +90,6 @@ class ResultParser:
         elif model_name == "sac_seq":
             return SACUpdateLoss(**loss_data)
         else:
-            # Fallback to generic loss
             raise ValueError(f"Unknown model name: {model_name}")
 
     def parse(self) -> Tuple[List[SingleEpisodeResult], List[EvalResult]]:

@@ -16,6 +16,7 @@ class BufferType(str, Enum):
     DEFAULT = "default"  # simple replay buffer
     SEQUENTIAL = "sequential"  # sequence replay buffer
     PER = "per"  # prioritized experience replay
+    PER_SEQ = "per_sequential"  # prioritized experience replay for sequential data
 
 
 class ModelConfig(BaseModel):
