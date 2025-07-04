@@ -87,6 +87,8 @@ class ResultParser:
             return DDQNUpdateLoss(**loss_data)
         elif model_name == "td3_fork":
             return TD3FORKUpdateLoss(**loss_data)
+        elif model_name == "sac_seq":
+            return SACUpdateLoss(**loss_data)
         else:
             # Fallback to generic loss
             raise ValueError(f"Unknown model name: {model_name}")
