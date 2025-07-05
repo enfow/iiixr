@@ -139,7 +139,7 @@ class BaseTrainer:
 
     def _print_trainer_summary(self):
         # print env and model info
-        print(f"Env: {self.env_name} Model: {self.config.model.model}")
+        print(f"Save_dir: {self.save_dir}")
 
     def _handle_curriculum_env(self, score: float):
         if self.config.curriculum_threshold is None:
