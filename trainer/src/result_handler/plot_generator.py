@@ -1,5 +1,7 @@
 import argparse
 import json
+import os
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -716,6 +718,17 @@ class ResultParser:
         self.plot_combined_results()
 
 
+def valid_results_dir(results_dir: str) -> bool:
+    """Check if results_dir is a valid results directory"""
+    if not os.path.exists(os.path.join(results_dir, "config.json")):
+        return False
+    if not os.path.exists(os.path.join(results_dir, "metrics.jsonl")):
+        return False
+    if not os.path.exists(os.path.join(results_dir, "best_model.pth")):
+        return False
+    return True
+
+
 def main():
     """Main function with argument parsing"""
 
@@ -728,18 +741,60 @@ def main():
 
     args = parser.parse_args()
 
-    print("Plotting results...")
-    try:
-        result_parser = ResultParser(args.results_dir)
+    if not os.path.exists(args.results_dir):
+        print(f"Results directory {args.results_dir} does not exist")
+        exit(1)
 
-        # Print summary
+    valid_results_dirs, invalid_results_dirs = [], []
+    if valid_results_dir(args.results_dir):
+        valid_results_dirs = [args.results_dir]
+
+    else:
+        results_dirs = [
+            d
+            for d in os.listdir(args.results_dir)
+            if os.path.isdir(os.path.join(args.results_dir, d))
+        ]
+
+        for results_dir in results_dirs:
+            if valid_results_dir(os.path.join(args.results_dir, results_dir)):
+                valid_results_dirs.append(results_dir)
+            else:
+                invalid_results_dirs.append(results_dir)
+
+    if len(valid_results_dirs) == 0:
+        print("No valid results directories")
+    else:
+        print(f"Valid results directories:")
+        for results_dir in valid_results_dirs:
+            print(f"  {results_dir}")
+    if len(invalid_results_dirs) == 0:
+        print("No invalid results directories")
+    else:
+        print(f"Invalid results directories:")
+        for results_dir in invalid_results_dirs:
+            print(f"  {results_dir}")
+
+    user_input = input(
+        f"Do you want to plot results from {valid_results_dirs}? (y/n): "
+    )
+    if user_input != "y":
+        print("Exiting...")
+        exit(1)
+
+    if len(invalid_results_dirs) > 0:
+        user_input = input(
+            f"Do you want to delete invalid results directories? (y/n): "
+        )
+        if user_input == "y":
+            for results_dir in invalid_results_dirs:
+                shutil.rmtree(os.path.join(args.results_dir, results_dir))
+                print(f"Deleted {results_dir}")
+
+    for results_dir in valid_results_dirs:
+        print(f"Plotting results from {results_dir}")
+        result_parser = ResultParser(os.path.join(args.results_dir, results_dir))
         result_parser.plot_results()
-
-    except Exception as e:
-        print(f"Error: {e}")
-        return 1
-
-    return 0
 
 
 if __name__ == "__main__":
