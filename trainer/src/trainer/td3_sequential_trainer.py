@@ -149,7 +149,6 @@ class TD3SequentialTrainer(BaseTrainer):
         if state_seqs is None or len(state_seqs) == 0:
             return None
 
-        # --- Move batch to GPU ---
         state_seqs = torch.FloatTensor(state_seqs).to(self.config.device)
         next_state_seqs = torch.FloatTensor(next_state_seqs).to(self.config.device)
         action_seqs = torch.FloatTensor(action_seqs).to(self.config.device)
@@ -158,7 +157,6 @@ class TD3SequentialTrainer(BaseTrainer):
         )
         done = torch.BoolTensor(done_seqs[:, -1]).unsqueeze(1).to(self.config.device)
 
-        # --- Critic Loss Calculation ---
         with torch.no_grad():
             target_action = self.actor_target(next_state_seqs)
             noise = (torch.randn_like(target_action) * self.config.policy_noise).clamp(
@@ -171,7 +169,6 @@ class TD3SequentialTrainer(BaseTrainer):
             target_q1, target_q2 = self.critic_target(current_next_state, next_action)
             target_q = torch.min(target_q1, target_q2)
             target_q = reward + (~done) * self.config.gamma * target_q
-
         current_state, current_action = state_seqs[:, -1], action_seqs[:, -1]
         current_q1, current_q2 = self.critic(current_state, current_action)
 
@@ -187,6 +184,7 @@ class TD3SequentialTrainer(BaseTrainer):
             self.memory.update_priorities(
                 idxs, td_errors.detach().cpu().numpy().flatten()
             )
+
         else:
             critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(
                 current_q2, target_q
@@ -195,8 +193,6 @@ class TD3SequentialTrainer(BaseTrainer):
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
-
-        # --- Delayed Actor and Target Updates ---
         actor_loss = None
         if self.total_it % self.config.policy_delay == 0:
             actor_action = self.actor(state_seqs)
@@ -205,7 +201,6 @@ class TD3SequentialTrainer(BaseTrainer):
             actor_loss.backward()
             self.actor_optimizer.step()
 
-            # Soft update target networks
             for param, target_param in zip(
                 self.critic.parameters(), self.critic_target.parameters()
             ):
@@ -220,14 +215,12 @@ class TD3SequentialTrainer(BaseTrainer):
                     self.config.tau * param.data
                     + (1 - self.config.tau) * target_param.data
                 )
-
         return TD3UpdateLoss(
             actor_loss=actor_loss.item() if actor_loss else 0.0,
             critic_loss=critic_loss.item(),
         )
 
     def collect_initial_data(self, start_steps: int):
-        """Fills the buffer with initial transitions from random actions."""
         if self.config.n_envs <= 1:
             state, _ = self.env.reset()
             for _ in range(start_steps):
@@ -238,7 +231,7 @@ class TD3SequentialTrainer(BaseTrainer):
                 state = next_state
                 if done:
                     state, _ = self.env.reset()
-        else:  # Vectorized implementation
+        else:
             states, _ = self.env.reset()
             with tqdm(total=start_steps, desc="Collecting initial data") as pbar:
                 while len(self.memory) < start_steps:
@@ -263,14 +256,12 @@ class TD3SequentialTrainer(BaseTrainer):
         print(f"Collected {len(self.memory)} initial data points.")
 
     def train_episode(self) -> SingleEpisodeResult:
-        """Main training entry point, dispatches to single or vectorized loop."""
         if self.config.n_envs > 1:
             return self._train_vectorized()
         else:
             return self._train_single_episode()
 
     def _train_single_episode(self) -> SingleEpisodeResult:
-        """Trains for a single episode."""
         state, _ = self.env.reset()
         self.state_histories[0].clear()
         done = False
@@ -295,14 +286,12 @@ class TD3SequentialTrainer(BaseTrainer):
         )
 
     def _train_vectorized(self) -> SingleEpisodeResult:
-        """Trains for a fixed number of steps in a vectorized environment."""
         states, _ = self.env.reset()
         self._reset_histories()
         total_rewards = np.zeros(self.config.n_envs)
         episode_losses = []
 
         for step in range(self.config.max_steps):
-            # Batched action selection for GPU efficiency
             state_sequences_np = [
                 self._create_state_sequence(state, i, to_tensor=False)
                 for i, state in enumerate(states)
@@ -318,14 +307,12 @@ class TD3SequentialTrainer(BaseTrainer):
             )
             actions = np.clip(actions, -self.max_action, self.max_action)
 
-            # Step the vectorized environment
             next_states, rewards, terminations, truncations, infos = self.env.step(
                 actions
             )
             total_rewards += rewards
             final_observations = infos.get("final_observation")
 
-            # Store transitions in memory
             for i in range(self.config.n_envs):
                 done = terminations[i] or truncations[i]
                 if done:
@@ -342,7 +329,6 @@ class TD3SequentialTrainer(BaseTrainer):
                 )
             states = next_states
 
-            # Perform network update
             if len(self.memory) >= self.config.batch_size:
                 update_result = self.update()
                 if update_result is not None:
