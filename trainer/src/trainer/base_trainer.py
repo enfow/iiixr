@@ -327,6 +327,20 @@ class BaseTrainer:
 
         return str(output_path)
 
+    def _get_decayed_exploration_noise(
+        self,
+        current_episode: int,
+    ) -> float:
+        decay_progress = min(
+            1.0, current_episode / self.config.exploration_noise_decay_episodes
+        )
+        current_noise_std = (
+            self.config.start_exploration_noise
+            - (self.config.start_exploration_noise - self.config.end_exploration_noise)
+            * decay_progress
+        )
+        return current_noise_std
+
     def select_action(self, state, eval_mode: bool = False) -> dict:
         raise NotImplementedError("Subclasses must implement this method")
 

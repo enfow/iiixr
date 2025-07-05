@@ -75,6 +75,10 @@ class BaseConfig(BaseModel):
     eval_episodes: int = 10
     # curriculum
     curriculum_threshold: Optional[float] = None
+    # exploration noise
+    start_exploration_noise: float = 0.2
+    end_exploration_noise: float = 0.2  # default is no decay
+    exploration_noise_decay_episodes: int = 1000
 
     @classmethod
     def from_dict(cls, config: dict):
@@ -104,6 +108,12 @@ class BaseConfig(BaseModel):
                 beta_start=config.get("beta_start", 0.4),
                 beta_frames=config.get("beta_frames", 100000),
             )
+
+        if "start_exploration_noise" not in config and "exploration_noise" in config:
+            config["start_exploration_noise"] = config["exploration_noise"]
+            config["end_exploration_noise"] = config["exploration_noise"]
+            config["exploration_noise_decay_episodes"] = config["episodes"]
+            del config["exploration_noise"]
 
         cls._check_validity(config)
         cls._check_device(config)
@@ -221,7 +231,6 @@ class TD3Config(BaseConfig):
     policy_delay: int = 2
     policy_noise: float = 0.2
     noise_clip: float = 0.5
-    exploration_noise: float = 0.1
     start_steps: int = 10000
 
 

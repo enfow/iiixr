@@ -118,7 +118,7 @@ class TD3SequentialTrainer(BaseTrainer):
 
         if not eval_mode:
             noise = np.random.normal(
-                0, self.max_action * self.config.exploration_noise, size=self.action_dim
+                0, self.max_action * self.exploration_noise, size=self.action_dim
             )
             action = action + noise
 
@@ -256,6 +256,9 @@ class TD3SequentialTrainer(BaseTrainer):
         print(f"Collected {len(self.memory)} initial data points.")
 
     def train_episode(self) -> SingleEpisodeResult:
+        self.exploration_noise = self._get_decayed_exploration_noise(
+            self.train_episode_number
+        )
         if self.config.n_envs > 1:
             return self._train_vectorized()
         else:
@@ -303,7 +306,7 @@ class TD3SequentialTrainer(BaseTrainer):
                 actions_tensor = self.actor(state_sequences_tensor)
             actions = actions_tensor.cpu().numpy()
             actions += np.random.normal(
-                0, self.max_action * self.config.exploration_noise, size=actions.shape
+                0, self.max_action * self.exploration_noise, size=actions.shape
             )
             actions = np.clip(actions, -self.max_action, self.max_action)
 

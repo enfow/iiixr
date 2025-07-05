@@ -57,11 +57,10 @@ class TD3Trainer(BaseTrainer):
             state = torch.FloatTensor(state.reshape(1, -1)).to(self.config.device)
             action = self.actor(state).cpu().data.numpy().flatten()
 
-            # Exploration
             if not eval_mode:
                 action = action + np.random.normal(
                     0,
-                    self.max_action * self.config.exploration_noise,
+                    self.max_action * self.exploration_noise,
                     size=self.action_dim,
                 )
 
@@ -177,6 +176,9 @@ class TD3Trainer(BaseTrainer):
         )
 
     def train_episode(self) -> SingleEpisodeResult:
+        self.exploration_noise = self._get_decayed_exploration_noise(
+            self.train_episode_number
+        )
         state, _ = self.env.reset()
         done = False
         episode_rewards, episode_losses, episode_steps = [], [], []
