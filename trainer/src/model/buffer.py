@@ -16,6 +16,9 @@ from schema.config import BaseConfig, BufferType
 
 
 class ReplayBuffer:
+    is_per = False
+    is_sequential = False
+
     def __init__(self, capacity: int):
         self.buffer = deque(maxlen=capacity)
 
@@ -32,6 +35,9 @@ class ReplayBuffer:
 
 
 class SeqReplayBuffer:
+    is_per = False
+    is_sequential = True
+
     def __init__(self, capacity: int, seq_len: int, seq_stride: int = 1):
         self.buffer = deque(maxlen=capacity)
         self.seq_len = seq_len
@@ -244,6 +250,9 @@ class PrioritizedReplayBuffer:
         The discount factor.
     """
 
+    is_per = True
+    is_sequential = False
+
     def __init__(
         self,
         capacity: int,
@@ -368,8 +377,217 @@ class PrioritizedReplayBuffer:
         return len(self.tree)
 
 
+class SequentialPrioritizedReplayBuffer:
+    is_per = True
+    is_sequential = True
+
+    def __init__(
+        self,
+        capacity: int,
+        seq_len: int,
+        alpha: float = 0.6,
+        beta_start: float = 0.4,
+        beta_frames: int = 100000,
+        seq_stride: int = 1,
+    ):
+        self.buffer = deque(maxlen=capacity)
+        self.capacity = capacity
+        self.seq_len = seq_len
+        self.seq_stride = seq_stride
+        self.min_seq_span = (self.seq_len - 1) * self.seq_stride + 1
+        self.tree = SumTree(capacity)
+        self.alpha = alpha
+        self.beta = beta_start
+        self.beta_increment_per_sampling = (1.0 - beta_start) / beta_frames
+        self.epsilon = 1e-5
+        self.episode_starts: List[int] = [0]
+        self.size = 0
+
+    def push(self, state, action, reward, next_state, done: bool) -> None:
+        if self.size == self.capacity:
+            # Adjust episode start indices due to the oldest element being dropped.
+            if self.episode_starts and self.episode_starts[0] == 0:
+                self.episode_starts.pop(0)
+            self.episode_starts = [i - 1 for i in self.episode_starts]
+
+        current_index = self.size if self.size < self.capacity else self.capacity - 1
+        self.buffer.append((state, action, reward, next_state, done))
+        if self.size < self.capacity:
+            self.size += 1
+
+        if done:
+            self.episode_starts.append(current_index + 1)
+
+        # New transitions are given max priority to encourage exploration.
+        max_priority = np.max(self.tree.tree[-self.tree.capacity :])
+        if max_priority == 0:
+            max_priority = 1.0
+        self.tree.add(max_priority, None)  # Data is not stored in the tree
+
+    def sample(
+        self, batch_size: int
+    ) -> Tuple[
+        np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, list, np.ndarray
+    ]:
+        """
+        Samples a batch of sequences from the buffer using prioritized sampling.
+
+        Returns:
+            A tuple containing stacked sequences of states, actions, rewards,
+            next_states, dones, the indices of the sampled transitions in the SumTree,
+            and the importance sampling weights.
+        """
+        if self.size < self.min_seq_span:
+            return self._return_for_invalids()
+
+        valid_starts = self._get_valid_starts()
+        if not valid_starts:
+            return self._return_for_invalids()
+
+        temp_tree_map = {
+            start: self.tree.tree[start + self.tree.capacity - 1]
+            for start in valid_starts
+        }
+        valid_priorities = np.array(list(temp_tree_map.values()))
+        valid_total_priority = np.sum(valid_priorities)
+
+        if valid_total_priority == 0:
+            return self._return_for_invalids()
+
+        segment = valid_total_priority / batch_size
+        self.beta = min(1.0, self.beta + self.beta_increment_per_sampling)
+
+        sequences = []
+        idxs = []
+        priorities = []
+        selected_starts = []
+
+        for i in range(batch_size):
+            s = random.uniform(i * segment, (i + 1) * segment)
+            (idx, priority, start_idx) = self._get_from_valid(
+                s, valid_starts, temp_tree_map
+            )
+
+            priorities.append(priority)
+            idxs.append(idx)
+            selected_starts.append(start_idx)
+
+        for start_idx in selected_starts:
+            end_idx = start_idx + self.min_seq_span
+            sequence = [
+                self.buffer[i] for i in range(start_idx, end_idx, self.seq_stride)
+            ]
+            sequences.append(sequence)
+
+        batch = [list(zip(*seq)) for seq in sequences]
+        states, actions, rewards, next_states, dones = zip(*batch)
+
+        sampling_probabilities = np.array(priorities) / self.tree.total()
+        weights = (self.size * sampling_probabilities) ** -self.beta
+        weights /= weights.max()
+
+        return (
+            np.array(states, dtype=np.float32),
+            np.array(actions, dtype=np.int64),
+            np.array(rewards, dtype=np.float32),
+            np.array(next_states, dtype=np.float32),
+            np.array(dones, dtype=bool),
+            idxs,
+            np.array(weights, dtype=np.float32),
+        )
+
+    def update_priorities(self, idxs: list[int], errors: np.ndarray) -> None:
+        """
+        Updates the priorities of the sampled sequences.
+
+        The priority of a sequence is determined by the TD error of its first transition.
+        """
+        priorities = (np.abs(errors) + self.epsilon) ** self.alpha
+        for idx, priority in zip(idxs, priorities):
+            self.tree.update(idx, priority)
+
+    def _get_valid_starts(self) -> List[int]:
+        """
+        Computes the set of valid starting indices for sequences.
+
+        A start index is valid if the entire sequence it initiates falls within the
+        bounds of the replay buffer and does not cross an episode boundary.
+        """
+        all_possible_starts = set(range(self.size - self.min_seq_span + 1))
+        invalid_starts: Set[int] = set()
+        for episode_start_idx in self.episode_starts:
+            start_of_invalid_range = episode_start_idx - self.min_seq_span + 1
+            end_of_invalid_range = episode_start_idx
+            for i in range(start_of_invalid_range, end_of_invalid_range):
+                if i >= 0:
+                    invalid_starts.add(i)
+        return list(all_possible_starts - invalid_starts)
+
+    def _get_from_valid(
+        self, s: float, valid_starts: List[int], temp_tree_map: dict
+    ) -> tuple[int, float, int]:
+        """
+        Retrieves a sample from the set of valid start indices.
+        """
+        cumulative_priority = 0.0
+        for start_idx in valid_starts:
+            priority = temp_tree_map[start_idx]
+            cumulative_priority += priority
+            if cumulative_priority > s:
+                tree_idx = start_idx + self.tree.capacity - 1
+                return tree_idx, priority, start_idx
+        last_start_idx = valid_starts[-1]
+        tree_idx = last_start_idx + self.tree.capacity - 1
+        priority = temp_tree_map[last_start_idx]
+        return tree_idx, priority, last_start_idx
+
+    def _return_for_invalids(self) -> Tuple[np.ndarray, ...]:
+        """
+        Returns empty numpy arrays with the correct shapes when sampling is not possible.
+        """
+        s_shape, a_shape = (0, self.seq_len, 0), (0, self.seq_len, 0)
+        if self.buffer:
+            s_shape = (0, self.seq_len, *np.array(self.buffer[0][0]).shape)
+            a_shape = (0, self.seq_len, *np.array(self.buffer[0][1]).shape)
+
+        return (
+            np.empty(s_shape, dtype=np.float32),
+            np.empty(a_shape, dtype=np.int64),
+            np.empty((0, self.seq_len), dtype=np.float32),
+            np.empty(s_shape, dtype=np.float32),
+            np.empty((0, self.seq_len), dtype=bool),
+            [],
+            np.empty((0,), dtype=np.float32),
+        )
+
+    def __len__(self) -> int:
+        """Returns the current number of transitions in the buffer."""
+        return self.size
+
+
 class ReployBufferFactory:
     def __new__(cls, config: BaseConfig):
+        if config.model.model in ["ppo_seq", "ppo"]:
+            # ppo use their own memory
+            return None
+
+        # validation check
+        if (
+            config.buffer.buffer_type
+            in [BufferType.SEQUENTIAL, BufferType.PER_SEQUENTIAL]
+            and config.model.seq_len == 1
+        ):
+            raise ValueError(
+                f"seq_len must be greater than 1 for sequential buffer, but got {config.model.seq_len}"
+            )
+        if (
+            config.buffer.buffer_type in [BufferType.DEFAULT, BufferType.PER]
+            and config.model.seq_len > 1
+        ):
+            raise ValueError(
+                f"seq_len must be 1 for non-sequential buffer, but got {config.model.seq_len}"
+            )
+
         if config.buffer.buffer_type == BufferType.DEFAULT:
             print(f"Using ReplayBuffer | size: {config.buffer.buffer_size}")
             return ReplayBuffer(config.buffer.buffer_size)
@@ -398,6 +616,20 @@ class ReployBufferFactory:
                 beta_frames=config.buffer.beta_frames,
                 n_steps=config.buffer.per_n_steps,
                 gamma=config.gamma,
+            )
+        elif config.buffer.buffer_type == BufferType.PER_SEQUENTIAL:
+            print(
+                f"Using SequentialPrioritizedReplayBuffer | size: {config.buffer.buffer_size} ",
+                f"| seq_len: {config.model.seq_len} ",
+                f"| seq_stride: {config.model.seq_stride}",
+            )
+            return SequentialPrioritizedReplayBuffer(
+                capacity=config.buffer.buffer_size,
+                seq_len=config.model.seq_len,
+                seq_stride=config.model.seq_stride,
+                alpha=config.buffer.alpha,
+                beta_start=config.buffer.beta_start,
+                beta_frames=config.buffer.beta_frames,
             )
         else:
             raise ValueError(f"Invalid buffer type: {config.buffer.buffer_type}")
