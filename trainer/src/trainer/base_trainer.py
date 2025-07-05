@@ -189,8 +189,8 @@ class BaseTrainer:
             single_episode_result.episode_elapsed_time = elapsed_time
             single_episode_result.episode_number = self.train_episode_number
             self.total_train_result.update(single_episode_result)
-            self.total_train_result.print_current_result_with_cumulative_result(
-                single_episode_result, self.config
+            self.total_train_result.print_result(
+                single_episode_result, self.config, self.memory
             )
             log_result(single_episode_result, self.log_file)
 

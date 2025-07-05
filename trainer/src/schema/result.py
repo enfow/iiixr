@@ -3,6 +3,7 @@ from typing import Optional
 import numpy as np
 from pydantic import BaseModel
 
+from model.buffer import AbstractBuffer
 from schema.config import BaseConfig
 
 
@@ -167,16 +168,24 @@ class TotalTrainResult(BaseModel):
     def __repr__(self):
         return self.__str__()
 
-    def print_current_result_with_cumulative_result(
-        self, current_episode_result: SingleEpisodeResult, config: BaseConfig
+    def print_result(
+        self,
+        current_episode_result: SingleEpisodeResult,
+        config: BaseConfig,
+        memory: Optional[AbstractBuffer] = None,
     ):
-        print(
+        result_str = (
             f"ep:{current_episode_result.episode_number}/{config.episodes}, "
             f"rewards:{round(current_episode_result.episode_total_reward, 2)}, "
             f"steps:{round(current_episode_result.episode_steps)}/{round(self.total_steps)}, "
             f"loss:{round(current_episode_result.episode_total_loss, 2)}, "
-            f"elapsed:{round(current_episode_result.episode_elapsed_time, 2) if current_episode_result.episode_elapsed_time is not None else None}s"
+            f"elapsed:{round(current_episode_result.episode_elapsed_time, 2) if current_episode_result.episode_elapsed_time is not None else None}s, "
         )
+
+        if memory is not None:
+            result_str += f"memory: {memory.size}/{config.buffer.buffer_size}"
+
+        print(result_str)
 
 
 class EvalResult(BaseModel):

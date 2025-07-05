@@ -15,7 +15,19 @@ import numpy as np
 from schema.config import BaseConfig, BufferType
 
 
-class ReplayBuffer:
+class AbstractBuffer:
+    def push(self, state, action, reward, next_state, done):
+        raise NotImplementedError
+
+    def sample(self, batch_size: int):
+        raise NotImplementedError
+
+    @property
+    def size(self) -> int:
+        raise NotImplementedError
+
+
+class ReplayBuffer(AbstractBuffer):
     is_per = False
     is_sequential = False
 
@@ -34,7 +46,7 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
-class SeqReplayBuffer:
+class SeqReplayBuffer(AbstractBuffer):
     is_per = False
     is_sequential = True
 
@@ -130,9 +142,13 @@ class SeqReplayBuffer:
     def __len__(self) -> int:
         return len(self.buffer)
 
+    @property
+    def size(self) -> int:
+        return len(self.buffer)
+
 
 # Deprecated
-class PPOMemory:
+class PPOMemory(AbstractBuffer):
     """
     On-Policy Memory
     """
@@ -164,7 +180,7 @@ class PPOMemory:
         return len(self.states)
 
 
-class SumTree:
+class SumTree(AbstractBuffer):
     """
     SumTree is a binary tree where each leaf node stores a priority,
 
@@ -180,7 +196,7 @@ class SumTree:
         self.tree = np.zeros(2 * capacity - 1)
         self.data = np.zeros(capacity, dtype=object)
         self.write = 0
-        self.size = 0
+        self._size = 0
 
     def _propagate(self, idx: int, change: float):
         parent = (idx - 1) // 2
@@ -199,7 +215,7 @@ class SumTree:
         self.update(idx, priority)
 
         self.write = (self.write + 1) % self.capacity
-        self.size = min(self.size + 1, self.capacity)
+        self._size = min(self._size + 1, self.capacity)
 
     def _retrieve(self, idx: int, s: float) -> int:
         left = 2 * idx + 1
@@ -222,10 +238,10 @@ class SumTree:
         return self.tree[0]
 
     def __len__(self) -> int:
-        return self.size
+        return self._size
 
 
-class PrioritizedReplayBuffer:
+class PrioritizedReplayBuffer(AbstractBuffer):
     """
     Prioritized Replay Buffer (PER) with N-step returns.
 
@@ -317,7 +333,7 @@ class PrioritizedReplayBuffer:
         idxs = []
         priorities = []
 
-        if self.tree.size < batch_size:
+        if self.tree._size < batch_size:
             return None
 
         segment = self.tree.total() / batch_size
@@ -350,7 +366,7 @@ class PrioritizedReplayBuffer:
 
         sampling_probabilities = np.array(priorities) / self.tree.total()
 
-        weights = (self.tree.size * sampling_probabilities) ** -self.beta
+        weights = (self.tree._size * sampling_probabilities) ** -self.beta
         weights /= weights.max()
 
         states, actions, rewards, next_states, dones = map(np.stack, zip(*batch))
@@ -376,8 +392,12 @@ class PrioritizedReplayBuffer:
         """Returns the number of N-step transitions stored in the buffer."""
         return len(self.tree)
 
+    @property
+    def size(self) -> int:
+        return self.tree._size
 
-class SequentialPrioritizedReplayBuffer:
+
+class SequentialPrioritizedReplayBuffer(AbstractBuffer):
     is_per = True
     is_sequential = True
 
@@ -401,19 +421,19 @@ class SequentialPrioritizedReplayBuffer:
         self.beta_increment_per_sampling = (1.0 - beta_start) / beta_frames
         self.epsilon = 1e-5
         self.episode_starts: List[int] = [0]
-        self.size = 0
+        self._size = 0
 
     def push(self, state, action, reward, next_state, done: bool) -> None:
-        if self.size == self.capacity:
+        if self._size == self.capacity:
             # Adjust episode start indices due to the oldest element being dropped.
             if self.episode_starts and self.episode_starts[0] == 0:
                 self.episode_starts.pop(0)
             self.episode_starts = [i - 1 for i in self.episode_starts]
 
-        current_index = self.size if self.size < self.capacity else self.capacity - 1
+        current_index = self._size if self._size < self.capacity else self.capacity - 1
         self.buffer.append((state, action, reward, next_state, done))
-        if self.size < self.capacity:
-            self.size += 1
+        if self._size < self.capacity:
+            self._size += 1
 
         if done:
             self.episode_starts.append(current_index + 1)
@@ -437,7 +457,7 @@ class SequentialPrioritizedReplayBuffer:
             next_states, dones, the indices of the sampled transitions in the SumTree,
             and the importance sampling weights.
         """
-        if self.size < self.min_seq_span:
+        if self._size < self.min_seq_span:
             return self._return_for_invalids()
 
         valid_starts = self._get_valid_starts()
@@ -483,7 +503,7 @@ class SequentialPrioritizedReplayBuffer:
         states, actions, rewards, next_states, dones = zip(*batch)
 
         sampling_probabilities = np.array(priorities) / self.tree.total()
-        weights = (self.size * sampling_probabilities) ** -self.beta
+        weights = (self._size * sampling_probabilities) ** -self.beta
         weights /= weights.max()
 
         return (
@@ -513,7 +533,7 @@ class SequentialPrioritizedReplayBuffer:
         A start index is valid if the entire sequence it initiates falls within the
         bounds of the replay buffer and does not cross an episode boundary.
         """
-        all_possible_starts = set(range(self.size - self.min_seq_span + 1))
+        all_possible_starts = set(range(self._size - self.min_seq_span + 1))
         invalid_starts: Set[int] = set()
         for episode_start_idx in self.episode_starts:
             start_of_invalid_range = episode_start_idx - self.min_seq_span + 1
@@ -562,7 +582,11 @@ class SequentialPrioritizedReplayBuffer:
 
     def __len__(self) -> int:
         """Returns the current number of transitions in the buffer."""
-        return self.size
+        return self._size
+
+    @property
+    def size(self) -> int:
+        return self._size
 
 
 class ReployBufferFactory:
