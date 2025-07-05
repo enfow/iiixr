@@ -75,11 +75,11 @@ class SeqReplayBuffer(AbstractBuffer):
             self.episode_starts.append(current_index + 1)
 
     def sample(self, batch_size: int) -> Tuple[np.ndarray, ...]:
+        print("sample")
         if len(self.buffer) < self.min_seq_span:
             return self._return_for_invalids()
 
         valid_starts = self._get_valid_starts()
-
         if not valid_starts:
             return self._return_for_invalids()
 
@@ -97,7 +97,6 @@ class SeqReplayBuffer(AbstractBuffer):
             ]
             sequences.append(sequence)
         batch = [list(zip(*seq)) for seq in sequences]
-
         states, actions, rewards, next_states, dones = zip(*batch)
 
         # Stack into final numpy arrays.
@@ -183,11 +182,11 @@ class SumTree:
             else self._retrieve(right, s - self.tree[left])
         )
 
-    def get(self, s: float) -> tuple[int, float, object]:
+    def get(self, s: float) -> tuple[int, float, int]:
         idx = self._retrieve(0, s)
         dataIdx = idx - self.capacity + 1
 
-        return idx, self.tree[idx], self.data[dataIdx]
+        return idx, self.tree[idx], dataIdx
 
     def total(self) -> float:
         return self.tree[0]
@@ -380,9 +379,8 @@ class SequentialPrioritizedReplayBuffer(AbstractBuffer):
         self._size = 0
 
     def push(self, state, action, reward, next_state, done: bool) -> None:
-        current_index = len(self.buffer)
         if self._size == self.capacity:
-            if self.episode_starts and self.episode_starts[0] == current_index:
+            if self.episode_starts and self.episode_starts[0] == 0:
                 self.episode_starts.pop(0)
             self.episode_starts = [i - 1 for i in self.episode_starts]
 
@@ -393,9 +391,12 @@ class SequentialPrioritizedReplayBuffer(AbstractBuffer):
         if done:
             self.episode_starts.append(len(self.buffer))
 
-        max_priority = np.max(self.tree.tree[-self.tree.capacity :])
+        max_priority = (
+            np.max(self.tree.tree[-self.tree.capacity :]) if self._size > 1 else 1.0
+        )
         if max_priority == 0:
             max_priority = 1.0
+
         self.tree.add(max_priority, None)
 
     def sample(
@@ -418,14 +419,13 @@ class SequentialPrioritizedReplayBuffer(AbstractBuffer):
         for i in range(batch_size):
             start_idx = -1
             retry_count = 0
-
             while start_idx not in valid_starts_set:
                 s = random.uniform(i * segment, (i + 1) * segment)
                 idx, priority, start_idx = self.tree.get(s)
                 retry_count += 1
                 if retry_count > 10:
-                    s = random.uniform(0, self.tree.total())
-                    idx, priority, start_idx = self.tree.get(s)
+                    s_fallback = random.uniform(0, self.tree.total())
+                    idx, priority, start_idx = self.tree.get(s_fallback)
 
             priorities.append(priority)
             idxs.append(idx)
@@ -441,7 +441,8 @@ class SequentialPrioritizedReplayBuffer(AbstractBuffer):
 
         sampling_probabilities = np.array(priorities) / self.tree.total()
         weights = (self._size * sampling_probabilities) ** -self.beta
-        weights /= weights.max()
+        if weights.size > 0:
+            weights /= weights.max()
 
         return (
             np.array(states, dtype=np.float32),
@@ -455,7 +456,7 @@ class SequentialPrioritizedReplayBuffer(AbstractBuffer):
 
     def update_priorities(self, idxs: list[int], errors: np.ndarray) -> None:
         priorities = (np.abs(errors) + self.epsilon) ** self.alpha
-        for idx, priority in zip(idxs, priorities):
+        for idx, priority in zip(idxs, errors):
             self.tree.update(idx, priority)
 
     def _get_valid_starts(self) -> List[int]:
@@ -490,198 +491,6 @@ class SequentialPrioritizedReplayBuffer(AbstractBuffer):
     @property
     def size(self) -> int:
         return self._size
-
-
-# class SequentialPrioritizedReplayBuffer(AbstractBuffer):
-#     is_per = True
-#     is_sequential = True
-
-#     def __init__(
-#         self,
-#         capacity: int,
-#         seq_len: int,
-#         alpha: float = 0.6,
-#         beta_start: float = 0.4,
-#         beta_frames: int = 100000,
-#         seq_stride: int = 1,
-#     ):
-#         self.buffer = deque(maxlen=capacity)
-#         self.capacity = capacity
-#         self.seq_len = seq_len
-#         self.seq_stride = seq_stride
-#         self.min_seq_span = (self.seq_len - 1) * self.seq_stride + 1
-#         self.tree = SumTree(capacity)
-#         self.alpha = alpha
-#         self.beta = beta_start
-#         self.beta_increment_per_sampling = (1.0 - beta_start) / beta_frames
-#         self.epsilon = 1e-5
-#         self.episode_starts: List[int] = [0]
-#         self._size = 0
-
-#     def push(self, state, action, reward, next_state, done: bool) -> None:
-#         if self._size == self.capacity:
-#             # Adjust episode start indices due to the oldest element being dropped.
-#             if self.episode_starts and self.episode_starts[0] == 0:
-#                 self.episode_starts.pop(0)
-#             self.episode_starts = [i - 1 for i in self.episode_starts]
-
-#         current_index = self._size if self._size < self.capacity else self.capacity - 1
-#         self.buffer.append((state, action, reward, next_state, done))
-#         if self._size < self.capacity:
-#             self._size += 1
-
-#         if done:
-#             self.episode_starts.append(current_index + 1)
-
-#         # New transitions are given max priority to encourage exploration.
-#         max_priority = np.max(self.tree.tree[-self.tree.capacity :])
-#         if max_priority == 0:
-#             max_priority = 1.0
-#         self.tree.add(max_priority, None)  # Data is not stored in the tree
-
-#     def sample(
-#         self, batch_size: int
-#     ) -> Tuple[
-#         np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, list, np.ndarray
-#     ]:
-#         """
-#         Samples a batch of sequences from the buffer using prioritized sampling.
-
-#         Returns:
-#             A tuple containing stacked sequences of states, actions, rewards,
-#             next_states, dones, the indices of the sampled transitions in the SumTree,
-#             and the importance sampling weights.
-#         """
-#         if self._size < self.min_seq_span:
-#             return self._return_for_invalids()
-
-#         valid_starts = self._get_valid_starts()
-#         if not valid_starts:
-#             return self._return_for_invalids()
-
-#         temp_tree_map = {
-#             start: self.tree.tree[start + self.tree.capacity - 1]
-#             for start in valid_starts
-#         }
-#         valid_priorities = np.array(list(temp_tree_map.values()))
-#         valid_total_priority = np.sum(valid_priorities)
-
-#         if valid_total_priority == 0:
-#             return self._return_for_invalids()
-
-#         segment = valid_total_priority / batch_size
-#         self.beta = min(1.0, self.beta + self.beta_increment_per_sampling)
-
-#         sequences = []
-#         idxs = []
-#         priorities = []
-#         selected_starts = []
-
-#         for i in range(batch_size):
-#             s = random.uniform(i * segment, (i + 1) * segment)
-#             (idx, priority, start_idx) = self._get_from_valid(
-#                 s, valid_starts, temp_tree_map
-#             )
-
-#             priorities.append(priority)
-#             idxs.append(idx)
-#             selected_starts.append(start_idx)
-
-#         for start_idx in selected_starts:
-#             end_idx = start_idx + self.min_seq_span
-#             sequence = [
-#                 self.buffer[i] for i in range(start_idx, end_idx, self.seq_stride)
-#             ]
-#             sequences.append(sequence)
-
-#         batch = [list(zip(*seq)) for seq in sequences]
-#         states, actions, rewards, next_states, dones = zip(*batch)
-
-#         sampling_probabilities = np.array(priorities) / self.tree.total()
-#         weights = (self._size * sampling_probabilities) ** -self.beta
-#         weights /= weights.max()
-
-#         return (
-#             np.array(states, dtype=np.float32),
-#             np.array(actions, dtype=np.int64),
-#             np.array(rewards, dtype=np.float32),
-#             np.array(next_states, dtype=np.float32),
-#             np.array(dones, dtype=bool),
-#             idxs,
-#             np.array(weights, dtype=np.float32),
-#         )
-
-#     def update_priorities(self, idxs: list[int], errors: np.ndarray) -> None:
-#         """
-#         Updates the priorities of the sampled sequences.
-
-#         The priority of a sequence is determined by the TD error of its first transition.
-#         """
-#         priorities = (np.abs(errors) + self.epsilon) ** self.alpha
-#         for idx, priority in zip(idxs, priorities):
-#             self.tree.update(idx, priority)
-
-#     def _get_valid_starts(self) -> List[int]:
-#         """
-#         Computes the set of valid starting indices for sequences.
-
-#         A start index is valid if the entire sequence it initiates falls within the
-#         bounds of the replay buffer and does not cross an episode boundary.
-#         """
-#         all_possible_starts = set(range(self._size - self.min_seq_span + 1))
-#         invalid_starts: Set[int] = set()
-#         for episode_start_idx in self.episode_starts:
-#             start_of_invalid_range = episode_start_idx - self.min_seq_span + 1
-#             end_of_invalid_range = episode_start_idx
-#             for i in range(start_of_invalid_range, end_of_invalid_range):
-#                 if i >= 0:
-#                     invalid_starts.add(i)
-#         return list(all_possible_starts - invalid_starts)
-
-#     def _get_from_valid(
-#         self, s: float, valid_starts: List[int], temp_tree_map: dict
-#     ) -> tuple[int, float, int]:
-#         """
-#         Retrieves a sample from the set of valid start indices.
-#         """
-#         cumulative_priority = 0.0
-#         for start_idx in valid_starts:
-#             priority = temp_tree_map[start_idx]
-#             cumulative_priority += priority
-#             if cumulative_priority > s:
-#                 tree_idx = start_idx + self.tree.capacity - 1
-#                 return tree_idx, priority, start_idx
-#         last_start_idx = valid_starts[-1]
-#         tree_idx = last_start_idx + self.tree.capacity - 1
-#         priority = temp_tree_map[last_start_idx]
-#         return tree_idx, priority, last_start_idx
-
-#     def _return_for_invalids(self) -> Tuple[np.ndarray, ...]:
-#         """
-#         Returns empty numpy arrays with the correct shapes when sampling is not possible.
-#         """
-#         s_shape, a_shape = (0, self.seq_len, 0), (0, self.seq_len, 0)
-#         if self.buffer:
-#             s_shape = (0, self.seq_len, *np.array(self.buffer[0][0]).shape)
-#             a_shape = (0, self.seq_len, *np.array(self.buffer[0][1]).shape)
-
-#         return (
-#             np.empty(s_shape, dtype=np.float32),
-#             np.empty(a_shape, dtype=np.int64),
-#             np.empty((0, self.seq_len), dtype=np.float32),
-#             np.empty(s_shape, dtype=np.float32),
-#             np.empty((0, self.seq_len), dtype=bool),
-#             [],
-#             np.empty((0,), dtype=np.float32),
-#         )
-
-#     def __len__(self) -> int:
-#         """Returns the current number of transitions in the buffer."""
-#         return self._size
-
-#     @property
-#     def size(self) -> int:
-#         return self._size
 
 
 class ReployBufferFactory:
