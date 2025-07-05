@@ -3,6 +3,8 @@ from typing import Optional
 import numpy as np
 from pydantic import BaseModel
 
+from schema.config import BaseConfig
+
 
 class UpdateLoss(BaseModel):
     pass
@@ -111,7 +113,13 @@ class SingleEpisodeResult(BaseModel):
         return np.sum([loss.total_loss for loss in self.episode_losses])
 
     def __str__(self):
-        return f"ep={self.episode_number}, total_rewards={round(self.episode_total_reward, 2)}, episode_steps={self.episode_steps}, total_loss={round(self.episode_total_loss, 2)}, episode_elapsed_time={round(self.episode_elapsed_time, 2) if self.episode_elapsed_time is not None else None}"
+        return (
+            f"ep={self.episode_number}",
+            f"total_rewards={round(self.episode_total_reward, 2)}",
+            f"episode_steps={self.episode_steps}",
+            f"total_loss={round(self.episode_total_loss, 2)}",
+            f"episode_elapsed_time={round(self.episode_elapsed_time, 2) if self.episode_elapsed_time is not None else None}",
+        )
 
     def __repr__(self):
         return self.__str__()
@@ -148,10 +156,27 @@ class TotalTrainResult(BaseModel):
         return self.model_dump()
 
     def __str__(self):
-        return f"TotalTrainResult(total_episodes={self.total_episodes}, returns={self.returns}, losses={self.total_losses}, elapsed_times={self.elapsed_times}, total_steps={self.total_steps})"
+        return (
+            f"total_episodes={self.total_episodes}, "
+            f"returns={self.returns}, "
+            f"losses={self.total_losses}, "
+            f"elapsed_times={self.elapsed_times}, "
+            f"total_steps={self.total_steps}"
+        )
 
     def __repr__(self):
         return self.__str__()
+
+    def print_current_result_with_cumulative_result(
+        self, current_episode_result: SingleEpisodeResult, config: BaseConfig
+    ):
+        print(
+            f"ep:{current_episode_result.episode_number}/{config.episodes}, "
+            f"rewards:{round(current_episode_result.episode_total_reward, 2)}, "
+            f"steps:{round(current_episode_result.episode_steps)}/{round(self.total_steps)}, "
+            f"loss:{round(current_episode_result.episode_total_loss, 2)}, "
+            f"elapsed:{round(current_episode_result.episode_elapsed_time, 2) if current_episode_result.episode_elapsed_time is not None else None}s"
+        )
 
 
 class EvalResult(BaseModel):
@@ -222,7 +247,7 @@ class EvalResult(BaseModel):
 
     def __str__(self):
         return (
-            f"EvalResult(\n"
+            f"Evaluation Result(\n"
             f"  train_ep={self.train_episode_number},\n"
             f"  mean_score={self.avg_score:.3f},\n"
             f"  std_score={self.std_score:.3f},\n"

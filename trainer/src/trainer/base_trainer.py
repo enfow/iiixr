@@ -59,10 +59,7 @@ class BaseTrainer:
             )
         print(f"State dim: {self.state_dim}, Action dim: {self.action_dim}")
 
-        if config.model.model in ["ppo_seq", "ppo"]:
-            self.memory = None
-        else:
-            self.memory = ReployBufferFactory(self.config)
+        self.memory = ReployBufferFactory(self.config)
 
         self.state_history = deque(maxlen=self.config.model.seq_len)
         self.eval_state_history = deque(maxlen=self.config.model.seq_len)
@@ -148,8 +145,10 @@ class BaseTrainer:
             # log train result
             single_episode_result.episode_elapsed_time = elapsed_time
             single_episode_result.episode_number = self.train_episode_number
-            print(single_episode_result)
             self.total_train_result.update(single_episode_result)
+            self.total_train_result.print_current_result_with_cumulative_result(
+                single_episode_result, self.config
+            )
             log_result(single_episode_result, self.log_file)
 
             # evaluate
