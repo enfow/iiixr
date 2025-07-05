@@ -147,39 +147,6 @@ class SeqReplayBuffer(AbstractBuffer):
         return len(self.buffer)
 
 
-# Deprecated
-class PPOMemory(AbstractBuffer):
-    """
-    On-Policy Memory
-    """
-
-    def __init__(self):
-        self.states = []
-        self.actions = []
-        self.logprobs = []
-        self.rewards = []
-        self.dones = []
-
-    def store(self, state, action, logprob, reward, done):
-        self.states.append(state)
-        self.actions.append(action)
-        self.logprobs.append(logprob)
-        self.rewards.append(reward)
-        self.dones.append(done)
-
-    def clear(self):
-        self.states, self.actions, self.logprobs, self.rewards, self.dones = (
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-
-    def __len__(self):
-        return len(self.states)
-
-
 class SumTree:
     def __init__(self, capacity: int):
         self.capacity = capacity
@@ -216,77 +183,17 @@ class SumTree:
             else self._retrieve(right, s - self.tree[left])
         )
 
-    def get(self, s: float) -> tuple[int, float, int]:
+    def get(self, s: float) -> tuple[int, float, object]:
         idx = self._retrieve(0, s)
         dataIdx = idx - self.capacity + 1
-        return idx, self.tree[idx], dataIdx
+
+        return idx, self.tree[idx], self.data[dataIdx]
 
     def total(self) -> float:
         return self.tree[0]
 
     def __len__(self) -> int:
         return self._size
-
-
-# class SumTree(AbstractBuffer):
-#     """
-#     SumTree is a binary tree where each leaf node stores a priority,
-
-#     Note
-#     ----
-#     - each parent node stores the sum of the priorities of its children
-#     - the root node stores the sum of all priorities
-#     - the leaf nodes store the priorities of the experiences
-#     """
-
-#     def __init__(self, capacity: int):
-#         self.capacity = capacity
-#         self.tree = np.zeros(2 * capacity - 1)
-#         self.data = np.zeros(capacity, dtype=object)
-#         self.write = 0
-#         self._size = 0
-
-#     def _propagate(self, idx: int, change: float):
-#         parent = (idx - 1) // 2
-#         self.tree[parent] += change
-#         if parent != 0:
-#             self._propagate(parent, change)
-
-#     def update(self, idx: int, priority: float):
-#         change = priority - self.tree[idx]
-#         self.tree[idx] = priority
-#         self._propagate(idx, change)
-
-#     def add(self, priority: float, data: object):
-#         idx = self.write + self.capacity - 1
-#         self.data[self.write] = data
-#         self.update(idx, priority)
-
-#         self.write = (self.write + 1) % self.capacity
-#         self._size = min(self._size + 1, self.capacity)
-
-#     def _retrieve(self, idx: int, s: float) -> int:
-#         left = 2 * idx + 1
-#         right = left + 1
-
-#         if left >= len(self.tree):
-#             return idx
-
-#         if s <= self.tree[left]:
-#             return self._retrieve(left, s)
-#         else:
-#             return self._retrieve(right, s - self.tree[left])
-
-#     def get(self, s: float) -> tuple[int, float, object]:
-#         idx = self._retrieve(0, s)
-#         dataIdx = idx - self.capacity + 1
-#         return idx, self.tree[idx], self.data[dataIdx]
-
-#     def total(self) -> float:
-#         return self.tree[0]
-
-#     def __len__(self) -> int:
-#         return self._size
 
 
 class PrioritizedReplayBuffer(AbstractBuffer):
@@ -409,6 +316,7 @@ class PrioritizedReplayBuffer(AbstractBuffer):
                     idx, priority, data = self.tree.get(s_fallback)
                     if isinstance(data, tuple) and priority > 0:
                         break
+                print(f"retry_count: {retry_count}")
 
             priorities.append(priority)
             batch.append(data)
