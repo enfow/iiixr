@@ -7,6 +7,7 @@ from typing import Optional
 import gymnasium as gym
 import imageio
 import numpy as np
+from tqdm import tqdm
 
 from env.gym import GymEnvFactory
 from model.buffer import ReployBufferFactory
@@ -81,18 +82,60 @@ class BaseTrainer:
     def train_episode(self):
         raise NotImplementedError("Subclasses must implement this method")
 
-    def collect_initial_data(self, start_steps):
-        state, _ = self.env.reset()
-        for _ in range(start_steps):
-            action = self.env.action_space.sample()
-            next_state, reward, terminated, truncated, _ = self.env.step(action)
-            done = terminated or truncated
-            self.memory.push(state, action, reward, next_state, done)
-            state = next_state
-            if done:
-                state, _ = self.env.reset()
-                break
-        print(f"Collected {start_steps} initial data")
+    def collect_initial_data(self, start_steps: int):
+        if self.config.n_envs == 1:
+            print(
+                f"Collecting {start_steps} initial data points with {self.config.n_envs} parallel environments..."
+            )
+            state, _ = self.env.reset()
+            with tqdm(total=start_steps, desc="Collecting initial data") as pbar:
+                for _ in range(start_steps):
+                    action = self.env.action_space.sample()
+                    next_state, reward, terminated, truncated, _ = self.env.step(action)
+                    done = terminated or truncated
+                    self.memory.push(state, action, reward, next_state, done)
+                    state = next_state
+                    if done:
+                        state, _ = self.env.reset()
+                    pbar.update(1)
+
+        elif self.config.n_envs > 1:
+            print(
+                f"Collecting {start_steps} initial data points with {self.config.n_envs} parallel environments..."
+            )
+            states, _ = self.env.reset()
+
+            with tqdm(total=start_steps, desc="Collecting initial data") as pbar:
+                while len(self.memory) < start_steps:
+                    actions = self.env.action_space.sample()
+
+                    next_states, rewards, terminations, truncations, infos = (
+                        self.env.step(actions)
+                    )
+
+                    final_observations = infos.get("final_observation")
+
+                    for i in range(self.config.n_envs):
+                        if len(self.memory) >= start_steps:
+                            break
+
+                        done = terminations[i] or truncations[i]
+
+                        if done and final_observations is not None:
+                            real_next_state = final_observations[i]
+                        else:
+                            real_next_state = next_states[i]
+
+                        self.memory.push(
+                            states[i], actions[i], rewards[i], real_next_state, done
+                        )
+                        pbar.update(1)
+
+                    states = next_states
+        else:
+            raise ValueError(f"Invalid number of environments: {self.config.n_envs}")
+        print(f"Collected {start_steps} initial data points.")
+        return
 
     def _print_trainer_summary(self):
         # print env and model info
