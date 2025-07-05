@@ -8,6 +8,7 @@ Reference
 
 import copy
 from collections import deque
+from typing import Any, Dict
 
 import numpy as np
 import torch
@@ -25,7 +26,7 @@ N_TRANSFORMER_HEADS = 8
 class TD3SequentialTrainer(BaseTrainer):
     """
     A TD3 Trainer for sequential models that supports both standard and
-    prioritized experience replay (PER) for sequences.
+    prioritized replay, and can run on single or vectorized environments.
     """
 
     name = "td3_seq"
@@ -39,9 +40,10 @@ class TD3SequentialTrainer(BaseTrainer):
     ):
         super().__init__(env_name, config, save_dir)
         self.total_it = 0
+        self._reset_histories()
 
     def _init_models(self):
-        self.max_action = float(self.env.action_space.high[0])
+        self.max_action = float(self.env.action_space.high.flat[0])
 
         actor_class = None
         if self.config.model.embedding_type == ModelEmbeddingType.TRANSFORMER:
@@ -64,7 +66,6 @@ class TD3SequentialTrainer(BaseTrainer):
                 else {}
             ),
         ).to(self.config.device)
-
         self.critic = TD3Critic(
             self.state_dim,
             self.action_dim,
@@ -72,31 +73,43 @@ class TD3SequentialTrainer(BaseTrainer):
             n_layers=self.config.model.n_layers,
             use_layernorm=self.config.model.use_layernorm,
         ).to(self.config.device)
-
-        self.actor_target = copy.deepcopy(self.actor)
-        self.critic_target = copy.deepcopy(self.critic)
+        self.actor_target, self.critic_target = (
+            copy.deepcopy(self.actor),
+            copy.deepcopy(self.critic),
+        )
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.config.lr)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.config.lr)
 
-    def reset_episode(self):
-        self.state_history = deque(maxlen=self.config.model.seq_len)
+    def _reset_histories(self):
+        self.state_histories = [
+            deque(maxlen=self.config.model.seq_len) for _ in range(self.config.n_envs)
+        ]
 
-    def _create_state_sequence(self, state: np.ndarray) -> torch.FloatTensor:
-        self.state_history.append(state)
+    def _create_state_sequence(
+        self, state: np.ndarray, env_idx: int, to_tensor: bool = True
+    ) -> any:  # Returns Tensor or Numpy array
+        history = self.state_histories[env_idx]
+        history.append(state)
 
-        if len(self.state_history) < self.config.model.seq_len:
-            padding = [self.state_history[0]] * (
-                self.config.model.seq_len - len(self.state_history)
-            )
-            state_sequence_np = np.array(padding + list(self.state_history))
+        if len(history) < self.config.model.seq_len:
+            padding = [history[0]] * (self.config.model.seq_len - len(history))
+            state_sequence_np = np.array(padding + list(history))
         else:
-            state_sequence_np = np.array(self.state_history)
+            state_sequence_np = np.array(history)
 
-        return torch.FloatTensor(state_sequence_np).unsqueeze(0).to(self.config.device)
+        if to_tensor:
+            return (
+                torch.FloatTensor(state_sequence_np).unsqueeze(0).to(self.config.device)
+            )
+        return state_sequence_np  # Return NumPy array for batching
 
-    def select_action(self, state: np.ndarray, eval_mode: bool = False) -> dict:
+    def select_action(
+        self, state: np.ndarray, env_idx: int = 0, eval_mode: bool = False
+    ) -> Dict[str, Any]:
+        # This function is now only used for the single-environment case
         with torch.no_grad():
-            state_sequence = self._create_state_sequence(state)
+            # The `to_tensor=True` is the default
+            state_sequence = self._create_state_sequence(state, env_idx)
             action = self.actor(state_sequence).cpu().data.numpy().flatten()
 
         if not eval_mode:
@@ -111,7 +124,6 @@ class TD3SequentialTrainer(BaseTrainer):
     def update(self) -> TD3UpdateLoss:
         if len(self.memory) < self.config.batch_size:
             return None
-
         self.total_it += 1
 
         if self.memory.is_per:
@@ -149,21 +161,23 @@ class TD3SequentialTrainer(BaseTrainer):
             next_action = (target_action + noise).clamp(
                 -self.max_action, self.max_action
             )
-
             current_next_state = next_state_seqs[:, -1]
             target_q1, target_q2 = self.critic_target(current_next_state, next_action)
             target_q = torch.min(target_q1, target_q2)
             target_q = reward + (~done) * self.config.gamma * target_q
 
-        current_state = state_seqs[:, -1]
-        current_action = action_seqs[:, -1]
+        current_state, current_action = state_seqs[:, -1], action_seqs[:, -1]
         current_q1, current_q2 = self.critic(current_state, current_action)
 
         if self.memory.is_per:
             td_errors = torch.abs(current_q1 - target_q)
-            critic_loss_q1 = F.mse_loss(current_q1, target_q, reduction="none")
-            critic_loss_q2 = F.mse_loss(current_q2, target_q, reduction="none")
-            critic_loss = (weights * (critic_loss_q1 + critic_loss_q2)).mean()
+            critic_loss = (
+                weights
+                * (
+                    F.mse_loss(current_q1, target_q, reduction="none")
+                    + F.mse_loss(current_q2, target_q, reduction="none")
+                )
+            ).mean()
             self.memory.update_priorities(
                 idxs, td_errors.detach().cpu().numpy().flatten()
             )
@@ -180,11 +194,9 @@ class TD3SequentialTrainer(BaseTrainer):
         if self.total_it % self.config.policy_delay == 0:
             actor_action = self.actor(state_seqs)
             actor_loss = -self.critic.get_q1_value(current_state, actor_action).mean()
-
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
             self.actor_optimizer.step()
-
             for param, target_param in zip(
                 self.critic.parameters(), self.critic_target.parameters()
             ):
@@ -201,26 +213,30 @@ class TD3SequentialTrainer(BaseTrainer):
                 )
 
         return TD3UpdateLoss(
-            actor_loss=actor_loss.item() if actor_loss is not None else 0.0,
+            actor_loss=actor_loss.item() if actor_loss else 0.0,
             critic_loss=critic_loss.item(),
         )
 
     def train_episode(self) -> SingleEpisodeResult:
+        if self.config.n_envs > 1:
+            return self._train_vectorized()
+        else:
+            return self._train_single_episode()
+
+    def _train_single_episode(self) -> SingleEpisodeResult:
         state, _ = self.env.reset()
-        self.reset_episode()
+        self.state_histories[0].clear()
 
         done = False
         episode_rewards, episode_losses, step = [], [], 0
 
         while not done and step < self.config.max_steps:
-            action_info = self.select_action(state)
+            action_info = self.select_action(state, env_idx=0)
             action = action_info["action"]
-
             next_state, reward, terminated, truncated, _ = self.env.step(action)
             done = terminated or truncated
 
             self.memory.push(state, action, reward, next_state, done)
-
             state = next_state
             episode_rewards.append(reward)
             step += 1
@@ -235,6 +251,119 @@ class TD3SequentialTrainer(BaseTrainer):
             episode_steps=step,
             episode_losses=episode_losses,
         )
+
+    def _train_vectorized(self) -> SingleEpisodeResult:
+        states, _ = self.env.reset()
+        self._reset_histories()
+
+        total_rewards = np.zeros(self.config.n_envs)
+        episode_losses = []
+
+        for step in range(self.config.max_steps):
+            state_sequences_np = [
+                self._create_state_sequence(state, i, to_tensor=False)
+                for i, state in enumerate(states)
+            ]
+
+            state_sequences_tensor = torch.FloatTensor(np.array(state_sequences_np)).to(
+                self.config.device
+            )
+
+            with torch.no_grad():
+                actions_tensor = self.actor(state_sequences_tensor)
+
+            actions = actions_tensor.cpu().numpy()
+            actions += np.random.normal(
+                0, self.max_action * self.config.exploration_noise, size=actions.shape
+            )
+            actions = np.clip(actions, -self.max_action, self.max_action)
+
+            next_states, rewards, terminations, truncations, infos = self.env.step(
+                actions
+            )
+            total_rewards += rewards
+            final_observations = infos.get("final_observation")
+
+            for i in range(self.config.n_envs):
+                done = terminations[i] or truncations[i]
+                if done:
+                    real_next_state = (
+                        final_observations[i]
+                        if final_observations is not None
+                        else next_states[i]
+                    )
+                    self.state_histories[i].clear()
+                else:
+                    real_next_state = next_states[i]
+
+                self.memory.push(
+                    states[i], actions[i], rewards[i], real_next_state, done
+                )
+
+            states = next_states
+
+            if len(self.memory) >= self.config.batch_size:
+                update_result = self.update()
+                if update_result is not None:
+                    episode_losses.append(update_result)
+
+        return SingleEpisodeResult(
+            episode_total_reward=np.sum(total_rewards),
+            episode_steps=step + 1,
+            episode_losses=episode_losses,
+        )
+
+    # def _train_vectorized(self) -> SingleEpisodeResult:
+    #     states, _ = self.env.reset()
+    #     self._reset_histories()
+
+    #     total_rewards = np.zeros(self.config.n_envs)
+    #     episode_losses = []
+
+    #     for step in range(self.config.max_steps):
+    #         actions = np.array(
+    #             [
+    #                 self.select_action(state, env_idx=i)["action"]
+    #                 for i, state in enumerate(states)
+    #             ]
+    #         )
+
+    #         next_states, rewards, terminations, truncations, infos = self.env.step(
+    #             actions
+    #         )
+    #         total_rewards += rewards
+
+    #         final_observations = infos.get("final_observation")
+
+    #         for i in range(self.config.n_envs):
+    #             done = terminations[i] or truncations[i]
+
+    #             if done:
+    #                 real_next_state = (
+    #                     final_observations[i]
+    #                     if final_observations is not None
+    #                     else next_states[i]
+    #                 )
+    #                 self.state_histories[i].clear()
+    #             else:
+    #                 real_next_state = next_states[i]
+
+    #             self.memory.push(
+    #                 states[i], actions[i], rewards[i], real_next_state, done
+    #             )
+
+    #         states = next_states
+
+    #         if len(self.memory) >= self.config.batch_size:
+    #             update_result = self.update()
+    #             if update_result is not None:
+    #                 episode_losses.append(update_result)
+
+    #     return SingleEpisodeResult(
+    #         episode_total_reward=np.sum(total_rewards),
+    #         episode_steps=step + 1,
+    #         episode_losses=episode_losses,
+    #     )
 
     def save_model(self):
         torch.save(
