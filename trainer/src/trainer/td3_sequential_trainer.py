@@ -8,7 +8,7 @@ Reference
 
 import copy
 from collections import deque
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 import numpy as np
 import torch
@@ -87,7 +87,7 @@ class TD3SequentialTrainer(BaseTrainer):
 
     def _create_state_sequence(
         self, state: np.ndarray, env_idx: int, to_tensor: bool = True
-    ) -> any:  # Returns Tensor or Numpy array
+    ) -> Union[torch.Tensor, np.ndarray]:
         history = self.state_histories[env_idx]
         history.append(state)
 
@@ -101,14 +101,12 @@ class TD3SequentialTrainer(BaseTrainer):
             return (
                 torch.FloatTensor(state_sequence_np).unsqueeze(0).to(self.config.device)
             )
-        return state_sequence_np  # Return NumPy array for batching
+        return state_sequence_np
 
     def select_action(
         self, state: np.ndarray, env_idx: int = 0, eval_mode: bool = False
     ) -> Dict[str, Any]:
-        # This function is now only used for the single-environment case
         with torch.no_grad():
-            # The `to_tensor=True` is the default
             state_sequence = self._create_state_sequence(state, env_idx)
             action = self.actor(state_sequence).cpu().data.numpy().flatten()
 
@@ -312,58 +310,6 @@ class TD3SequentialTrainer(BaseTrainer):
             episode_steps=step + 1,
             episode_losses=episode_losses,
         )
-
-    # def _train_vectorized(self) -> SingleEpisodeResult:
-    #     states, _ = self.env.reset()
-    #     self._reset_histories()
-
-    #     total_rewards = np.zeros(self.config.n_envs)
-    #     episode_losses = []
-
-    #     for step in range(self.config.max_steps):
-    #         actions = np.array(
-    #             [
-    #                 self.select_action(state, env_idx=i)["action"]
-    #                 for i, state in enumerate(states)
-    #             ]
-    #         )
-
-    #         next_states, rewards, terminations, truncations, infos = self.env.step(
-    #             actions
-    #         )
-    #         total_rewards += rewards
-
-    #         final_observations = infos.get("final_observation")
-
-    #         for i in range(self.config.n_envs):
-    #             done = terminations[i] or truncations[i]
-
-    #             if done:
-    #                 real_next_state = (
-    #                     final_observations[i]
-    #                     if final_observations is not None
-    #                     else next_states[i]
-    #                 )
-    #                 self.state_histories[i].clear()
-    #             else:
-    #                 real_next_state = next_states[i]
-
-    #             self.memory.push(
-    #                 states[i], actions[i], rewards[i], real_next_state, done
-    #             )
-
-    #         states = next_states
-
-    #         if len(self.memory) >= self.config.batch_size:
-    #             update_result = self.update()
-    #             if update_result is not None:
-    #                 episode_losses.append(update_result)
-
-    #     return SingleEpisodeResult(
-    #         episode_total_reward=np.sum(total_rewards),
-    #         episode_steps=step + 1,
-    #         episode_losses=episode_losses,
-    #     )
 
     def save_model(self):
         torch.save(
