@@ -179,6 +179,7 @@ class BaseTrainer:
         if hasattr(self.config, "start_steps") and self.config.start_steps > 0:
             self.collect_initial_data(self.config.start_steps)
 
+        print("Start training")
         for ep in range(self.config.episodes):
             self.train_episode_number = ep + 1
             start_time = time.time()
