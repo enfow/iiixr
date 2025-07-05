@@ -331,8 +331,6 @@ class PrioritizedReplayBuffer(AbstractBuffer):
         self.beta = beta_start
         self.beta_increment_per_sampling = (1.0 - beta_start) / beta_frames
         self.epsilon = 1e-5
-
-        # N-step learning parameters
         self.n_steps = n_steps
         self.gamma = gamma
         self.n_step_buffer = deque(maxlen=self.n_steps)
@@ -382,42 +380,48 @@ class PrioritizedReplayBuffer(AbstractBuffer):
         priorities = []
 
         if self.tree._size < batch_size:
-            return None
+            empty_batch = (
+                np.array([]),
+                np.array([]),
+                np.array([]),
+                np.array([]),
+                np.array([]),
+                [],
+                np.array([]),
+            )
+            return empty_batch
 
         segment = self.tree.total() / batch_size
         self.beta = min(1.0, self.beta + self.beta_increment_per_sampling)
 
         for i in range(batch_size):
-            s = random.uniform(i * segment, (i + 1) * segment)
-            idx, priority, data = self.tree.get(s)
-
             retry_count = 0
-            while priority == 0:
-                if retry_count > 10:
-                    s = random.uniform(0, self.tree.total())
-                    idx, priority, data = self.tree.get(s)
-                    if priority != 0:
-                        break
-                    else:
-                        print(
-                            "Warning: Failed to sample a non-zero priority item after fallback."
-                        )
-                        break  # Exit the while loop
-
+            while True:
                 s = random.uniform(i * segment, (i + 1) * segment)
                 idx, priority, data = self.tree.get(s)
+
+                if isinstance(data, tuple) and priority > 0:
+                    break
+
                 retry_count += 1
+                if retry_count > 10:
+                    s_fallback = random.uniform(0, self.tree.total())
+                    idx, priority, data = self.tree.get(s_fallback)
+                    if isinstance(data, tuple) and priority > 0:
+                        break
 
             priorities.append(priority)
             batch.append(data)
             idxs.append(idx)
 
         sampling_probabilities = np.array(priorities) / self.tree.total()
-
         weights = (self.tree._size * sampling_probabilities) ** -self.beta
-        weights /= weights.max()
+
+        if weights.size > 0:
+            weights /= weights.max()
 
         states, actions, rewards, next_states, dones = map(np.stack, zip(*batch))
+
         return (
             states,
             actions,
@@ -429,15 +433,11 @@ class PrioritizedReplayBuffer(AbstractBuffer):
         )
 
     def update_priorities(self, idxs: list[int], errors: list[float]):
-        """
-        Updates the priorities of sampled experiences after a learning step.
-        """
         for idx, error in zip(idxs, errors):
             priority = self._get_priority(error)
             self.tree.update(idx, priority)
 
     def __len__(self) -> int:
-        """Returns the number of N-step transitions stored in the buffer."""
         return len(self.tree)
 
     @property
