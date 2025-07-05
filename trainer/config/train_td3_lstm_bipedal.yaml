@@ -7,12 +7,12 @@ model:
   n_layers: 2
   embedding_type: "lstm"  # Options: fc, lstm, transformer
   use_layernorm: true
-  seq_len: 2
+  seq_len: 32
   seq_stride: 1
 
 buffer:
   buffer_size: 1000000
-  buffer_type: "sequential"
+  buffer_type: "per_sequential"
   alpha: 0.6
   beta_start: 0.4
   beta_frames: 100000
@@ -20,25 +20,23 @@ buffer:
 # Training parameters
 seed: 42
 episodes: 5000
-max_steps: 2000
+max_steps: 1600
 lr: 3e-4
 gamma: 0.99
 batch_size: 256
 start_steps: 1000
+n_envs: 2
 
 # Device settings
 device: "cpu"  # Options: cpu, cuda
 
 # Evaluation settings
 eval: true
-eval_period: 1
-eval_episodes: 1
+eval_period: 20
+eval_episodes: 10
 
 # Save settings
 save_dir: "results"
-
-# target update interval
-target_update_interval: 8000
 
 # TD3 specific parameters
 tau: 0.005

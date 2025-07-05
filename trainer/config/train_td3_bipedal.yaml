@@ -1,11 +1,12 @@
-# Training Configuration File for TD3 on BipedalWalker
-# Environment settings
 env: "BipedalWalkerHardcore-v3"
 model:
   model: "td3"
-  hidden_dim: 512
-  n_layers: 3
-  embedding_type: "fc"  # Options: fc, transformer
+  hidden_dim: 256
+  n_layers: 2
+  embedding_type: "fc"
+  seq_len: 1
+  seq_stride: 1
+  use_layernorm: false
 
 buffer:
   buffer_size: 1000000
@@ -13,6 +14,7 @@ buffer:
   alpha: 0.6
   beta_start: 0.4
   beta_frames: 100000
+  per_n_steps: 3
 
 # Training parameters
 seed: 42
