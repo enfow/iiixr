@@ -16,6 +16,9 @@ class BufferType(str, Enum):
     DEFAULT = "default"  # simple replay buffer
     SEQUENTIAL = "sequential"  # sequence replay buffer
     PER = "per"  # prioritized experience replay
+    PER_SEQUENTIAL = (
+        "per_sequential"  # prioritized experience replay for sequential data
+    )
 
 
 class ModelConfig(BaseModel):
@@ -24,6 +27,8 @@ class ModelConfig(BaseModel):
     hidden_dim: int = 256
     n_layers: int = 3
     embedding_type: ModelEmbeddingType = ModelEmbeddingType.FC
+    seq_len: int = 1
+    seq_stride: int = 1
     use_layernorm: bool = False
 
     @classmethod
@@ -38,9 +43,7 @@ class BufferConfig(BaseModel):
     alpha: float = 0.6
     beta_start: float = 0.4
     beta_frames: int = 100000
-    # sequence length (if use transformer or RNN)
-    seq_len: int = 1
-    seq_stride: int = 1
+    # Multi-step learning
     per_n_steps: int = 3
 
     @classmethod
@@ -60,6 +63,7 @@ class BaseConfig(BaseModel):
     # env
     env: str = None
     eval_env: str = None
+    n_envs: int = 1  # if use multi-env
     state_dim: Optional[int] = None
     action_dim: Optional[int] = None
     is_discrete: Optional[bool] = None
@@ -69,9 +73,48 @@ class BaseConfig(BaseModel):
     eval: bool = True
     eval_period: int = 10
     eval_episodes: int = 10
+    # curriculum
+    curriculum_threshold: Optional[float] = None
+    # exploration noise
+    start_exploration_noise: float = 0.2
+    end_exploration_noise: float = 0.2  # default is no decay
+    exploration_noise_decay_episodes: int = 1000
 
     @classmethod
     def from_dict(cls, config: dict):
+        # Handle nested model config
+        if "model" in config and isinstance(config["model"], dict):
+            # If model is a dict, it contains model-specific config
+            model_config = config["model"]
+            # Extract model name if present
+            model_name = model_config.get("model")
+            if model_name:
+                config["model"] = model_name
+            # Create ModelConfig instance
+            config["model"] = ModelConfig.from_dict(model_config)
+        elif "model" in config and isinstance(config["model"], str):
+            # If model is a string, create ModelConfig with just the model name
+            model_name = config["model"]
+            config["model"] = ModelConfig(model=model_name)
+
+        if "buffer" in config and isinstance(config["buffer"], dict):
+            buffer_config = config["buffer"]
+            config["buffer"] = BufferConfig.from_dict(buffer_config)
+        elif "buffer" in config and isinstance(config["buffer"], str):
+            config["buffer"] = BufferConfig(
+                buffer_type=BufferType.DEFAULT,
+                buffer_size=config.get("buffer_size", 1000000),
+                alpha=config.get("alpha", 0.6),
+                beta_start=config.get("beta_start", 0.4),
+                beta_frames=config.get("beta_frames", 100000),
+            )
+
+        if "start_exploration_noise" not in config and "exploration_noise" in config:
+            config["start_exploration_noise"] = config["exploration_noise"]
+            config["end_exploration_noise"] = config["exploration_noise"]
+            config["exploration_noise_decay_episodes"] = config["episodes"]
+            del config["exploration_noise"]
+
         cls._check_validity(config)
         cls._check_device(config)
         return cls(**config)
@@ -79,64 +122,40 @@ class BaseConfig(BaseModel):
     @staticmethod
     def _check_validity(config: dict):
         model_config = config["model"]
-        buffer_config = config["buffer"]
-        if "model" in config and isinstance(model_config, dict):
-            model_config = config["model"]
-            model_name = model_config.get("model")
-            if model_name:
-                model_config["model"] = model_name
-            # Create ModelConfig instance
-            model_config = ModelConfig.from_dict(model_config)
-        elif "model" in config and isinstance(model_config, str):
-            # If model is a string, create ModelConfig with just the model name
-            model_name = config["model"]
-            model_config = ModelConfig(model=model_name)
+        buffer_config = config.get("buffer", BufferConfig())
 
-        if "buffer" in config and isinstance(buffer_config, dict):
-            # when buffer is a dict, it contains buffer-specific config
-            buffer_config = config["buffer"]
+        # Ensure we have proper config objects
+        if not isinstance(model_config, ModelConfig):
+            raise ValueError("Model config must be a ModelConfig instance")
+        if not isinstance(buffer_config, BufferConfig):
+            raise ValueError("Buffer config must be a BufferConfig instance")
 
-            if config["buffer"]["buffer_type"] == "sequential":
-                if config["buffer"]["seq_len"] == 1:
-                    raise ValueError(
-                        "seq_len must be greater than 1 for sequential buffer"
-                    )
-
-            buffer_config = BufferConfig.from_dict(buffer_config)
-
-        elif "buffer" in config and isinstance(buffer_config, str):
-            # when buffer is a string, create BufferConfig with default values (old)
-            buffer_config = BufferConfig(
-                buffer_type=BufferType.DEFAULT,
-                buffer_size=config.get("buffer_size", 1000000),
-                seq_len=config.get("seq_len", 1),
-                alpha=config.get("alpha", 0.6),
-                beta_start=config.get("beta_start", 0.4),
-                beta_frames=config.get("beta_frames", 100000),
-            )
+        if buffer_config.buffer_type == BufferType.SEQUENTIAL:
+            if model_config.seq_len == 1:
+                raise ValueError("seq_len must be greater than 1 for sequential buffer")
 
         if (
-            model_config.model not in ["ppo", "td3", "td3_seq"]
+            model_config.model not in ["ppo", "td3", "td3_seq", "ppo_seq"]
             and model_config.use_layernorm
         ):
             raise ValueError(
-                "currently, use_layernorm is only supported for ppo, td3, and td3_seq"
+                "currently, use_layernorm is only supported for ppo, td3, td3_seq, and ppo_seq"
             )
-
-        # check if the config is valid
-        if model_config.embedding_type == ModelEmbeddingType.TRANSFORMER:
-            if buffer_config.buffer_type == BufferType.PER:
-                raise ValueError("PER is not supported for transformer")
-            if buffer_config.seq_len == 1:
-                raise ValueError("seq_len must be greater than 1 for transformer")
-
         if model_config.model == "td3_seq":
             if buffer_config.buffer_type == BufferType.PER:
                 raise ValueError("PER is not supported for td3_seq")
-            if buffer_config.seq_len == 1:
+            if model_config.seq_len == 1:
                 raise ValueError("seq_len must be greater than 1 for td3_seq")
             if model_config.embedding_type == ModelEmbeddingType.FC:
                 raise ValueError("fc is not supported for td3_seq")
+
+        if model_config.model == "ppo_seq":
+            if model_config.embedding_type == ModelEmbeddingType.FC:
+                raise ValueError("fc is not supported for ppo_seq")
+            if buffer_config.buffer_type == BufferType.PER:
+                raise ValueError("PER is not supported for ppo_seq")
+            if model_config.seq_len == 1:
+                raise ValueError("seq_len must be greater than 1 for ppo_seq")
 
     @staticmethod
     def _check_device(config: dict):
@@ -164,13 +183,14 @@ class PPOConfig(BaseConfig):
     entropy_coef: float = 0.01
     gae: bool = False
     gae_lambda: float = 0.95
+    max_grad_norm: float = 0.5
 
 
 class SACConfig(BaseConfig):
     tau: float = 0.005
     entropy_coef: float = 1.0
     start_steps: int = 10000
-    target_update_interval: int = 8000
+    policy_update_interval: int = 2
 
 
 class RainbowDQNConfig(BaseConfig):
@@ -211,8 +231,13 @@ class TD3Config(BaseConfig):
     policy_delay: int = 2
     policy_noise: float = 0.2
     noise_clip: float = 0.5
-    exploration_noise: float = 0.1
     start_steps: int = 10000
+
+
+class TD3ForkConfig(TD3Config):
+    fork_alpha: float = 0.5
+    fork_hidden_dim: int = 256
+    fork_n_layers: int = 2
 
 
 class EvalConfig:

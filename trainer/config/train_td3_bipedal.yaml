@@ -1,40 +1,42 @@
-# Training Configuration File for TD3 on BipedalWalker
-# Environment settings
 env: "BipedalWalkerHardcore-v3"
 model:
   model: "td3"
-  hidden_dim: 512
-  n_layers: 4
-  embedding_type: "fc"  # Options: fc, transformer
+  hidden_dim: 256
+  n_layers: 2
+  embedding_type: "fc"
+  seq_len: 1
+  seq_stride: 1
+  use_layernorm: false
 
 buffer:
   buffer_size: 1000000
-  buffer_type: "default"
-  seq_len: 1
+  buffer_type: "per"
+  alpha: 0.6
+  beta_start: 0.4
+  beta_frames: 100000
+  per_n_steps: 3
 
 # Training parameters
 seed: 42
-episodes: 5000
-max_steps: 2000
+episodes: 20000
+max_steps: 1600
 lr: 3e-4
 gamma: 0.99
 buffer_size: 1000000
-batch_size: 256
-start_steps: 25000
+batch_size: 512
+start_steps: 30000
 
 # Device settings
 device: "cpu"  # Options: cpu, cuda
 
 # Evaluation settings
 eval: true
-eval_period: 10
+eval_env: "BipedalWalkerHardcore-v3"
+eval_period: 20
 eval_episodes: 10
 
 # Save settings
 save_dir: "results"
-
-# target update interval
-target_update_interval: 8000
 
 # TD3 specific parameters
 tau: 0.005

@@ -15,7 +15,22 @@ import numpy as np
 from schema.config import BaseConfig, BufferType
 
 
-class ReplayBuffer:
+class AbstractBuffer:
+    def push(self, state, action, reward, next_state, done):
+        raise NotImplementedError
+
+    def sample(self, batch_size: int):
+        raise NotImplementedError
+
+    @property
+    def size(self) -> int:
+        raise NotImplementedError
+
+
+class ReplayBuffer(AbstractBuffer):
+    is_per = False
+    is_sequential = False
+
     def __init__(self, capacity: int):
         self.buffer = deque(maxlen=capacity)
 
@@ -31,7 +46,10 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
-class SeqReplayBuffer:
+class SeqReplayBuffer(AbstractBuffer):
+    is_per = False
+    is_sequential = True
+
     def __init__(self, capacity: int, seq_len: int, seq_stride: int = 1):
         self.buffer = deque(maxlen=capacity)
         self.seq_len = seq_len
@@ -57,11 +75,11 @@ class SeqReplayBuffer:
             self.episode_starts.append(current_index + 1)
 
     def sample(self, batch_size: int) -> Tuple[np.ndarray, ...]:
+        print("sample")
         if len(self.buffer) < self.min_seq_span:
             return self._return_for_invalids()
 
         valid_starts = self._get_valid_starts()
-
         if not valid_starts:
             return self._return_for_invalids()
 
@@ -79,7 +97,6 @@ class SeqReplayBuffer:
             ]
             sequences.append(sequence)
         batch = [list(zip(*seq)) for seq in sequences]
-
         states, actions, rewards, next_states, dones = zip(*batch)
 
         # Stack into final numpy arrays.
@@ -124,57 +141,18 @@ class SeqReplayBuffer:
     def __len__(self) -> int:
         return len(self.buffer)
 
-
-# Deprecated
-class PPOMemory:
-    """
-    On-Policy Memory
-    """
-
-    def __init__(self):
-        self.states = []
-        self.actions = []
-        self.logprobs = []
-        self.rewards = []
-        self.dones = []
-
-    def store(self, state, action, logprob, reward, done):
-        self.states.append(state)
-        self.actions.append(action)
-        self.logprobs.append(logprob)
-        self.rewards.append(reward)
-        self.dones.append(done)
-
-    def clear(self):
-        self.states, self.actions, self.logprobs, self.rewards, self.dones = (
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-
-    def __len__(self):
-        return len(self.states)
+    @property
+    def size(self) -> int:
+        return len(self.buffer)
 
 
 class SumTree:
-    """
-    SumTree is a binary tree where each leaf node stores a priority,
-
-    Note
-    ----
-    - each parent node stores the sum of the priorities of its children
-    - the root node stores the sum of all priorities
-    - the leaf nodes store the priorities of the experiences
-    """
-
     def __init__(self, capacity: int):
         self.capacity = capacity
         self.tree = np.zeros(2 * capacity - 1)
         self.data = np.zeros(capacity, dtype=object)
         self.write = 0
-        self.size = 0
+        self._size = 0
 
     def _propagate(self, idx: int, change: float):
         parent = (idx - 1) // 2
@@ -191,35 +169,33 @@ class SumTree:
         idx = self.write + self.capacity - 1
         self.data[self.write] = data
         self.update(idx, priority)
-
         self.write = (self.write + 1) % self.capacity
-        self.size = min(self.size + 1, self.capacity)
+        self._size = min(self._size + 1, self.capacity)
 
     def _retrieve(self, idx: int, s: float) -> int:
-        left = 2 * idx + 1
-        right = left + 1
-
+        left, right = 2 * idx + 1, 2 * idx + 2
         if left >= len(self.tree):
             return idx
+        return (
+            self._retrieve(left, s)
+            if s <= self.tree[left]
+            else self._retrieve(right, s - self.tree[left])
+        )
 
-        if s <= self.tree[left]:
-            return self._retrieve(left, s)
-        else:
-            return self._retrieve(right, s - self.tree[left])
-
-    def get(self, s: float) -> tuple[int, float, object]:
+    def get(self, s: float) -> tuple[int, float, int]:
         idx = self._retrieve(0, s)
         dataIdx = idx - self.capacity + 1
-        return idx, self.tree[idx], self.data[dataIdx]
+
+        return idx, self.tree[idx], dataIdx
 
     def total(self) -> float:
         return self.tree[0]
 
     def __len__(self) -> int:
-        return self.size
+        return self._size
 
 
-class PrioritizedReplayBuffer:
+class PrioritizedReplayBuffer(AbstractBuffer):
     """
     Prioritized Replay Buffer (PER) with N-step returns.
 
@@ -244,6 +220,9 @@ class PrioritizedReplayBuffer:
         The discount factor.
     """
 
+    is_per = True
+    is_sequential = False
+
     def __init__(
         self,
         capacity: int,
@@ -258,8 +237,6 @@ class PrioritizedReplayBuffer:
         self.beta = beta_start
         self.beta_increment_per_sampling = (1.0 - beta_start) / beta_frames
         self.epsilon = 1e-5
-
-        # N-step learning parameters
         self.n_steps = n_steps
         self.gamma = gamma
         self.n_step_buffer = deque(maxlen=self.n_steps)
@@ -308,43 +285,50 @@ class PrioritizedReplayBuffer:
         idxs = []
         priorities = []
 
-        if self.tree.size < batch_size:
-            return None
+        if self.tree._size < batch_size:
+            empty_batch = (
+                np.array([]),
+                np.array([]),
+                np.array([]),
+                np.array([]),
+                np.array([]),
+                [],
+                np.array([]),
+            )
+            return empty_batch
 
         segment = self.tree.total() / batch_size
         self.beta = min(1.0, self.beta + self.beta_increment_per_sampling)
 
         for i in range(batch_size):
-            s = random.uniform(i * segment, (i + 1) * segment)
-            idx, priority, data = self.tree.get(s)
-
             retry_count = 0
-            while priority == 0:
-                if retry_count > 10:
-                    s = random.uniform(0, self.tree.total())
-                    idx, priority, data = self.tree.get(s)
-                    if priority != 0:
-                        break
-                    else:
-                        print(
-                            "Warning: Failed to sample a non-zero priority item after fallback."
-                        )
-                        break  # Exit the while loop
-
+            while True:
                 s = random.uniform(i * segment, (i + 1) * segment)
                 idx, priority, data = self.tree.get(s)
+
+                if isinstance(data, tuple) and priority > 0:
+                    break
+
                 retry_count += 1
+                if retry_count > 10:
+                    s_fallback = random.uniform(0, self.tree.total())
+                    idx, priority, data = self.tree.get(s_fallback)
+                    if isinstance(data, tuple) and priority > 0:
+                        break
+                print(f"retry_count: {retry_count}")
 
             priorities.append(priority)
             batch.append(data)
             idxs.append(idx)
 
         sampling_probabilities = np.array(priorities) / self.tree.total()
+        weights = (self.tree._size * sampling_probabilities) ** -self.beta
 
-        weights = (self.tree.size * sampling_probabilities) ** -self.beta
-        weights /= weights.max()
+        if weights.size > 0:
+            weights /= weights.max()
 
         states, actions, rewards, next_states, dones = map(np.stack, zip(*batch))
+
         return (
             states,
             actions,
@@ -356,20 +340,182 @@ class PrioritizedReplayBuffer:
         )
 
     def update_priorities(self, idxs: list[int], errors: list[float]):
-        """
-        Updates the priorities of sampled experiences after a learning step.
-        """
         for idx, error in zip(idxs, errors):
             priority = self._get_priority(error)
             self.tree.update(idx, priority)
 
     def __len__(self) -> int:
-        """Returns the number of N-step transitions stored in the buffer."""
         return len(self.tree)
+
+    @property
+    def size(self) -> int:
+        return self.tree._size
+
+
+class SequentialPrioritizedReplayBuffer(AbstractBuffer):
+    is_per = True
+    is_sequential = True
+
+    def __init__(
+        self,
+        capacity: int,
+        seq_len: int,
+        alpha: float = 0.6,
+        beta_start: float = 0.4,
+        beta_frames: int = 100000,
+        seq_stride: int = 1,
+    ):
+        self.buffer = deque(maxlen=capacity)
+        self.capacity = capacity
+        self.seq_len = seq_len
+        self.seq_stride = seq_stride
+        self.min_seq_span = (self.seq_len - 1) * self.seq_stride + 1
+        self.tree = SumTree(capacity)
+        self.alpha = alpha
+        self.beta = beta_start
+        self.beta_increment_per_sampling = (1.0 - beta_start) / beta_frames
+        self.epsilon = 1e-5
+        self.episode_starts: List[int] = [0]
+        self._size = 0
+
+    def push(self, state, action, reward, next_state, done: bool) -> None:
+        if self._size == self.capacity:
+            if self.episode_starts and self.episode_starts[0] == 0:
+                self.episode_starts.pop(0)
+            self.episode_starts = [i - 1 for i in self.episode_starts]
+
+        self.buffer.append((state, action, reward, next_state, done))
+        if self._size < self.capacity:
+            self._size += 1
+
+        if done:
+            self.episode_starts.append(len(self.buffer))
+
+        max_priority = (
+            np.max(self.tree.tree[-self.tree.capacity :]) if self._size > 1 else 1.0
+        )
+        if max_priority == 0:
+            max_priority = 1.0
+
+        self.tree.add(max_priority, None)
+
+    def sample(
+        self, batch_size: int
+    ) -> Tuple[
+        np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, list, np.ndarray
+    ]:
+        if self._size < self.min_seq_span:
+            return self._return_for_invalids()
+
+        valid_starts = self._get_valid_starts()
+        if not valid_starts:
+            return self._return_for_invalids()
+        valid_starts_set = set(valid_starts)
+
+        sequences, idxs, priorities = [], [], []
+        segment = self.tree.total() / batch_size
+        self.beta = min(1.0, self.beta + self.beta_increment_per_sampling)
+
+        for i in range(batch_size):
+            start_idx = -1
+            retry_count = 0
+            while start_idx not in valid_starts_set:
+                s = random.uniform(i * segment, (i + 1) * segment)
+                idx, priority, start_idx = self.tree.get(s)
+                retry_count += 1
+                if retry_count > 10:
+                    s_fallback = random.uniform(0, self.tree.total())
+                    idx, priority, start_idx = self.tree.get(s_fallback)
+
+            priorities.append(priority)
+            idxs.append(idx)
+
+            end_idx = start_idx + self.min_seq_span
+            sequence = [
+                self.buffer[j] for j in range(start_idx, end_idx, self.seq_stride)
+            ]
+            sequences.append(sequence)
+
+        batch = [list(zip(*seq)) for seq in sequences]
+        states, actions, rewards, next_states, dones = zip(*batch)
+
+        sampling_probabilities = np.array(priorities) / self.tree.total()
+        weights = (self._size * sampling_probabilities) ** -self.beta
+        if weights.size > 0:
+            weights /= weights.max()
+
+        return (
+            np.array(states, dtype=np.float32),
+            np.array(actions, dtype=np.int64),
+            np.array(rewards, dtype=np.float32),
+            np.array(next_states, dtype=np.float32),
+            np.array(dones, dtype=bool),
+            idxs,
+            np.array(weights, dtype=np.float32),
+        )
+
+    def update_priorities(self, idxs: list[int], errors: np.ndarray) -> None:
+        priorities = (np.abs(errors) + self.epsilon) ** self.alpha
+        for idx, priority in zip(idxs, errors):
+            self.tree.update(idx, priority)
+
+    def _get_valid_starts(self) -> List[int]:
+        all_possible_starts = set(range(self._size - self.min_seq_span + 1))
+        invalid_starts: Set[int] = set()
+        for episode_start_idx in self.episode_starts:
+            start_of_invalid_range = episode_start_idx - self.min_seq_span + 1
+            end_of_invalid_range = episode_start_idx
+            for i in range(start_of_invalid_range, end_of_invalid_range):
+                if i >= 0:
+                    invalid_starts.add(i)
+        return list(all_possible_starts - invalid_starts)
+
+    def _return_for_invalids(self) -> Tuple[np.ndarray, ...]:
+        s_shape, a_shape = (0, self.seq_len, 0), (0, self.seq_len, 0)
+        if self.buffer:
+            s_shape = (0, self.seq_len, *np.array(self.buffer[0][0]).shape)
+            a_shape = (0, self.seq_len, *np.array(self.buffer[0][1]).shape)
+        return (
+            np.empty(s_shape, dtype=np.float32),
+            np.empty(a_shape, dtype=np.int64),
+            np.empty((0, self.seq_len), dtype=np.float32),
+            np.empty(s_shape, dtype=np.float32),
+            np.empty((0, self.seq_len), dtype=bool),
+            [],
+            np.empty((0,), dtype=np.float32),
+        )
+
+    def __len__(self) -> int:
+        return self._size
+
+    @property
+    def size(self) -> int:
+        return self._size
 
 
 class ReployBufferFactory:
     def __new__(cls, config: BaseConfig):
+        if config.model.model in ["ppo_seq", "ppo"]:
+            # ppo use their own memory
+            return None
+
+        # validation check
+        if (
+            config.buffer.buffer_type
+            in [BufferType.SEQUENTIAL, BufferType.PER_SEQUENTIAL]
+            and config.model.seq_len == 1
+        ):
+            raise ValueError(
+                f"seq_len must be greater than 1 for sequential buffer, but got {config.model.seq_len}"
+            )
+        if (
+            config.buffer.buffer_type in [BufferType.DEFAULT, BufferType.PER]
+            and config.model.seq_len > 1
+        ):
+            raise ValueError(
+                f"seq_len must be 1 for non-sequential buffer, but got {config.model.seq_len}"
+            )
+
         if config.buffer.buffer_type == BufferType.DEFAULT:
             print(f"Using ReplayBuffer | size: {config.buffer.buffer_size}")
             return ReplayBuffer(config.buffer.buffer_size)
@@ -377,13 +523,13 @@ class ReployBufferFactory:
         elif config.buffer.buffer_type == BufferType.SEQUENTIAL:
             print(
                 f"Using SeqReplayBuffer | size: {config.buffer.buffer_size} ",
-                f"| seq_len: {config.buffer.seq_len} ",
-                f"| seq_stride: {config.buffer.seq_stride}",
+                f"| seq_len: {config.model.seq_len} ",
+                f"| seq_stride: {config.model.seq_stride}",
             )
             return SeqReplayBuffer(
                 config.buffer.buffer_size,
-                config.buffer.seq_len,
-                config.buffer.seq_stride,
+                config.model.seq_len,
+                config.model.seq_stride,
             )
 
         elif config.buffer.buffer_type == BufferType.PER:
@@ -398,6 +544,20 @@ class ReployBufferFactory:
                 beta_frames=config.buffer.beta_frames,
                 n_steps=config.buffer.per_n_steps,
                 gamma=config.gamma,
+            )
+        elif config.buffer.buffer_type == BufferType.PER_SEQUENTIAL:
+            print(
+                f"Using SequentialPrioritizedReplayBuffer | size: {config.buffer.buffer_size} ",
+                f"| seq_len: {config.model.seq_len} ",
+                f"| seq_stride: {config.model.seq_stride}",
+            )
+            return SequentialPrioritizedReplayBuffer(
+                capacity=config.buffer.buffer_size,
+                seq_len=config.model.seq_len,
+                seq_stride=config.model.seq_stride,
+                alpha=config.buffer.alpha,
+                beta_start=config.buffer.beta_start,
+                beta_frames=config.buffer.beta_frames,
             )
         else:
             raise ValueError(f"Invalid buffer type: {config.buffer.buffer_type}")

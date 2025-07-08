@@ -35,8 +35,7 @@ eval_episodes: 10
 # Save settings
 save_dir: "results"
 
-# target update interval
-target_update_interval: 8000
+policy_update_interval: 2
 
 # SAC specific parameters
 tau: 0.005

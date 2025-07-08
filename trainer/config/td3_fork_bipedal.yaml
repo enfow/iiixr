@@ -2,15 +2,15 @@
 # Environment settings
 env: "BipedalWalkerHardcore-v3"
 model:
-  model: "td3_seq"
-  hidden_dim: 512
-  n_layers: 4
-  embedding_type: "transformer"  # Options: fc, lstm, transformer
-  seq_len: 10
+  model: "td3_fork"
+  hidden_dim: 256
+  n_layers: 3
+  embedding_type: "fc"  # Options: fc, transformer
 
 buffer:
   buffer_size: 1000000
-  buffer_type: "sequential"
+  buffer_type: "default"
+  seq_len: 1
 
 # Training parameters
 seed: 42
@@ -18,7 +18,8 @@ episodes: 5000
 max_steps: 2000
 lr: 3e-4
 gamma: 0.99
-batch_size: 256
+buffer_size: 1000000
+batch_size: 512
 start_steps: 25000
 
 # Device settings
@@ -41,3 +42,8 @@ policy_delay: 2
 policy_noise: 0.2
 noise_clip: 0.5
 exploration_noise: 0.1 
+
+# fork
+fork_alpha: 0.5
+fork_hidden_dim: 256
+fork_n_layers: 3

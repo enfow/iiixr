@@ -14,7 +14,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from model.td3 import TD3Actor, TD3Critic
-from schema.config import TD3Config
+from schema.config import BufferType, TD3Config
 from schema.result import SingleEpisodeResult, TD3UpdateLoss
 from trainer.base_trainer import BaseTrainer
 
@@ -57,16 +57,43 @@ class TD3Trainer(BaseTrainer):
             state = torch.FloatTensor(state.reshape(1, -1)).to(self.config.device)
             action = self.actor(state).cpu().data.numpy().flatten()
 
-            # Exploration
             if not eval_mode:
                 action = action + np.random.normal(
                     0,
-                    self.max_action * self.config.exploration_noise,
+                    self.max_action * self.exploration_noise,
                     size=self.action_dim,
                 )
 
             action = np.clip(action, -self.max_action, self.max_action)
             return {"action": action}
+
+    def sample_from_memory(self, batch_size: int):
+        if self.config.buffer.buffer_type == BufferType.DEFAULT:
+            states, actions, rewards, next_states, dones = self.memory.sample(
+                batch_size
+            )
+            return {
+                "states": states,
+                "actions": actions,
+                "rewards": rewards,
+                "next_states": next_states,
+                "dones": dones,
+            }
+        elif self.config.buffer.buffer_type == BufferType.PER:
+            states, actions, rewards, next_states, dones, indices, weights = (
+                self.memory.sample(batch_size)
+            )
+            return {
+                "states": states,
+                "actions": actions,
+                "rewards": rewards,
+                "next_states": next_states,
+                "dones": dones,
+                "indices": indices,
+                "weights": weights,
+            }
+        else:
+            raise ValueError(f"Invalid buffer type: {self.config.buffer.buffer_type}")
 
     def update(self) -> TD3UpdateLoss:
         if len(self.memory) < self.config.batch_size:
@@ -74,15 +101,18 @@ class TD3Trainer(BaseTrainer):
 
         self.total_it += 1
 
-        state, action, reward, next_state, done = self.memory.sample(
-            self.config.batch_size
-        )
+        data = self.sample_from_memory(self.config.batch_size)
+        state = torch.FloatTensor(data["states"]).to(self.config.device)
+        action = torch.FloatTensor(data["actions"]).to(self.config.device)
+        reward = torch.FloatTensor(data["rewards"]).unsqueeze(1).to(self.config.device)
+        next_state = torch.FloatTensor(data["next_states"]).to(self.config.device)
+        done = torch.BoolTensor(data["dones"]).unsqueeze(1).to(self.config.device)
 
-        state = torch.FloatTensor(state).to(self.config.device)
-        action = torch.FloatTensor(action).to(self.config.device)
-        reward = torch.FloatTensor(reward).unsqueeze(1).to(self.config.device)
-        next_state = torch.FloatTensor(next_state).to(self.config.device)
-        done = torch.BoolTensor(done).unsqueeze(1).to(self.config.device)
+        if self.config.buffer.buffer_type == BufferType.PER:
+            indices = data["indices"]
+            weights = (
+                torch.FloatTensor(data["weights"]).unsqueeze(1).to(self.config.device)
+            )
 
         with torch.no_grad():
             noise = (torch.randn_like(action) * self.config.policy_noise).clamp(
@@ -98,9 +128,19 @@ class TD3Trainer(BaseTrainer):
 
         current_q1, current_q2 = self.critic(state, action)
 
-        critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(
-            current_q2, target_q
-        )
+        if self.config.buffer.buffer_type == BufferType.DEFAULT:
+            critic_loss = F.mse_loss(current_q1, target_q) + F.mse_loss(
+                current_q2, target_q
+            )
+
+        elif self.config.buffer.buffer_type == BufferType.PER:
+            elementwise_loss = F.smooth_l1_loss(
+                current_q1, target_q, reduction="none"
+            ) + F.smooth_l1_loss(current_q2, target_q, reduction="none")
+
+            td_errors = elementwise_loss.detach().cpu().numpy()
+            self.memory.update_priorities(indices, td_errors)
+            critic_loss = (weights * elementwise_loss).mean()
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
@@ -136,6 +176,9 @@ class TD3Trainer(BaseTrainer):
         )
 
     def train_episode(self) -> SingleEpisodeResult:
+        self.exploration_noise = self._get_decayed_exploration_noise(
+            self.train_episode_number
+        )
         state, _ = self.env.reset()
         done = False
         episode_rewards, episode_losses, episode_steps = [], [], []
