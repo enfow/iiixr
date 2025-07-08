@@ -74,9 +74,7 @@ class SACSequentialTrainer(SACV2Trainer):
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.config.lr)
 
     def select_action(self, state: np.ndarray, eval_mode: bool = False) -> dict:
-        """Efficiently selects an action by managing the LSTM's hidden state."""
         with torch.no_grad():
-            # Input shape for single step is (1, 1, state_dim)
             state_tensor = (
                 torch.FloatTensor(state)
                 .unsqueeze(0)
@@ -85,12 +83,10 @@ class SACSequentialTrainer(SACV2Trainer):
             )
 
             if eval_mode:
-                # Use and update the evaluation hidden state
                 action, _, self.eval_actor_hidden = self.actor.sample(
                     state_tensor, self.eval_actor_hidden
                 )
             else:
-                # Use and update the training hidden state
                 action, _, self.actor_hidden = self.actor.sample(
                     state_tensor, self.actor_hidden
                 )
@@ -105,7 +101,6 @@ class SACSequentialTrainer(SACV2Trainer):
         self.eval_actor_hidden = None
 
     def update(self) -> SACUpdateLoss:
-        """Update all networks using a batch of sequences from the buffer."""
         if len(self.memory) < self.config.batch_size:
             return SACUpdateLoss.empty()
 
@@ -113,54 +108,42 @@ class SACSequentialTrainer(SACV2Trainer):
             self.memory.sample(self.config.batch_size)
         )
 
-        # Convert numpy arrays to tensors
         states_tensor = torch.FloatTensor(states_seq).to(self.config.device)
         actions_tensor = torch.FloatTensor(actions_seq).to(self.config.device)
         rewards_tensor = torch.FloatTensor(rewards_seq).to(self.config.device)
         next_states_tensor = torch.FloatTensor(next_states_seq).to(self.config.device)
         dones_tensor = torch.FloatTensor(dones_seq).to(self.config.device)
 
-        # --- Critic Update ---
         with torch.no_grad():
-            # 1. Get action sequences and log-probs using the 'evaluate' method
             next_actions_seq, next_log_probs_seq, _ = self.actor.evaluate(
                 next_states_tensor
             )
 
-            # 2. Compute the target Q-values by passing the full next_state and next_action sequences
             target_q1_seq = self.target_critic1(next_states_tensor, next_actions_seq)
             target_q2_seq = self.target_critic2(next_states_tensor, next_actions_seq)
             min_target_q_seq = torch.min(target_q1_seq, target_q2_seq)
 
-            # 3. Compute the V-value for the next states (as a sequence)
             next_state_values_seq = min_target_q_seq - self.alpha * next_log_probs_seq
 
-            # 4. The Bellman equation backup is based on the final transition in the sequence
             last_rewards = rewards_tensor[:, -1].unsqueeze(1)
             last_dones = dones_tensor[:, -1].unsqueeze(1)
 
-            # 5. Extract the next-state value for the final transition
             last_next_state_value = next_state_values_seq[:, -1, :]
 
-            # 6. Compute the final target Q-value
             q_target = (
                 last_rewards
                 + (1.0 - last_dones) * self.config.gamma * last_next_state_value
             )
 
-        # 7. Compute current Q-values for the entire sequence of states and actions
         current_q1_seq = self.critic1(states_tensor, actions_tensor)
         current_q2_seq = self.critic2(states_tensor, actions_tensor)
 
-        # 8. Extract the Q-value for the final action in the sequence for the loss calculation
         current_q1 = current_q1_seq[:, -1, :]
         current_q2 = current_q2_seq[:, -1, :]
 
-        # 9. Compute critic losses
         critic1_loss = F.mse_loss(current_q1, q_target)
         critic2_loss = F.mse_loss(current_q2, q_target)
 
-        # 10. Update critic networks
         self.critic1_optimizer.zero_grad()
         critic1_loss.backward()
         self.critic1_optimizer.step()
@@ -169,26 +152,22 @@ class SACSequentialTrainer(SACV2Trainer):
         critic2_loss.backward()
         self.critic2_optimizer.step()
 
-        # --- Actor and Alpha Update (Delayed) ---
         actor_loss = torch.tensor(0.0, device=self.config.device)
         alpha_loss = torch.tensor(0.0, device=self.config.device)
 
         if self.step_count % self.config.policy_update_interval == 0:
-            # Use 'evaluate' to get action sequences for the actor update
             pi_actions_seq, log_probs_seq, _ = self.actor.evaluate(states_tensor)
 
             q1_pi_seq = self.critic1(states_tensor, pi_actions_seq)
             q2_pi_seq = self.critic2(states_tensor, pi_actions_seq)
             min_q_pi_seq = torch.min(q1_pi_seq, q2_pi_seq)
 
-            # Actor loss is the mean over both batch and sequence dimensions
             actor_loss = (self.alpha.detach() * log_probs_seq - min_q_pi_seq).mean()
 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
             self.actor_optimizer.step()
 
-            # Alpha loss is also the mean over the sequence
             alpha_loss = (
                 self.log_alpha * (-log_probs_seq.detach() - self.target_entropy)
             ).mean()

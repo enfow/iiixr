@@ -5,11 +5,6 @@ import torch.nn as nn
 
 
 class SystemNetwork(nn.Module):
-    """
-    Predicts the next state given the current state and action.
-    s_{t+1} = f(s_t, a_t)
-    """
-
     def __init__(
         self, state_dim: int, action_dim: int, hidden_dim: int, n_layers: int = 2
     ):
@@ -29,11 +24,6 @@ class SystemNetwork(nn.Module):
 
 
 class RewardNetwork(nn.Module):
-    """
-    Predicts the immediate reward given the current state and action.
-    r_t = r(s_t, a_t)
-    """
-
     def __init__(
         self, state_dim: int, action_dim: int, hidden_dim: int, n_layers: int = 2
     ):

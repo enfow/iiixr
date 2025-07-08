@@ -27,7 +27,6 @@ class SACTrainer(BaseTrainer):
         super().__init__(env_name, config, save_dir)
 
     def _init_models(self):
-        # Policy network: outputs mean and log_std for Gaussian policy
         self.actor = SACPolicy(
             self.state_dim,
             self.action_dim,
@@ -35,7 +34,6 @@ class SACTrainer(BaseTrainer):
             n_layers=self.config.model.n_layers,
         ).to(self.config.device)
 
-        # Q-networks: Q(s,a) -> R (continuous actions only in original SAC)
         self.critic1 = SACQNetwork(
             self.state_dim,
             self.action_dim,
@@ -87,11 +85,9 @@ class SACTrainer(BaseTrainer):
 
         with torch.no_grad():
             if eval_mode:
-                # During evaluation, use mean action
                 mean, _ = self.actor(state)
                 action = torch.tanh(mean)
             else:
-                # During training, sample from the policy
                 action, _ = self.actor.sample(state)
 
             return {
@@ -113,7 +109,6 @@ class SACTrainer(BaseTrainer):
         return state, action, reward, next_state, done
 
     def update(self) -> SACUpdateLoss:
-        """Update all networks following the original SAC algorithm"""
         if len(self.memory) < self.config.batch_size:
             return
 

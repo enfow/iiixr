@@ -186,7 +186,6 @@ class BaseTrainer:
             single_episode_result = self.train_episode()
             elapsed_time = time.time() - start_time
 
-            # log train result
             single_episode_result.episode_elapsed_time = elapsed_time
             single_episode_result.episode_number = self.train_episode_number
             self.total_train_result.update(single_episode_result)
@@ -263,19 +262,16 @@ class BaseTrainer:
 
         output_path = Path(gif_dir) / gif_name
 
-        # Create environment with rendering
         env = gym.make(self.env_name, render_mode=render_mode)
 
         all_frames = []
         total_reward = 0
 
-        # Use trainer's evaluation mode
         self.eval_mode_on()
 
         for episode in range(episodes):
             state, _ = env.reset()
 
-            # Reset episode for sequential trainers
             if hasattr(self, "reset_episode"):
                 self.reset_episode()
 
@@ -284,16 +280,13 @@ class BaseTrainer:
             step = 0
 
             while step < max_steps:
-                # Render current frame
                 frame = env.render()
                 if frame is not None:
                     episode_frames.append(frame)
 
-                # Use trainer's select_action method (same as evaluation)
                 action_info = self.select_action(state, eval_mode=True)
                 action = action_info["action"]
 
-                # Take step in environment
                 next_state, reward, terminated, truncated, _ = env.step(action)
                 done = terminated or truncated
 
@@ -302,7 +295,6 @@ class BaseTrainer:
                 step += 1
 
                 if done:
-                    # Render final frame
                     frame = env.render()
                     if frame is not None:
                         episode_frames.append(frame)
@@ -312,11 +304,9 @@ class BaseTrainer:
             total_reward += episode_reward
             print(f"Episode {episode + 1}: Reward = {episode_reward:.2f}")
 
-        # Restore training mode
         self.eval_mode_off()
         env.close()
 
-        # Save as GIF
         if all_frames:
             imageio.mimsave(output_path, all_frames, fps=fps)
             print(f"GIF saved to: {output_path}")

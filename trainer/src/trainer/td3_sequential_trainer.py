@@ -16,7 +16,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 from tqdm import tqdm
 
-# Assuming these are in your project structure
 from model.td3 import LSTMTD3Actor, TD3Critic, TransformerTD3Actor
 from schema.config import ModelEmbeddingType, TD3Config
 from schema.result import SingleEpisodeResult, TD3UpdateLoss
@@ -26,11 +25,6 @@ N_TRANSFORMER_HEADS = 8
 
 
 class TD3SequentialTrainer(BaseTrainer):
-    """
-    A TD3 Trainer for sequential models that supports both standard and
-    prioritized replay, and can run on single or vectorized environments.
-    """
-
     name = "td3_seq"
     config_class = TD3Config
 
