@@ -12,15 +12,15 @@ type: "experiment"
 
 ## 실험 모델
 
-- **PPO(Discrete)**: Policy-based, On-Policy 알고리즘(Trust Region)
-  - [REVIEW](./ppo) | [PAPER](<https://arxiv.org/abs/1707.06347>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_ppo_trainer.py>)
-- **SAC(Discrete)**: Policy-based, Off-Policy 알고리즘(Actor-Critic, Entropy)
-  - [REVIEW](<./sac>) | [PAPER](<https://arxiv.org/abs/1910.07207>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_sac_trainer.py>)
-- **TD3**: Policy-based, Off-Policy 알고리즘(Actor-Critic, Entropy)
+- **PPO**: Policy-based, On-Policy 알고리즘
+  - [REVIEW](./ppo) | [PAPER](<https://arxiv.org/abs/1707.06347>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ppo_trainer.py>)
+- **PPO Sequential**: Policy-based, On-Policy 알고리즘
+  - [REVIEW](./ppo) | [PAPER](<https://arxiv.org/abs/1707.06347>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ppo_sequential_trainer.py>)
+- **SAC**: Policy-based, Off-Policy 알고리즘(Actor-Critic, Maxinum Entropy)
+  - [REVIEW](<./sac>) | [PAPER](<https://arxiv.org/abs/1910.07207>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/sac_v2_trainer.py>)
+- **TD3**: Policy-based, Off-Policy 알고리즘(Actor-Critic)
   - [REVIEW](<./td3>) | [PAPER](<https://arxiv.org/abs/1802.09477>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_trainer.py>)
-- **TD3 Sequential(LSTM)**: TD3 의 Policy Network 에 LSTM 을 적용한 모델
-  - [REVIEW](<./td3>) | [PAPER](<https://arxiv.org/abs/1802.09477>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_trainer.py>)
-- **TD3 Sequential(Transformer)**: TD3 의 Policy Network 에 Transformer 를 적용한 모델
+- **TD3 Sequential**: TD3 의 Policy Network 에 LSTM 을 적용한 모델
   - [REVIEW](<./td3>) | [PAPER](<https://arxiv.org/abs/1802.09477>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_trainer.py>)
 
 ## 실험 환경
@@ -34,7 +34,7 @@ type: "experiment"
 - `Hardcore=True` 옵션 적용
   - 일반 BipedalWalker 환경에 더해, 다양한 장애물들이 무작위로 발생한다.
 
-## 첫 번째 실험
+## PPO, TD3, SAC Algorithms
 
 우선 **PPO, SAC, TD3**와 같이 강화학습에서 높은 성능을 보여주는 대표적인 알고리즘을 구현하고 빠르게 적용해보았다. 매우 도전적인 환경에서 실험을 진행한 만큼, 일반적인 알고리즘으로는 해결하는 데에 어려움을 겪었다.
 
@@ -77,52 +77,103 @@ TD3 알고리즘 또한 유사한 결과를 보여주었다. `Return=100` 수준
   <img src="/experiments/bipedal/td3/demo.gif" alt="TD3 agent on BipedalWalkerHardcore-v3" />
 </div>
 
-## 두 번째 실험
+## PPO Algorithm Optimization
 
-첫 번째 실험에서 세 가지 모델의 성능이 모두 좋지 않게 나왔다. 이를 개선하기 위해 두 가지 가설을 세우고 관련하여 실험을 진행했다.
+초기 실험의 저조한 결과를 바탕으로 성능 개선을 위해 두 가지 가설을 세웠다.
 
-첫 번째 가설은 환경적 특성에 관한 것으로, **여러 Step의 State 정보** 를 Policy 에게 함께 제공하면 더 높은 성능을 보여줄 수 있을 것이라는 점이다. BipedalWalker-v3 환경은 두 발을 가진 로봇을 제어하여 앞으로 걷도록 하는 문제인데, 이때 로봇은 State 로 라이다 입력 값을 받아 앞선 지형의 구조를 파악할 수 있다. 이때 과거 여러 시점의 정보들을 함께 제공하면 장애물을 해결하는 Action을 선택하는 능력을 쉽게 습득할 수 있을 것으로 보았다. 이를 위해 여러 개의 Transition 을 관리할 수 있도록 Replay Buffer를 개선하였고, TD3 모델을 기준으로 **LSTM, Transformer** 등 Sequential data 를 처리할 수 있는 모델들을 Policy Network 에 적용하여 실험을 진행했다.
+1. **Sequential State 정보의 필요성**: 첫째, 여러 스텝에 걸친 상태(State) 정보를 순차적으로 정책망에 제공하면 성능이 향상될 것이라는 가설이다. `BipedalWalker-v3` 환경에서 에이전트는 라이다 센서로 전방의 지형을 파악한다. 따라서 과거부터 현재까지의 관측 정보를 종합하면 장애물 지형을 통과하는 더 나은 행동을 학습할 수 있을 것이라 판단했다. 이를 검증하기 위해 **LSTM과 Transformer**를 정책 신경망에 도입했다.
 
-두 번째는 Training/Evaluation 과정에서 **Return 의 Variance 가 과도하게 크다** 는 점에서 착안하여, 이를 해결하면 더 안정적이고 높은 성능을 보여줄 수 있을 것이라 판단했다. 강화학습에서 학습이 진행됨에 따라 Score 의 변동성이 커지는 것은 다소 일반적인 현상이고, 특히 BipedalWalker-v3 Hardcore와 같이 환경의 랜덤성이 높을수록 Variance는 더욱 크게 나타나는 경향이 있다. 하지만 Return 의 Variance 를 줄이면 보다 안정적인 학습이 가능한 만큼, 랜덤성이 큰 환경에 대처하는 방법과 함께 다양한 방법들을 고려해보았다. 구체적인 방법들은 다음과 같다.
+2. **Return의 분산 감소**: 둘째, 학습 및 평가 과정에서 관찰된 과도하게 높은 Return의 분산(Variance)을 줄이면 학습이 안정되고 성능이 향상될 것이라는 가설이다. 무작위성이 높은 환경일수록 보상의 변동성이 커지는 것은 자연스럽지만, 이를 제어하면 더 안정적인 정책 업데이트가 가능하다.
 
-**TD3**
-- Agent에 Sequential Model(Transformer, LSTM) 적용
-- Prioritized Experience Replay(PER) 적용
-- 더욱 큰/점진적인 Buffer Size 의 증가
-- N-Step Returns
+우리는 PPO 알고리즘을 최적화 대상으로 선택했다. 비록 초기 성능은 가장 낮았지만, On-policy 특성상 학습이 안정적이고 Hyperparameter 에 덜 민감할 것으로 기대했다. 적용된 최적화 기법은 다음과 같다.
 
-**PPO**
-- Generalized Advantage Estimation(GAE) 적용
-- 더욱 큰 Memory size + 다중 환경 병렬 학습
+1. **GAE(Generalized Advantage Estimation)**: 어드밴티지 추정치의 분산을 줄이기 위해 적용했다.
 
-### TD3 Sequential(LSTM)
+2. **Advantage Normalization**: 어드밴티지 값의 스케일을 조정하여 정책 업데이트를 안정화시켰다.
 
-[IMPLEMENTATION (TD3 SEQUENTIAL)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_trainer.py>)
+3. **LSTM, Transformer**: 여러 타임스텝의 상태 정보를 처리하기 위해 도입했다.
 
-TDB
+실험 결과, GAE와 Advantage Normalization를 적용했을 때 성능이 크게 향상되었다. 또한, Sequential Model 을 사용하는 것이 학습에 긍정적인 영향을 미친다는 사실을 확인했다.
 
-{/* ![TD3 Sequential(LSTM) agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3_sequential_lstm/training.png)
+![ppo](/experiments/bipedal/compare/ppo.png)
 
-<div align="center">
-  <img src="/experiments/bipedal/td3_sequential_lstm/demo.gif" alt="TD3 Sequential(LSTM) agent on BipedalWalkerHardcore-v3" />
-</div> */}
+### Sequntial Layer: LSTM, Transformer
 
-### TD3 Sequential(Transformer)
+![ppo_seq_layer](/experiments/bipedal/compare/ppo_seq_layer.png)
 
-[IMPLEMENTATION (TD3 SEQUENTIAL)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_trainer.py>)
+PPO의 Actor, Critic 모델로 LSTM과 Transformer를 각각 적용하여 성능을 비교했다. 동일한 실험 조건에서 LSTM 기반 모델이 더 높은 점수를 달성했으며, 더 안정적인 학습 곡선을 보였다.
 
-TBD
+```json
+# LSTM PPO
+"model": "ppo_seq",
+"hidden_dim": 256,
+"n_layers": 2,
+"embedding_type": "lstm",
+"seq_len": 32,
+"seq_stride": 1,
+"use_layernorm": true
 
-{/* ![TD3 Sequential(Transformer) agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3_sequential_transformer/training.png)
+# Transformer PPO
+"model": "ppo_seq",
+"hidden_dim": 256,
+"n_layers": 4,
+"embedding_type": "transformer",
+"seq_len": 32,
+"seq_stride": 1,
+"use_layernorm": true
+```
 
-<div align="center">
-  <img src="/experiments/bipedal/td3_sequential_transformer/demo.gif" alt="TD3 Sequential(Transformer) agent on BipedalWalkerHardcore-v3" />
-</div> */}
+### Sequential Length: 24, 36
 
+Sequential Length 또한 중요한 Hyperparameter로 보고 실험을 진행했다. 라이다 정보를 활용하는 환경의 특성상, 더 긴 시퀀스가 에이전트의 판단에 도움이 될 것이라 가정했다.
+
+![ppo_seq_length](/experiments/bipedal/compare/ppo_seq_length.png)
+
+실험 결과, Sequential Length 를 `36` 으로 설정했을 때가 `24` 일 때보다 더 좋은 성능을 기록했다. 이는 Sequential Model 이 효과적으로 학습하기 위해 충분한 길이의 과거 정보를 제공하는 것이 중요했음을 시사한다.
+
+```json
+# length=24
+"model": "ppo_seq",
+"hidden_dim": 256,
+"n_layers": 2,
+"embedding_type": "lstm",
+"seq_len": 24,
+"seq_stride": 1,
+"use_layernorm": true
+
+# length=36
+"model": "ppo_seq",
+"hidden_dim": 256,
+"n_layers": 2,
+"embedding_type": "lstm",
+"seq_len": 32,
+"seq_stride": 1,
+"use_layernorm": true
+```
+
+### Curriculum Learning
+
+마지막으로 커리큘럼 학습을 도입했다. Agent 는 먼저 일반 `BipedalWalker-v3` 환경에서 학습을 시작하고, 일정 수준(Episode Return 250점)에 도달하면 Hardcore 모드로 전환하여 학습을 이어갔다. 가장 흔한 지형인 GRASS에서 안정적인 보행을 먼저 마스터하면, 이후 어려운 장애물을 더 효율적으로 학습할 수 있을 것이라고 판단했다.
+
+![curriculum](/experiments/bipedal/compare/curriculum.png)
+
+가설대로, 커리큘럼을 적용한 에이전트는 처음부터 Hardcore 환경에서 학습한 에이전트보다 더 높은 최종 점수를 달성했다.
 
 ## Conclusion
 
-TBD
+![all](/experiments/bipedal/compare/all.png)
+
+PPO에 다양한 최적화 기법을 적용했음에도 불구하고, 그 성능은 초기 실험에서 TD3나 SAC와 같은 Off-policy 알고리즘이 보여준 잠재력에 미치지 못했다. 이는 `BipedalWalker-v3 Hardcore` 처럼 복잡하고 무작위성이 강한 환경에서는 Off Policy의 높은 샘플 효율성이 결정적인 이점으로 작용함을 시사한다.
+
+구체적으로, On-Policy 알고리즘인 PPO는 정책이 업데이트될 때마다 이전의 경험 데이터를 폐기한다. 메모리 크기를 10,000, 최대 스텝을 1,600으로 설정했을 때, 최악의 경우 단 6~7개의 에피소드 경험만으로 학습이 이루어진다. 이는 무작위로 생성되는 다양한 장애물을 경험하고, 이를 바탕으로 Agent 의 성능을 평가하기에 부족한 양이다. 반면, Off Policy 알고리즘은 Replay Buffer를 활용하여 과거 정책이 수집한 경험까지 재사용하므로, 훨씬 다양한 상황을 학습에 활용할 수 있다.
+
+따라서 본 실험 환경에는 Off Policy 접근법이 더 적합하다고 판단된다. PPO 실험에서 얻은 통찰을 바탕으로, 목표 점수인 평균 250점 달성을 위해 TD3와 SAC에 다음과 같은 개선안을 적용할 것을 제안한다.
+
+1. Actor, Critic 으로 LSTM 과 같은 Sequential Model 을 사용할 것
+2. 충분한 길이의 Sequence Length 를 적용할 것
+3. 더욱 큰 또는 점진적으로 커지는 Replay buffer 를 적용할 것
+4. Prioritized Reploy Buffer 를 적용할 것
+5. Curriculum learning 환경을 적용할 것
 
 ## Appendix: Hyperparameter
 
@@ -152,9 +203,6 @@ TBD
   "gamma": 0.99,
   "batch_size": 256,
   "env": "BipedalWalkerHardcore-v3",
-  "state_dim": null,
-  "action_dim": null,
-  "is_discrete": null,
   "device": "cpu",
   "eval": true,
   "eval_period": 10,
@@ -192,9 +240,6 @@ TBD
   "gamma": 0.99,
   "batch_size": 256,
   "env": "BipedalWalkerHardcore-v3",
-  "state_dim": null,
-  "action_dim": null,
-  "is_discrete": null,
   "device": "cuda",
   "eval": true,
   "eval_period": 10,
@@ -231,9 +276,6 @@ TBD
   "gamma": 0.99,
   "batch_size": 256,
   "env": "BipedalWalkerHardcore-v3",
-  "state_dim": 4,
-  "action_dim": 24,
-  "is_discrete": false,
   "device": "cpu",
   "eval": true,
   "eval_period": 10,
