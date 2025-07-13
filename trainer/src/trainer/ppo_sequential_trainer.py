@@ -39,12 +39,14 @@ class PPOSequentialTrainer(PPOTrainer):
                 self.action_dim,
                 model_config.hidden_dim,
                 n_layers=model_config.n_layers,
+                n_fc_layers=model_config.n_fc_layers,
                 use_layernorm=model_config.use_layernorm,
             ).to(device)
             self.critic = LSTMContinuousCritic(
                 self.state_dim,
                 model_config.hidden_dim,
                 n_layers=model_config.n_layers,
+                n_fc_layers=model_config.n_fc_layers,
                 use_layernorm=model_config.use_layernorm,
             ).to(device)
             self.actor_hidden = None
@@ -55,9 +57,15 @@ class PPOSequentialTrainer(PPOTrainer):
                 self.action_dim,
                 model_config.hidden_dim,
                 n_layers=model_config.n_layers,
+                n_fc_layers=model_config.n_fc_layers,
+                use_layernorm=model_config.use_layernorm,
             ).to(device)
             self.critic = TransformerContinuousCritic(
-                self.state_dim, model_config.hidden_dim, n_layers=model_config.n_layers
+                self.state_dim,
+                model_config.hidden_dim,
+                n_layers=model_config.n_layers,
+                n_fc_layers=model_config.n_fc_layers,
+                use_layernorm=model_config.use_layernorm,
             ).to(device)
         if hasattr(self, "n_envs") and self.n_envs > 1:
             self.state_history = [
@@ -464,6 +472,7 @@ class PPOSequentialTrainer(PPOTrainer):
         indices = np.array(valid_indices)
         for _ in range(self.config.ppo_epochs):
             np.random.shuffle(indices)
+
             for i in range(0, len(indices), batch_size):
                 batch_indices = indices[i : i + batch_size]
                 state_batch = torch.stack(
@@ -481,10 +490,13 @@ class PPOSequentialTrainer(PPOTrainer):
                 advantage_batch = torch.stack(
                     [all_advantages[j : j + self.seq_len] for j in batch_indices]
                 ).to(self.config.device)
+
                 mean, log_std = self.actor(state_batch)
                 dist = torch.distributions.Normal(mean, torch.exp(log_std))
                 logprobs = dist.log_prob(action_batch).sum(dim=-1)
                 ratio = torch.exp(logprobs - old_logprob_batch)
+
+                # actor loss
                 surr1 = ratio * advantage_batch
                 surr2 = (
                     torch.clamp(
@@ -493,9 +505,14 @@ class PPOSequentialTrainer(PPOTrainer):
                     * advantage_batch
                 )
                 actor_loss = -torch.min(surr1, surr2).mean()
+
+                # entropy loss
                 entropy = dist.entropy().sum(dim=-1).mean()
                 entropy_loss = -self.config.entropy_coef * entropy
+
+                # total loss
                 total_actor_loss_step = actor_loss + entropy_loss
+
                 self.actor_optimizer.zero_grad()
                 total_actor_loss_step.backward()
                 if hasattr(self.config, "max_grad_norm"):
@@ -503,8 +520,11 @@ class PPOSequentialTrainer(PPOTrainer):
                         self.actor.parameters(), self.config.max_grad_norm
                     )
                 self.actor_optimizer.step()
+
+                # critic loss
                 values = self.critic(state_batch).squeeze(-1)
                 critic_loss = nn.functional.mse_loss(values, return_batch)
+
                 self.critic_optimizer.zero_grad()
                 critic_loss.backward()
                 if hasattr(self.config, "max_grad_norm"):
@@ -512,9 +532,12 @@ class PPOSequentialTrainer(PPOTrainer):
                         self.critic.parameters(), self.config.max_grad_norm
                     )
                 self.critic_optimizer.step()
+
+                # update total loss
                 total_actor_loss += actor_loss.item()
                 total_critic_loss += critic_loss.item()
                 total_entropy_loss += entropy_loss.item()
+
         num_updates = self.config.ppo_epochs * (len(indices) // batch_size)
         if num_updates == 0:
             return PPOUpdateLoss(0, 0, 0)

@@ -30,6 +30,7 @@ class ModelConfig(BaseModel):
     seq_len: int = 1
     seq_stride: int = 1
     use_layernorm: bool = False
+    n_fc_layers: int = 2
 
     @classmethod
     def from_dict(cls, config: dict):
