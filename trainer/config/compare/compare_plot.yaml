@@ -1,0 +1,24 @@
+title: "PPO Algorithms"
+max_episode_length: 5000
+result_dir:
+  - name: "PPO(No GAE)"
+    dir_name: results/BipedalWalkerHardcore-v3/ppo_bipedal/
+  - name: "PPO(With GAE)"
+    dir_name: ../desktop_results/BipedalWalkerHardcore-v3/ppo/20250701_175417/ 
+  - name: "Sequential PPO(With GAE)"
+    dir_name: ../desktop_results/CurriculumBipedalWalker-v3/ppo_seq/20250704_041101/
+out_dir: ../desktop_results/compare/ppo
+
+
+# title: "Model Comparison"
+# max_episode_length: 5000
+# result_dir:
+#   - name: "td3"
+#     dir_name: ../desktop_results/BipedalWalkerHardcore-v3/td3/20250629_160356/
+#   - name: "ppo"
+#     dir_name: ./results/BipedalWalkerHardcore-v3/ppo/20250702_030006/
+#   - name: "ppo_seq"
+#     dir_name: ../desktop_results/CurriculumBipedalWalker-v3/ppo_seq/20250704_041101/
+#   - name: "sac_v2"
+#     dir_name: ../desktop_results/BipedalWalkerHardcore-v3/sac_v2/20250627_180647/
+# out_dir: ../desktop_results/compare/all

@@ -32,7 +32,7 @@ device: "cpu"  # Options: cpu, cuda
 # Evaluation settings
 eval: true
 eval_env: "BipedalWalkerHardcore-v3"
-eval_period: 20
+eval_period: 10
 eval_episodes: 10
 
 # Save settings
@@ -43,4 +43,6 @@ tau: 0.005
 policy_delay: 2
 policy_noise: 0.2
 noise_clip: 0.5
-exploration_noise: 0.1 
+start_exploration_noise: 0.2
+end_exploration_noise: 0.05
+exploration_noise_decay_episodes: 10000

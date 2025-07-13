@@ -7,7 +7,7 @@ model:
   n_layers: 2
   embedding_type: "lstm"  # Options: fc, lstm, transformer
   use_layernorm: true
-  seq_len: 2
+  seq_len: 3
   seq_stride: 1
 
 buffer:
@@ -19,7 +19,7 @@ buffer:
 
 # Training parameters
 seed: 42
-episodes: 5000
+episodes: 20000
 max_steps: 1600
 lr: 3e-4
 gamma: 0.99
@@ -32,7 +32,7 @@ device: "cpu"  # Options: cpu, cuda
 
 # Evaluation settings
 eval: true
-eval_period: 20
+eval_period: 10
 eval_episodes: 10
 
 # Save settings
@@ -45,4 +45,4 @@ policy_noise: 0.2
 noise_clip: 0.5
 start_exploration_noise: 0.2
 end_exploration_noise: 0.05
-exploration_noise_decay_episodes: 1000
+exploration_noise_decay_episodes: 10000
