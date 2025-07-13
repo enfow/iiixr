@@ -1,6 +1,7 @@
 # Training Configuration File - PPO Sequential Models
 # Environment settings
 env: "CurriculumBipedalWalker-v3"
+result_name: "test"
 model:
   model: "ppo_seq"  # Options: ppo, sac, rainbow_dqn, discrete_sac, td3, ppo_seq
   hidden_dim: 256
@@ -14,11 +15,9 @@ model:
 # Training parameters
 seed: 42
 episodes: 20000
-max_steps: 2000
 lr: 3e-4
 gamma: 0.99
 batch_size: 256
-start_steps: 1000
 n_envs: 8
 curriculum_threshold: 100
 

@@ -45,6 +45,11 @@ def main():
     parser.add_argument("--buffer_size", type=int, help="Replay buffer size")
     parser.add_argument("--batch_size", type=int, help="Batch size for training")
     parser.add_argument("--save_dir", type=str, help="Directory to save results")
+    parser.add_argument(
+        "--result_name",
+        type=str,
+        help="Custom name for saving results instead of timestamp",
+    )
     parser.add_argument("--eval", type=bool, help="Whether to evaluate the model")
     parser.add_argument("--eval_period", type=int, help="Evaluation period")
     parser.add_argument(
@@ -136,12 +141,16 @@ def main():
     model_params = config.get("model", {})
 
     config["model"] = model_params
-    # Create save directory path
+    result_dir_name = (
+        config["result_name"]
+        if config["result_name"]
+        else time.strftime("%Y%m%d_%H%M%S")
+    )
     save_dir = os.path.join(
         config["save_dir"],
         config["env"],
         config["model"]["model"],
-        time.strftime("%Y%m%d_%H%M%S"),
+        result_dir_name,
     )
 
     print(f"Training configuration:")

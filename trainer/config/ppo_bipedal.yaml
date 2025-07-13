@@ -34,6 +34,7 @@ eval_episodes: 10
 
 # Save settings
 save_dir: "results"
+# result_name: "ppo_bipedal_experiment"  # Optional: custom name for saving results instead of timestamp
 
 # PPO specific parameters
 ppo_epochs: 7

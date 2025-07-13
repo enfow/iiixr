@@ -34,6 +34,7 @@ eval_episodes: 10
 
 # Save settings
 save_dir: "results"
+# result_name: "my_custom_experiment"  # Optional: custom name for saving results instead of timestamp
 
 # target update interval
 target_update_interval: 8000

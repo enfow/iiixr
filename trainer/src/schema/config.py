@@ -80,6 +80,8 @@ class BaseConfig(BaseModel):
     start_exploration_noise: float = 0.2
     end_exploration_noise: float = 0.2  # default is no decay
     exploration_noise_decay_episodes: int = 1000
+    # result saving
+    result_name: Optional[str] = None
 
     @classmethod
     def from_dict(cls, config: dict):
