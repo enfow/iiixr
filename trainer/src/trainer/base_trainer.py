@@ -257,12 +257,17 @@ class BaseTrainer:
             gif_dir = Path(gif_dir)
             gif_dir.mkdir(exist_ok=True)
 
+        # Use eval_env if available, otherwise use training env
+        gif_env_name = (
+            self.config.eval_env if self.config.eval_env is not None else self.env_name
+        )
+
         if gif_name is None:
-            gif_name = f"{self.config.model.model}_{self.env_name}_demo.gif"
+            gif_name = f"{self.config.model.model}_{gif_env_name}_demo.gif"
 
         output_path = Path(gif_dir) / gif_name
 
-        env = gym.make(self.env_name, render_mode=render_mode)
+        env = gym.make(gif_env_name, render_mode=render_mode)
 
         all_frames = []
         total_reward = 0
