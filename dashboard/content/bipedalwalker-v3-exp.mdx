@@ -175,6 +175,10 @@ PPO에 다양한 최적화 기법을 적용했음에도 불구하고, 그 성능
 4. Prioritized Reploy Buffer 를 적용할 것
 5. Curriculum learning 환경을 적용할 것
 
+또한 Sequential Model 을 적용함에 있어 feature extractor를 강화하는 것이 좋을 것 같다는 피드백을 받았고, 이에 대한 실험을 추가적으로 진행하고자 한다. 기존에는 LSTM/Transformer 레이어 앞에 단 하나의 Fully Connected Layer 를 두었다면 Layer를 4개 혹은 그 이상으로 늘려 실험을 진행하고 있다.
+
+Sequential State 로 과거 Observation 뿐만 아니라 Action 을 포함시키게 되면 Agent 가 의사결정을 하는 데에 더욱 도움이 될 것으로 보고, 이에 대한 실험도 추가 진행할 예정이다.
+
 ## Appendix: Hyperparameter
 
 ### PPO

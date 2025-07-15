@@ -50,6 +50,8 @@ export default makeSource({
   mdx: {
     remarkPlugins: [remarkGfm, remarkMath],
     rehypePlugins: [
+      rehypeSlug,
+      rehypeAutolinkHeadings,
       rehypeKatex, 
       [rehypeHighlight, { ignoreMissing: true }]
     ],

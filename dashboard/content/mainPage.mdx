@@ -4,42 +4,1017 @@ date: 2024-01-15
 type: "main"
 ---
 
-# Dashboard for IIIXR Lab RL Experiments
+# Report for IIIXR Lab RL Experiments
 
-강화학습 실습 과제(`LunarLander-v3`, `BipedalWalker-v3`)를 제출하기 위해 개발한 Dashboard 입니다. 실험 결과는 아래 링크에서 확인하실 수 있습니다.
+## 0. Content
 
-- [LunarLander-v3](<./content/lunarlander-v3-exp>)
-- [BipedalWalker-v3](./content/bipedalwalker-v3-exp)
+1. [Environment](#1-environment)
 
-또한 실험 환경에 대한 설명은 아래 링크에서 확인하실 수 있습니다.
+- [LunarLander-v3](#1-1)
+- [BipedalWalker-v3](#1-1)
 
-- [LunarLander-v3](<./content/lunarlander>)
-- [BipedalWalker-v3](./content/bipedalwalker)
+2. [Model Algorithm](#2-algorithm)
+
+- [Categories of RL Algorithms](#2-1)
+- [Rainbow DQN](#2-2)
+- [Proximal Policy Optimization](#2-3)
+- [Soft Actor-Critic](#2-4)
+- [Twin Delayed DDPG](#2-5)
+
+3. [Experiments](#3-experiments)
+
+- [LunarLander-v3 Experiment](#3-1)
+- [BipedalWalker-v3 Hardcore Experiment](#3-2)
+
+4. [Reference](#4-reference)
+
+5. [Appendix](#5-appendix)
+
+<h2 id="1-environment">1. Environment</h2>
+
+<h3 id="1-1">1.1. LunarLander-v3</h3>
+
+<div align="center">
+  <img src="/experiments/lunarlander/ppo/demo.gif" alt="PPO agent on LunarLander-v3" />
+</div>
+
+#### Action Space
+
+LunarLander는 Discrete Action Space 를 가지며, Action 의 종류는 다음 네 가지이다.
+
+```python
+self.action_space = spaces.Discrete(4)
+```
+
+각 행동의 의미는 다음과 같다:
+- **1**: 아무것도 하지 않음 (자유낙하)
+- **1**: 왼쪽 엔진 점화 → 좌회전
+- **2**: 메인 엔진 점화 → 상승
+- **3**: 오른쪽 엔진 점화 → 우회전
+
+#### State Space
+
+환경은 8차원의 연속적인 상태 벡터를 제공한다:
+
+```python
+state = [
+    (pos.x - VIEWPORT_W / SCALE / 2) / (VIEWPORT_W / SCALE / 2),          
+    (pos.y - (self.helipad_y + LEG_DOWN / SCALE)) / (VIEWPORT_H / SCALE / 2),
+    vel.x * (VIEWPORT_W / SCALE / 2) / FPS,
+    vel.y * (VIEWPORT_H / SCALE / 2) / FPS,
+    self.lander.angle,
+    20.0 * self.lander.angularVelocity / FPS,
+    1.0 if self.legs[0].ground_contact else 0.0,
+    1.0 if self.legs[1].ground_contact else 0.0,
+]
+```
+
+상태 벡터는 착륙선의 **위치, 속도, 자세, 그리고 지면 접촉 상태**를 모두 포함하여 에이전트가 현재 상황을 완전히 파악할 수 있도록 합니다.
+
+#### Reward Function
+
+LunarLander의 보상 함수는 **다중 목표 최적화**를 통해 안전한 착륙을 유도합니다:
+
+##### Position and Shape Reward
+
+```python
+shaping = (
+    -100 * np.sqrt(state[0] * state[0] + state[1] * state[1])  # 착륙 지점과의 거리
+    - 100 * np.sqrt(state[2] * state[2] + state[3] * state[3])  # 속도 크기
+    - 100 * abs(state[4])                                       # 기울기 각도
+    + 10 * state[6]                                            # 왼쪽 다리 접촉
+    + 10 * state[7]                                            # 오른쪽 다리 접촉
+)
+```
+
+이 보상은 다음과 같은 행동을 장려합니다:
+- 착륙 지점에 가까워질수록 **높은 보상**
+- 속도가 느릴수록 **높은 보상**
+- 수직 자세를 유지할수록 **높은 보상**
+- 다리가 지면에 접촉할 때 **추가 보상**
+
+##### Fuel Efficiency Reward
+
+```python
+reward -= m_power * 0.30
+reward -= s_power * 0.03
+```
+
+연료 사용량에 따른 **음의 보상**으로 효율적인 착륙을 유도합니다.
+
+##### Termination Reward
+
+```python
+if self.game_over or abs(state[0]) >= 1.0:
+    terminated = True
+    reward = -100
+
+if not self.lander.awake:
+    terminated = True
+    reward = +100
+```
+
+<h3 id="1-2">1.1. BipedalWalker-v3</h3>
+
+<div align="center">
+  <img src="/experiments/bipedal/td3/demo.gif" alt="TD3 Sequential(Transformer) agent on BipedalWalkerHardcore-v3" />
+</div>
+
+#### Overview
+BipedalWalker는 두 다리를 가진 로봇을 다양한 지형들 속에서 앞으로 전진하도록 하는 문제이다.
+
+#### Terrain Types
+BipedalWalker에는 네 종류의 지형이 존재한다:
+
+- **GRASS**: 완만한 기본 지형
+- **STUMP**: 직사각형 장애물
+- **STAIRS**: 계단형 장애물  
+- **PIT**: 구덩이
+
+#### Action Space
+
+BipedalWalker는 **연속적인 행동 공간(Continuouse Action Space)** 을 가지며, 각각은 관절의 토크에 들어가는 힘을 의미한다.
+
+```python
+self.action_space = spaces.Box(
+    np.array([-1, -1, -1, -1]).astype(np.float32),
+    np.array([1, 1, 1, 1]).astype(np.float32),
+)
+```
+
+구체적으로 다음과 같다.
+
+- **Action 0**: 왼쪽 엉덩이 관절
+- **Action 1**: 왼쪽 무릎 관절
+- **Action 2**: 오른쪽 엉덩이 관절
+- **Action 3**: 오른쪽 무릎 관절
+
+#### State Space
+
+State는 **24** 차원으로 구성된다.
+
+구체적으로 상태는 크게 세 부분으로 나뉜다.
+
+- **Body and Joints**: 위치, 속도, 자세, 각 관절의 각도, 속도, 접촉 상태 등
+- **LIDAR**: LIDAR 센서를 통한 지형 정보
+
+```python
+state += [l.fraction for l in self.lidar]
+assert len(state) == 24
+```
+
+##### LIDAR Sensor
+
+```python
+for i in range(10):
+    self.lidar[i].fraction = 1.0
+    self.lidar[i].p1 = pos
+    self.lidar[i].p2 = (
+        pos[0] + math.sin(1.5 * i / 10.0) * LIDAR_RANGE,
+        pos[1] - math.cos(1.5 * i / 10.0) * LIDAR_RANGE,
+    )
+    self.world.RayCast(self.lidar[i], self.lidar[i].p1, self.lidar[i].p2)
+```
+
+##### Body and Joints
+
+```python
+state = [
+    self.hull.angle,
+    2.0 * self.hull.angularVelocity / FPS,
+    0.3 * vel.x * (VIEWPORT_W / SCALE) / FPS,
+    0.3 * vel.y * (VIEWPORT_H / SCALE) / FPS,
+    self.joints[0].angle,
+    self.joints[0].speed / SPEED_HIP,
+    self.joints[1].angle + 1.0,
+    self.joints[1].speed / SPEED_KNEE,
+    1.0 if self.legs[1].ground_contact else 0.0,
+    self.joints[2].angle,
+    self.joints[2].speed / SPEED_HIP,
+    self.joints[3].angle + 1.0,
+    self.joints[3].speed / SPEED_KNEE,
+    1.0 if self.legs[3].ground_contact else 0.0,
+]
+```
+
+#### Reward Function
+
+BipedalWalker의 보상 함수는 **전진**을 주 목표로, 안정적인 이동을 유도한다.
+
+##### Forward Progress Reward
+
+```python
+shaping = (
+    130 * pos[0] / SCALE
+)
+```
+
+전진 거리에 비례하여 보상을 받는다.
+
+##### Stability Reward
+
+```python
+shaping -= 5.0 * abs(state[0])
+```
+
+몸통을 수직으로 유지할수록 높은 보상을 받는다.
+
+##### Energy Efficiency Penalty
+
+```python
+for a in action:
+    reward -= 0.00035 * MOTORS_TORQUE * np.clip(np.abs(a), 0, 1)
+```
+
+관절 토크 사용량에 비례하여 패널티를 받는다.
+
+##### Termination Conditions
+
+```python
+terminated = False
+if self.game_over or pos[0] < 0:
+    reward = -100
+    terminated = True
+if pos[0] > (TERRAIN_LENGTH - TERRAIN_GRASS) * TERRAIN_STEP:
+    terminated = True
+```
+
+Game Over 또는 목표 지점에 도달하면 종료된다. Game Over 시 -100의 패널티를 받는다.
+
+#### Hardcore Mode
+
+BipedalWalker-v3에는 Hardcore 모드가 존재한다. 다음과 같이 `hardcore=True` 옵션을 주어 설정 가능하다.
+
+```python
+env = gym.make("BipedalWalker-v3", hardcore=True)
+```
+
+일반 모드에서는 GRASS 지형만 반복적으로 나타나지만, 하드 모드에서는 일반 모드에 비해 훨씬 다양하고 도전적인 지형을 마주하게 된다.
+
+```python
+TERRAIN_GRASS = 10
+
+if counter == 0:
+    counter = self.np_random.integers(TERRAIN_GRASS / 2, TERRAIN_GRASS)
+    if state == GRASS and hardcore:
+        state = self.np_random.integers(1, _STATES_)
+        oneshot = True
+    else:
+        state = GRASS
+        oneshot = True
+```
+
+<h2 id="2-algorithm">2. Model Algorithms</h2>
 
 
-실험을 위해 사용한 모델에 대한 설명은 다음 링크에 정리해 두었습니다.
+<h3 id="2-1">2.1. Categories of RL Algorithms</h3>
 
-- [RL algorithm classification](<./content/methods>)
-- [PPO](<./content/ppo>)
-- [Rainbow DQN](<./content/rainbow_dqn>)
-- [SAC](<./content/sac>)
-- [TD3](<./content/td3>)
 
-끝으로 실험에 사용된 코드는 다음 GitHub Repository 에서 확인하실 수 있습니다.
+#### Value Based vs Policy Based
 
-- [Github](<https://github.com/enfow/iiixr/tree/main/trainer>)
+**Value based method**는 agent 가 Action 이나 State Action pair 의 가치(value) 를 추정하여, 가장 높은 가치를 갖는 Action을 선택하도록 학습하는 방법이다.  대표적인 방법으로 **Q-learning** 이 있으며, **DQN** 은 Q-Learning 에 딥러닝을 접목한 알고리즘이다.
 
-## To Do list
+반면 **Policy based method** 는 agent 가 State 를 입력으로 받아 Action 을 결정하는 Policy 를 직접 가지도록 학습한다. Value Based Method 의 가장 큰 단점 중 하나는 선택 가능한 모든 State, Action Pair의 가치를 추정해야하기 때문에, 선택 가능한 Action 의 개수가 유한한 discrete action space 에서만 적용 가능하다는 점이다. 반면 Action 을 직접 반환하는  Policy Based Method 는 연속적인 Action 을 가지는 환경에 적용하는 데에 어려움이 없다.
 
-현재 다음과 같은 실험을 진행하고 있으며, 실험이 완료되는대로 업데이트하겠습니다.
+Policy Gradeint 식을 기초로 업데이트가 이뤄지며, REINFORCE 알고리즘이 가장 기본이 된다. **REINFORCE** 알고리즘의 업데이트 식은 아래와 같다.
 
-- ~~LunarLander-v3 with Discrete SAC~~
-- BipedalWalkerHardcore-v3 with Sequential TD3(LSTM)
-- BipedalWalkerHardcore-v3 with Sequential TD3(Transformer)
-- BipedalWalkerHardcore-v3 with TD3(PER, xlarge size buffer)
-- BipedalWalkerHardcore-v3 with PPO(xlarge size memory, GAE)
+$$
+\theta \leftarrow \theta + \alpha \sum_{t=0}^{T} \nabla_\theta \log \pi_\theta(a_t | s_t) R_t
+$$
 
-## Release Note
+REINFORCE 알고리즘은 Step Size $\alpha$ 가 충분히 작고, 학습 과정에서 점차 줄어들면 이론적으로 수렴이 보장된다. 하지만 전체 Episode 에 걸쳐 수집된 Reward 의 누적합인 Return $R_t$ 은 Variance 가 크며, 이로 인해 실제로는 안정적인 이뤄지기 어렵다.
 
-- 2025-07-02
-  - LunarLander-v3 with Discrete SAC 실험 완료
+이러한 문제를 해결하기 위해 다양한 시도들이 있어왔으며, 대표적으로 **REINFORCE with Baseline**, **Actor-Critic**, **Trust Region** 방법들이 있다. REINFORCE with Baseline 에서는 Return 값에 Baseline 을 빼어주어 분산을 줄이게 된다. Actor-Critic은 return 대신 critic이 추정한 value function을 이용해 advantage를 계산하여 variance를 줄인다. 마지막으로 Trust Region 은 policy 업데이트 시 이전 policy와의 KLD(KL Divergence)를 제한하여 급격한 policy 변화를 방지하고 안정적인 학습을 유도한다.
+
+#### On-policy vs Off-policy
+
+현재 학습 중인 Policy에 따라 수집된 Transition 만을 Policy 업데이트에 사용하는 학습 방법을 말한다. 정책과 데이터 간의 분포 일치가 보장되어 이론적으로 안정적인 학습이 가능하며, 학습 과정에서 편향이 적게 발생한다는 장점이 있다.
+
+하지만 한 번 업데이트하여 Policy 가 변하면 기존 Policy 로 수집한 Tansition 들은 모두 사용할 수 없다는 점 때문에 샘플 효율성이 낮고, 이로 인해 더 많은 상호작용이 요구되는 경향이 있다. 대표적인 알고리즘으로 **REINFORCE**, **PPO**, **TRPO** 등이 있다.
+
+Off-Policy 는 On-Policy 와 반대로 학습 대상이 되는 Policy와 다른 Policy 에 따라 수집된 Transition 에 대해서도 학습하는 방법을 말한다. 따라서 샘플 효율성이 높다는 장점이 있다.
+
+반면 서로 다른 Policy 로 수집된 데이터를 사용하므로 분포의 불일치가 발생한다. 이는 학습의 불안정성을 높이는 요인이 되기도 한다. 대표적인 알고리즘으로 **DQN** 계열의 알고리즘과 **SAC**, **TD3** 등이 있다.
+
+
+<h3 id="2-2">2.2. Rainbow DQN</h3>
+
+[IMPLEMENTATION (RAINBOW-DQN)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/rainbow_dqn_trainer.py>) | [IMPLEMENTATION (DDQN)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ddqn_trainer.py>) | [IMPLEMENTATION (C51)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/c51_trainer.py>)
+
+Rainbow DQN은 DQN의 성능을 개선하기 위해 제안된 다양한 기법들을 한 번에 적용하는 알고리즘이다. 여기에 적용된 주요 기법들로는 다음 6가지가 있다.
+
+- **Double DQN**: Q value의 과대추정(Over Estimation) 문제를 해결하기 위한 기법으로, 기존 DQN 변형 알고리즘에서도 널리 사용되어 왔다.
+- **Prioritized Experience Replay(PER)**: Temporal Difference가 높은 중요한 경험을 우선적으로 학습에 활용함으로써 학습 효율성을 향상시킨다.
+- **Dueling DQN**: state value와 advantage value를 각각 별도의 네트워크로 학습하여 Q value 추정의 정확도를 높이는 구조적 개선을 제공한다.
+- **Multi-Step Bootstrap**: 기존의 1-step return 대신 n-step return을 사용하여 장기적인 보상을 더 효과적으로 고려할 수 있게 한다.
+- **Distributional RL(C51)**: 단순한 Q value 추정을 넘어서 Q value의 전체 분포를 학습함으로써 보다 정확하고 풍부한 가치 함수 근사를 가능하게 한다.
+- **Noisy Network**: 파라미터 공간에 구조화된 노이즈를 추가하여 체계적인 탐험(structured exploration)을 지원한다.
+
+Rainbow DQN은 다른 DQN 계열의 알고리즘과 마찬가지로 **Discrete Action Space** 를 가진 환경에 대해서만 적용할 수 있다는 단점이 있지만, 다양한 기법들이 서로 결합하여 시너지를 내며 높은 안정성과 성능을 보여주는 알고리즘이다.
+
+#### Implementation
+
+다양한 알고리즘이 적용되고 있는 만큼 아래 두 알고리즘을 먼저 구현하고, 성능을 검증한 뒤 Rainbow DQN에 적용하는 방식으로 구현을 진행했다.
+
+- [DDQN](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ddqn_trainer.py>)
+- [C51](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/c51_trainer.py>)
+- [RAINBOW-DQN](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/rainbow_dqn_trainer.py>)
+
+#### Hyperparameter
+
+- **target_update_interval**:  Target network를 업데이트하는 step 수를 의미한다. interval 마다 target network 를 main network의 파라미터로 만들어준다.
+- **alpha**:  Prioritized experience replay에서 priority의 강도를 조절하는 parameter 이다. 1 은 priority 에 따른 샘플링(greedy)을, 0은 uniform sampling 을 의미한다. priority 순서대로 샘플링하게 되면 overfitting 의 가능성이 높아져, 보통 0.6 정도의 값을 사용한다.
+- **beta_start**: priority에 따라 샘플링을 하면 bias 가 생기게 되는데, beta 는 이를 보정하는 역할을 하며, beta_start 는 그 시작 값을 의미한다. 학습이 진행됨에 따라 그 크기가 지속적으로 커진다.
+- **beta_frames**: beta 가 beta_start 에서 1.0 에 도달하는 데에 소요되는 frame 수(step)이다.
+- **n_steps**: Multi step bootstrap 에서 step 수를 의미한다. 크면  클수록 더욱 긴 reward 를 반영할 수 있지만 variance 와 연산량이 커진다.
+- **n_atoms**: Distributional RL 에서 category 의 개수를 뜻하며, 51을 주로 사용한다(c51).
+- **v_min**, **v_max**: value distribution 의 최대 최소 범위를 설정하는 값으로, 환경에서 가능한 최대 최소의 return 범위로 설정한다. 따라서 환경에 맞게 적절히 설정해야 한다.
+
+
+<h3 id="2-3">2.3. Proximal Policy Optimization</h3>
+
+[IMPLEMENTATION (CONTINUOUS)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ppo_trainer.py>)
+ | [IMPLEMENTATION (DISCRETE)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_ppo_trainer.py>)
+
+**PPO(Proximal Policy Optimization)** 알고리즘은 **Trust Region Policy Optimization(TRPO)** 의 복잡한 제약 조건을 단순화하면서도 안정적인 학습 성능을 유지하는 것을 목표로 한다. TRPO는 policy 업데이트 시 KL divergence 제약을 통해 policy gradient의 불안정성 문제를 해결했지만, conjugate gradient 계산 등의 복잡한 연산으로 인한 높은 계산 비용이 단점이었다. PPO는 이를 극복하기 위해 KL divergence 제약을 importance sampling ratio에 대한 **간단한 clipping 연산**으로 대체하는 것이 핵심 아이디어다.
+
+$$
+L^{CLIP}(\theta) = \hat{\mathbb{E}}_t\left[\min\left(r_t(\theta) \hat{A}_t, \text{clip}\left(r_t(\theta), 1-\epsilon, 1+\epsilon\right) \hat{A}_t\right)\right]
+$$
+
+여기서 $r_t(\theta)$ 가 importance sampling ratio 이다.
+
+$$
+r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{\text{old}}}(a_t|s_t)}
+$$
+
+loss function 은 다음과 같다.
+
+$$
+L_t^{CLIP+VF+S}(\theta) = \hat{\mathbb{E}}_t\left[L_t^{CLIP}(\theta) - c_1 L_t^{VF}(\theta) + c_2 S[\pi_\theta](s_t)\right]
+$$
+
+여기서   $V_t^{VF}$ 은 value function 에 대한 loss 를, $S[\pi_\theta](s_t)$ 는 entropy 의 크기를 의미한다.
+
+$$
+S[\pi_\theta](s_t) = -\sum_a \pi_\theta(a|s_t) \log \pi_\theta(a|s_t)
+$$
+
+PPO와 TRPO는 엄밀한 의미에서 완전한 On-Policy 알고리즘이라고 할 수 없다. 전통적인 On-Policy의 정의는 현재 정책으로 수집된 데이터만을 사용하여 학습하는 것을 의미하는데, 두 알고리즘 모두 여러 Epoch에 걸쳐 동일한 데이터를 재사용하면서 정책을 반복적으로 업데이트한다.
+
+이 과정에서 정책이 변화하면서 초기에 수집된 데이터와 현재 정책 간의 분포 차이가 발생하게 된다. 이러한 문제를 해결하기 위해 두 알고리즘은 서로 다른 접근 방식을 사용한다. TRPO는 연속된 정책 간의 KL divergence에 제약을 가하여 정책 변화량을 직접 제한하는 방식을 채택한다. 반면 PPO는 Importance Sampling ratio를 계산하고 이를 클리핑하여 과도한 정책 업데이트를 방지하는 것으로 대체한다.
+
+이러한 안전장치들을 통해 데이터를 여러 번 재사용하면서도 학습의 안정성을 보장할 수 있으며, 결과적으로 순수한 On-Policy 방법의 고질적인 문제인 낮은 샘플 효율성을 크게 개선할 수 있다. 특히 PPO는 TRPO가 요구하는 비싼 연산을 clipping 으로 대체하였다는 점에서 보다 효율적이다.
+
+#### Implementation
+
+원 논문의 알고리즘과 최대한 동일하게 구현하였으며, 원 논문에서 제시하는 다양한 실험 옵션 중 Clipping 을 사용하는 알고리즘만 구현하였다.
+
+#### Hyperparameter
+
+PPO의 주요 hyperparameter 로는 ppo_epochs, clip_eps, entropy_coef 등이 있다.
+
+- **ppo_epochs**: 수집된 batch 데이터를 사용하여 policy를 업데이트하는 횟수이다. 일반적으로 3-10 사이의 값을 사용하며, 너무 크면 old policy에서 벗어나 importance sampling의 가정이 위배되고, 너무 작으면 sample efficiency가 떨어진다. 보통 4-5가 많이 사용된다.
+- **clip_eps**: importance sampling ratio를 제한하는 clipping parameter로, [1−ϵ,1+ϵ] 범위를 정의한다. 일반적으로 0.1-0.3 사이의 값을 사용하며, 0.2가 기본값으로 널리 사용된다. 값이 클수록 policy 변화를 더 허용하지만 불안정해질 수 있고, 작을수록 안정적이지만 학습 속도가 느려진다.
+- **entropy_coef**: policy의 entropy에 대한 가중치로, exploration을 촉진하는 역할을 한다. 일반적으로 0.01-0.1 사이의 값을 사용하며, 값이 클수록 더 많은 exploration을 하게 된다. 학습 초기에는 높은 값으로 exploration을 촉진하고, 학습이 진행되면서 점차 줄여나가는 방식(entropy decay)도 많이 사용된다.
+
+
+<h3 id="2-4">2.4 Soft Actor-Critic(SAC)</h3>
+
+[IMPLEMENTATION (ORIGINAL)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/sac_trainer.py>)| [IMPLEMENTATION (v2)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/sac_v2_trainer.py>) | [IMPLEMENTATION (DISCRETE)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_trainer.py>)
+
+ **SAC**는 **Off-Policy Actor-Critic** 계열의 알고리즘으로, Reward를 최대화하는 동시에 Policy의 Entropy 또한 함께 최대화하는 방향으로 학습을 진행한다. Policy의 Entropy를 높인다는 것은 특정 Action을 극단적으로 선택할 가능성을 낮추는 것을 의미하며, 이는 학습 과정에서 exploration을 높이는 효과로 이어진다.
+
+$$
+J(\pi) = \mathbb{E}_{\tau \sim \pi}\left[\sum_{t=0}^{T} \gamma^t \left(r(s_t, a_t) + \alpha \mathcal{H}(\pi(\cdot|s_t))\right)\right]
+$$
+
+SAC는 그 구조상 value network, Q network, policy network를 갖는다. 여기서 value network는 Q network의 target value 계산에 사용되고, Q network는 critic의 역할을 한다. Policy는 Q 값을 높이면서 동시에 적절한 entropy를 유지하는 방향으로 업데이트된다. 이때 Q-value의 over estimation 문제가 학습 안정성에 큰 영향을 미치므로, Double Q learning 을 적용하고 있다. 여기서 $\alpha$ 는 temperature parameter 로, exploration 과 exploitation 간의 비율을 조절하는 계수이다[1]. 
+
+SAC를 구현하는 방법은 다양하다. 원래 버전은 별도의 value network를 사용하지만, 후속 연구에서는 value function 없이 double target Q network만 사용하는 방법도 제안[2]되었다. 또한 원래 SAC는 Continuous Action을 갖는 환경을 위해 제안되었지만, Discrete 환경에 맞게 구현하는 방법[3]도 있다.
+
+#### Implementation
+
+SAC는 변형이 많은 알고리즘인데, 원 알고리즘을 포함하여 총 세 가지 종류의 구현을 진행했다. 각각의 구현은 각자의 논문을 최대한 따라 구현하기 위해 노력했다. 
+
+- **[Original SAC]** [Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor(Haarnoja, et al. 2018)](<https://arxiv.org/pdf/1812.05905>)
+- **[SAC v2]** [Soft Actor-Critic Algorithms and Applications(Haarnoja, et al. 2018)](<https://arxiv.org/pdf/1812.05905>)
+  - Original SAC 와 달리 State Value Function(V) 이 생략되었다.
+  - Double Target Q Network 가 도입되었다.
+- **[DISCRETE SAC]** [Soft Actor-Critic for Discrete Action Settings(Petros Christodoulou, 2019)](<https://arxiv.org/abs/1910.07207>)
+  - Discrete Action Space 에 맞게 Policy 와 Critic 의 출력 구조가 변경되었다.
+  - Reparameterization Trick 과 같이 Continuouse Action Space 를 가정하고 사용된 부분들이 대체되었다.
+
+#### Hyperparameter
+
+- **tau**: Target network의 soft update를 위한 계수이다.  tau 값이 작을수록 target network가 천천히 업데이트되어 학습이 안정적이지만 느려지고, 클수록 빠르게 업데이트되지만 불안정해질 수 있다.
+- **entropy_coef**: Temperature parameter α의 초기값 또는 고정값으로, exploration의 강도를 결정한다.
+
+
+<h3 id="2-5">2.5 Twin Delayed DDPG</h3>
+
+
+[IMPLEMENTATION(TD3)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_trainer.py>) | [IMPLEMENTATION (TD3 SEQUENTIAL)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_trainer.py>)
+
+**TD3**는 **DDPG(Deep Deterministic Policy Gradient)** 가 가지고 있는 문제점을 줄이기 위해 제안된 알고리즘이다. 구체적으로 DDPG는 Q-value의 overestimation 문제와 높은 variance로 학습이 불안정한 문제를 가지고 있는데, TD3는 **Twin Critics, Delayed Policy Update, Target Policy Smoothing** 이라는 세 가지 기법을 적용하여 이를 해결한다.
+
+- **Twin Critics**: 두 개의 독립적인 Q-value function을 도입하고, target value 계산 시 두 함수의 값 중 낮은 것을 선택하여 Over Estimation 문제를 해소하는 방법이다.
+- **Delayed Policy Update**: 매번 actor와 critic을 함께 업데이트하지 않고, critic을 actor보다 더욱 자주 업데이트하는 방법을 말하며, 보다 정확한 Q-value를 기반으로 policy가 업데이트될 수 있도록 돕는다.
+- **Target Policy Smoothing**: target action에 noise를 더하는 것으로, deterministic policy의 단점인 overfitting을 방지하는 효과를 기대할 수 있다.
+
+#### Implementation
+
+**TD3** 논문에 따라 기본 알고리즘을 구현하였고, `BipedalWalker-V3` 실험을 위해 Sequential 구조(`LSTM`, `Transformer`)를 사용하는 Actor 를 추가 구현하였다. 이때 간단한 Configuration 설정 만으로 Actor 구조를 선택 가능하도록 하였다.
+
+Transformer Actor 코드 예시는 아래와 같다.
+
+```python
+# https://github.com/enfow/iiixr/blob/main/trainer/src/model/td3.py
+class TransformerTD3Actor(nn.Module):
+    def __init__(
+        self, state_dim, action_dim, max_action, hidden_dim=256, nhead=8, n_layers=6
+    ):
+        super().__init__()
+        self.max_action = max_action
+        self.embedding = nn.Linear(state_dim, hidden_dim)
+        self.transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                hidden_dim,
+                nhead,
+                batch_first=True,
+            ),
+            n_layers,
+            enable_nested_tensor=True,
+        )
+        self.action_head = nn.Linear(hidden_dim, action_dim)
+
+    def forward(self, state_sequence):
+        embedded = self.embedding(state_sequence)
+        transformed = self.transformer(embedded)
+        action = torch.tanh(self.action_head(transformed[:, -1]))
+        return action * self.max_action
+```
+
+#### Hyperparameters
+
+- **policy_delay**: Policy 업데이트 빈도를 조절하는 parameter로, critic을 몇 번 업데이트할 때마다 policy를 1번 업데이트할지를 의미한다.
+- **policy_noise**: Target policy smoothing에 사용되는 noise의 표준편차를 의미한다. 값이 클수록 더 smooth한 Q-function을 얻을 수 있지만 너무 크면 target의 정확성이 떨어질 수 있다.
+- **noise_clip**: Target noise의 clipping 범위로, target action 의 값의 범위를 조절한다.
+- exploration_noise: Exploration 을 위해 action 에 사용되는 noise의 표준편차를 의미한다.
+- **tau**: Target network의 soft update 계수이다.
+
+
+<h2 id="3-experiments">3. Experiments</h2>
+
+<h3 id="3-1">3.1. LunarLander-v3 Experiment</h3>
+
+본 실험은 강화학습의 세 가지 대표적인 알고리즘인 **PPO, RainbowDQN, SAC(Discrete)** 를 **LunarLander-v3** 환경에서 구현하고 성능을 비교 분석하는 것을 목적으로 한다. 각 알고리즘은 PyTorch를 사용하여 직접 구현하였고, 최대한 논문의 알고리즘과 동일하게 구현하기 위해 노력했다. 또한 독립적인 실험 환경을 위해 Docker 를 사용하여 실험을 진행했다.
+
+#### Algorithms
+
+- **DDQN(Double Deep Q-Network)**: Value based model 의 Baseline
+  - [PAPER](<https://arxiv.org/abs/1509.06461>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ddqn_trainer.py>)
+- **RainbowDQN**: DQN 의 성능을 개선하는 여러 알고리즘들을 통합 적용한 알고리즘
+  - [REVIEW](./rainbow_dqn) | [PAPER](<https://arxiv.org/abs/1706.02275>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/rainbow_dqn_trainer.py>)
+- **PPO(Discrete)**: Policy-based, On-Policy 알고리즘(Trust Region)
+  - [REVIEW](./ppo) | [PAPER](<https://arxiv.org/abs/1707.06347>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_ppo_trainer.py>)
+- **SAC(Discrete)**: Policy-based, Off-Policy 알고리즘(Actor-Critic, Maximum Entropy)
+  - [REVIEW](<./sac>) | [PAPER](<https://arxiv.org/abs/1910.07207>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_sac_trainer.py>)
+
+#### Environment
+
+[LunarLander-v3](./lunarlander)
+
+- 8차원의 State space 
+- 4차원의 Discrete Action space
+
+#### Results
+
+상대적으로 간단한 환경에서 진행한 실험인 만큼 과제에서 요구하는 `PPO`, `SAC`, `Rainbow DQN` 세 알고리즘 모두 `Return=250` 을 넘는 성능을 보여주었을 뿐만 아니라, 성능 비교를 위해 구현한 `DDQN` 으로도 `Episode=1000` 내에 빠르게 높은 성능에 도달하였다.
+
+##### DDQN
+
+[IMPLEMENTATION (DDQN)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ddqn_trainer.py>)
+
+Value Based mdoel 알고리즘의 Baseline 성능을 확인하기 위해 DQN이 가지는 과대 추정 문제를 해결하기 위해 두 개의 네트워크를 사용하는 DDQN 에 대한 실험을 진행했다.
+
+![DDQN agent on LunarLander-v3](/experiments/lunarlander/ddqn/training.png)
+
+`LunarLander-v3` 에서 약 750 Episode 에서 `Return=250` 점을 기록했다.
+
+<div align="center">
+  <img src="/experiments/lunarlander/ddqn/demo.gif" alt="DDQN agent on LunarLander-v3" />
+</div>
+
+##### RainbowDQN
+
+[IMPLEMENTATION (RAINBOW-DQN)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/rainbow_dqn_trainer.py>)
+
+DQN 계열의 알고리즘에서 적용 가능한 다양한 알고리즘들을 적용한 Rainbow DQN 이 최고 성능(Maximum Return) `332.27`으로 가장 높은 성능을 보여주었다.
+
+![RainbowDQN agent on LunarLander-v3](/experiments/lunarlander/rainbow_dqn/training.png)
+
+<div align="center">
+  <img src="/experiments/lunarlander/rainbow_dqn/demo.gif" alt="RainbowDQN agent on LunarLander-v3" />
+</div>
+
+##### PPO
+
+[IMPLEMENTATION (DISCRETE)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_ppo_trainer.py>)
+
+PPO 알고리즘 또한 동일한 환경에서 높은 성능을 기록했다. 특히 On-Policy 알고리즘의 특징을 반영하듯 매우 빠른 수렴 속도와 안정적인 학습 경향성을 보여주었다.
+
+![PPO agent on LunarLander-v3](/experiments/lunarlander/ppo/training.png)
+
+<div align="center">
+  <img src="/experiments/lunarlander/ppo/demo.gif" alt="PPO agent on LunarLander-v3" />
+</div>
+
+##### SAC(Discrete)
+
+[IMPLEMENTATION (DISCRETE)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/discrete_sac_trainer.py>)
+
+Discrete Action Space 에 맞게 구현된 SAC 알고리즘 또한 앞선 PPO, Rainbow DQN 알고리즘들과 유사한 성능을 보여주었다. PPO와 비교해 볼 때 Return 의 Variance 가 더 큰 것을 확인할 수 있다.
+
+![SAC(Discrete) agent on LunarLander-v3](/experiments/lunarlander/discrete_sac/training.png)
+
+<div align="center">
+  <img src="/experiments/lunarlander/discrete_sac/demo.gif" alt="SAC(Discrete) agent on LunarLander-v3" />
+</div>
+
+##### Conclusion
+
+`LunarLandver-v3` 환경을 해결하는 데에 `Rainbow DQN` 이 가장 높은 성능을 기록했다는 점에서, 복잡한 알고리즘 조합이 단순한 환경에서도 높은 성능을 보인다는 것을 확인했다. `PPO` 알고리즘은 수렴 속도가 가장 빠르고, 학습이 가장 안정적이었다. 이는 전형적인 On-Policy 계열의 알고리즘의 특성이 이번 실험에서도 확인되었다고 할 수 있다.
+
+##### Limitations
+
+이번 실험에서는 하나의 시드(`seed=42`)로 설정하고 1회 실험을 진행했다. 따라서 실험 결과에 대한 통계적 유의성이 높지 않다. 5~10 개의 시드로 복수 실험하고, 그 성능을 비교해 볼 필요가 있다.
+
+
+<h3 id="3-2">3.2. BipedalWalker-v3 Hardcore Experiment</h3>
+
+본 실험은 강화학습으로 `BipedalWalkerHardcore-v3` 환경을 정복하는 Agent를 구현하고 성능을 비교 분석하는 것을 목적으로 한다. BipedalWalkerHardcore-v3는 표준적인 제어 문제를 넘어서, 다양한 장애물과 지형 변화를 포함하는 환경(Hardcore)으로, 랜덤성이 강한 환경에서 Agent 의 학습 능력 및 일반화 성능을 요구한다.
+
+문제를 해결하기 위해 대표적인 Continuous Control 알고리즘인 `PPO`, `SAC`, `TD3` 와 그 확장 모델들을 PyTorch를 사용하여 구현하였다. 세 알고리즘의 일반적인 구현으로는 모두 높은 성능을 달성하기 어려웠던 만큼, **Sequential Model**을 적용하거나, **Return 의 Variance 를 줄이는 방향**으로 개선을 시도하여 성능을 높이기 위해 노력했다.
+
+#### Algorithms
+
+- **PPO**: Policy-based, On-Policy 알고리즘
+  - [REVIEW](./ppo) | [PAPER](<https://arxiv.org/abs/1707.06347>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ppo_trainer.py>)
+- **PPO Sequential**: Policy-based, On-Policy 알고리즘
+  - [REVIEW](./ppo) | [PAPER](<https://arxiv.org/abs/1707.06347>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ppo_sequential_trainer.py>)
+- **SAC**: Policy-based, Off-Policy 알고리즘(Actor-Critic, Maxinum Entropy)
+  - [REVIEW](<./sac>) | [PAPER](<https://arxiv.org/abs/1910.07207>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/sac_v2_trainer.py>)
+- **TD3**: Policy-based, Off-Policy 알고리즘(Actor-Critic)
+  - [REVIEW](<./td3>) | [PAPER](<https://arxiv.org/abs/1802.09477>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_trainer.py>)
+- **TD3 Sequential**: TD3 의 Policy Network 에 LSTM 을 적용한 모델
+  - [REVIEW](<./td3>) | [PAPER](<https://arxiv.org/abs/1802.09477>) | [CODE](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_sequential_trainer.py>)
+
+#### Environments
+
+[BipedalWalkerHardcore-v3](./bipedalwalker)
+
+- State space: 24차원의 Continuous Space
+  - 선체 각도, 각속도, 수평/수직 속도, 관절 위치/속도, 다리 접촉 여부, 10개의 라이다 센서 값
+- Action space: 4차원의 Continuous Space
+  - 양쪽 고관절과 무릎 관절에 가해지는 토크의 크기
+- `Hardcore=True` 옵션 적용
+  - 일반 BipedalWalker 환경에 더해, 다양한 장애물들이 무작위로 발생한다.
+
+#### Experiments
+
+우선 **PPO, SAC, TD3**와 같이 강화학습에서 높은 성능을 보여주는 대표적인 알고리즘을 구현하고 빠르게 적용해보았다. 매우 도전적인 환경에서 실험을 진행한 만큼, 일반적인 알고리즘으로는 해결하는 데에 어려움을 겪었다.
+
+##### PPO
+
+[IMPLEMENTATION (CONTINUOUS)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/ppo_trainer.py>)
+
+`LunarLander-v3` 환경에서 매우 높은 성능과 수렴 속도를 보여주었던 PPO 알고리즘의 경우 학습에 어려움을 겪었다.
+
+![PPO agent on BipedalWalkerHardcore-v3](/experiments/bipedal/ppo/training.png)
+![PPO agent on BipedalWalkerHardcore-v3](/experiments/bipedal/ppo/evaluation.png)
+
+<div align="center">
+  <img src="/experiments/bipedal/ppo/demo.gif" alt="PPO agent on BipedalWalkerHardcore-v3" />
+</div>
+
+##### SAC V2
+
+[IMPLEMENTATION (v2)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/sac_v2_trainer.py>) 
+
+SAC v2 알고리즘의 경우 일부 학습이 진행되어 `Return=100` 에 근접하는 모습을 보였으나, 여전히 높은 성능을 보여주지 못했다.
+
+![SAC V2 agent on BipedalWalkerHardcore-v3](/experiments/bipedal/sac_v2/training.png)
+![SAC V2 agent on BipedalWalkerHardcore-v3](/experiments/bipedal/sac_v2/evaluation.png)
+
+<div align="center">
+  <img src="/experiments/bipedal/sac_v2/demo.gif" alt="SAC V2 agent on BipedalWalkerHardcore-v3" />
+</div>
+
+##### TD3
+
+[IMPLEMENTATION(TD3)](<https://github.com/enfow/iiixr/blob/main/trainer/src/trainer/td3_trainer.py>)
+
+TD3 알고리즘 또한 유사한 결과를 보여주었다. `Return=100` 수준에서 더 이상 학습이 종료되었다.
+
+![TD3 agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3/training.png)
+![TD3 agent on BipedalWalkerHardcore-v3](/experiments/bipedal/td3/evaluation.png)
+
+<div align="center">
+  <img src="/experiments/bipedal/td3/demo.gif" alt="TD3 agent on BipedalWalkerHardcore-v3" />
+</div>
+
+#### PPO Algorithm Optimization
+
+초기 실험의 저조한 결과를 바탕으로 성능 개선을 위해 두 가지 가설을 세웠다.
+
+1. **Sequential State 정보의 필요성**: 첫째, 여러 스텝에 걸친 상태(State) 정보를 순차적으로 정책망에 제공하면 성능이 향상될 것이라는 가설이다. `BipedalWalker-v3` 환경에서 에이전트는 라이다 센서로 전방의 지형을 파악한다. 따라서 과거부터 현재까지의 관측 정보를 종합하면 장애물 지형을 통과하는 더 나은 행동을 학습할 수 있을 것이라 판단했다. 이를 검증하기 위해 **LSTM과 Transformer**를 정책 신경망에 도입했다.
+
+2. **Return의 분산 감소**: 둘째, 학습 및 평가 과정에서 관찰된 과도하게 높은 Return의 분산(Variance)을 줄이면 학습이 안정되고 성능이 향상될 것이라는 가설이다. 무작위성이 높은 환경일수록 보상의 변동성이 커지는 것은 자연스럽지만, 이를 제어하면 더 안정적인 정책 업데이트가 가능하다.
+
+우리는 PPO 알고리즘을 최적화 대상으로 선택했다. 비록 초기 성능은 가장 낮았지만, On-policy 특성상 학습이 안정적이고 Hyperparameter 에 덜 민감할 것으로 기대했다. 적용된 최적화 기법은 다음과 같다.
+
+1. **GAE(Generalized Advantage Estimation)**: 어드밴티지 추정치의 분산을 줄이기 위해 적용했다.
+
+2. **Advantage Normalization**: 어드밴티지 값의 스케일을 조정하여 정책 업데이트를 안정화시켰다.
+
+3. **LSTM, Transformer**: 여러 타임스텝의 상태 정보를 처리하기 위해 도입했다.
+
+실험 결과, GAE와 Advantage Normalization를 적용했을 때 성능이 크게 향상되었다. 또한, Sequential Model 을 사용하는 것이 학습에 긍정적인 영향을 미친다는 사실을 확인했다.
+
+![ppo](/experiments/bipedal/compare/ppo.png)
+
+##### Sequntial Layer: LSTM, Transformer
+
+![ppo_seq_layer](/experiments/bipedal/compare/ppo_seq_layer.png)
+
+PPO의 Actor, Critic 모델로 LSTM과 Transformer를 각각 적용하여 성능을 비교했다. 동일한 실험 조건에서 LSTM 기반 모델이 더 높은 점수를 달성했으며, 더 안정적인 학습 곡선을 보였다.
+
+```json
+# LSTM PPO
+"model": "ppo_seq",
+"hidden_dim": 256,
+"n_layers": 2,
+"embedding_type": "lstm",
+"seq_len": 32,
+"seq_stride": 1,
+"use_layernorm": true
+
+# Transformer PPO
+"model": "ppo_seq",
+"hidden_dim": 256,
+"n_layers": 4,
+"embedding_type": "transformer",
+"seq_len": 32,
+"seq_stride": 1,
+"use_layernorm": true
+```
+
+##### Sequential Length: 24, 36
+
+Sequential Length 또한 중요한 Hyperparameter로 보고 실험을 진행했다. 라이다 정보를 활용하는 환경의 특성상, 더 긴 시퀀스가 에이전트의 판단에 도움이 될 것이라 가정했다.
+
+![ppo_seq_length](/experiments/bipedal/compare/ppo_seq_length.png)
+
+실험 결과, Sequential Length 를 `36` 으로 설정했을 때가 `24` 일 때보다 더 좋은 성능을 기록했다. 이는 Sequential Model 이 효과적으로 학습하기 위해 충분한 길이의 과거 정보를 제공하는 것이 중요했음을 시사한다.
+
+```json
+# length=24
+"model": "ppo_seq",
+"hidden_dim": 256,
+"n_layers": 2,
+"embedding_type": "lstm",
+"seq_len": 24,
+"seq_stride": 1,
+"use_layernorm": true
+
+# length=36
+"model": "ppo_seq",
+"hidden_dim": 256,
+"n_layers": 2,
+"embedding_type": "lstm",
+"seq_len": 32,
+"seq_stride": 1,
+"use_layernorm": true
+```
+
+##### Curriculum Learning
+
+마지막으로 커리큘럼 학습을 도입했다. Agent 는 먼저 일반 `BipedalWalker-v3` 환경에서 학습을 시작하고, 일정 수준(Episode Return 250점)에 도달하면 Hardcore 모드로 전환하여 학습을 이어갔다. 가장 흔한 지형인 GRASS에서 안정적인 보행을 먼저 마스터하면, 이후 어려운 장애물을 더 효율적으로 학습할 수 있을 것이라고 판단했다.
+
+![curriculum](/experiments/bipedal/compare/curriculum.png)
+
+가설대로, 커리큘럼을 적용한 에이전트는 처음부터 Hardcore 환경에서 학습한 에이전트보다 더 높은 최종 점수를 달성했다.
+
+#### Conclusion
+
+![all](/experiments/bipedal/compare/all.png)
+
+PPO에 다양한 최적화 기법을 적용했음에도 불구하고, 그 성능은 초기 실험에서 TD3나 SAC와 같은 Off-policy 알고리즘이 보여준 잠재력에 미치지 못했다. 이는 `BipedalWalker-v3 Hardcore` 처럼 복잡하고 무작위성이 강한 환경에서는 Off Policy의 높은 샘플 효율성이 결정적인 이점으로 작용함을 시사한다.
+
+구체적으로, On-Policy 알고리즘인 PPO는 정책이 업데이트될 때마다 이전의 경험 데이터를 폐기한다. 메모리 크기를 10,000, 최대 스텝을 1,600으로 설정했을 때, 최악의 경우 단 6~7개의 에피소드 경험만으로 학습이 이루어진다. 이는 무작위로 생성되는 다양한 장애물을 경험하고, 이를 바탕으로 Agent 의 성능을 평가하기에 부족한 양이다. 반면, Off Policy 알고리즘은 Replay Buffer를 활용하여 과거 정책이 수집한 경험까지 재사용하므로, 훨씬 다양한 상황을 학습에 활용할 수 있다.
+
+따라서 본 실험 환경에는 Off Policy 접근법이 더 적합하다고 판단된다. PPO 실험에서 얻은 통찰을 바탕으로, 목표 점수인 평균 250점 달성을 위해 TD3와 SAC에 다음과 같은 개선안을 적용할 것을 제안한다.
+
+1. Actor, Critic 으로 LSTM 과 같은 Sequential Model 을 사용할 것
+2. 충분한 길이의 Sequence Length 를 적용할 것
+3. 더욱 큰 또는 점진적으로 커지는 Replay buffer 를 적용할 것
+4. Prioritized Reploy Buffer 를 적용할 것
+5. Curriculum learning 환경을 적용할 것
+
+또한 Sequential Model 을 적용함에 있어 feature extractor를 강화하는 것이 좋을 것 같다는 피드백을 받았고, 이에 대한 실험을 추가적으로 진행하고자 한다. 기존에는 LSTM/Transformer 레이어 앞에 단 하나의 Fully Connected Layer 를 두었다면 Layer를 4개 혹은 그 이상으로 늘려 실험을 진행하고 있다.
+
+끝으로, Sequential State 로 과거 Observation 뿐만 아니라 Action 을 포함시키게 되면 Agent 가 의사결정을 하는 데에 더욱 도움이 될 것이라는 아이디어가 있어 이에 대한 실험도 추가 진행할 예정이다.
+
+<h2 id="4-reference">4. Reference</h2>
+
+
+1. [gymnasium.farama.org. Gymnasium Documentation.](<https://gymnasium.farama.org/>)
+2. [Hessel, M., Modayil, J., Hasselt, van, Schaul, T., Ostrovski, G., Dabney, W., Horgan, D., Piot, B., Azar, M. and Silver, D. (2017). Rainbow: Combining Improvements in Deep Reinforcement Learning.](<https://arxiv.org/abs/1710.02298>)
+3. [Schulman, J., Wolski, F., Dhariwal, P., Radford, A. and Openai, O. (2017). Proximal Policy Optimization Algorithms.](<https://arxiv.org/pdf/1707.06347>)
+4. [Haarnoja, T., Zhou, A., Abbeel, P. and Levine, S. (n.d.). Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor.](<https://arxiv.org/pdf/1801.01290>)
+5. [Haarnoja, T., Aurick, Hartikainen, K., Tucker, G., Ha, S., Tan, J., Kumar, V., Zhu, H., Gupta, A., Abbeel, P. and Levine, S. (n.d.). Soft Actor-Critic Algorithms and Applications.](<https://arxiv.org/pdf/1812.05905>)
+6. [Christodoulou, P. (2019). Soft Actor-Critic for Discrete Action Settings.](<https://arxiv.org/pdf/1910.07207>)
+
+
+<h2 id="5-appendix">5. Appendix</h2>
+
+### Appendix A: LunarLander-v3 Hyperparameter Examples
+
+#### DDQN
+
+```json
+{
+  "model": {
+    "model": "ddqn",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "per",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1,
+    "per_n_steps": 3
+  },
+  "seed": 42,
+  "episodes": 1000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "LunarLander-v3",
+  "state_dim": 8,
+  "action_dim": 4,
+  "is_discrete": true,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "target_update_interval": 8000,
+  "start_steps": 10000,
+  "eps_start": 1.0,
+  "eps_end": 0.01,
+  "eps_decay": 50000
+}
+```
+
+#### RainbowDQN
+
+```json
+{
+  "model": {
+    "model": "rainbow_dqn",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "per",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "LunarLander-v3",
+  "state_dim": 8,
+  "action_dim": 4,
+  "is_discrete": true,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "target_update_interval": 8000,
+  "n_steps": 3,
+  "n_atoms": 51,
+  "v_min": -400.0,
+  "v_max": 400.0,
+  "start_steps": 10000
+}
+```
+
+#### PPO
+
+```json
+{
+  "model": {
+    "model": "ppo",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "LunarLander-v3",
+  "state_dim": 8,
+  "action_dim": 4,
+  "is_discrete": true,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "n_transactions": 5000,
+  "ppo_epochs": 5,
+  "clip_eps": 0.2,
+  "normalize_advantages": false,
+  "entropy_coef": 0.2
+}
+```
+
+#### SAC(Discrete)
+
+```json
+{
+  "model": {
+    "model": "discrete_sac",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1,
+    "per_n_steps": 3
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "LunarLander-v3",
+  "state_dim": null,
+  "action_dim": null,
+  "is_discrete": null,
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "tau": 0.005,
+  "entropy_coef": 0.98,
+  "start_steps": 20000,
+  "target_update_interval": 1
+}
+```
+
+
+
+## Appendix B: Bipedal Walker-v3 Hardcore Hyperparameter Examples
+
+### PPO
+
+```json
+{
+  "model": {
+    "model": "ppo",
+    "hidden_dim": 256,
+    "n_layers": 2,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1,
+    "per_n_steps": 3
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 2000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "BipedalWalkerHardcore-v3",
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "n_transactions": 10000,
+  "ppo_epochs": 7,
+  "clip_eps": 0.2,
+  "normalize_advantages": true,
+  "entropy_coef": 0.01
+}
+```
+
+### SAC V2
+
+```json
+{
+  "model": {
+    "model": "sac_v2",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1
+  },
+  "seed": 42,
+  "episodes": 5000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "BipedalWalkerHardcore-v3",
+  "device": "cuda",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "tau": 0.005,
+  "entropy_coef": 0.2,
+  "start_steps": 10000,
+  "target_update_interval": 8000
+}
+```
+
+### TD3
+
+```json
+{
+  "model": {
+    "model": "td3",
+    "hidden_dim": 256,
+    "n_layers": 3,
+    "embedding_type": "fc"
+  },
+  "buffer": {
+    "buffer_size": 1000000,
+    "buffer_type": "default",
+    "alpha": 0.6,
+    "beta_start": 0.4,
+    "beta_frames": 100000,
+    "seq_len": 1
+  },
+  "seed": 42,
+  "episodes": 10000,
+  "max_steps": 1000,
+  "lr": 0.0003,
+  "gamma": 0.99,
+  "batch_size": 256,
+  "env": "BipedalWalkerHardcore-v3",
+  "device": "cpu",
+  "eval": true,
+  "eval_period": 10,
+  "eval_episodes": 10,
+  "tau": 0.005,
+  "policy_delay": 2,
+  "policy_noise": 0.2,
+  "noise_clip": 0.5,
+  "exploration_noise": 0.1,
+  "start_steps": 1000
+}
+```
